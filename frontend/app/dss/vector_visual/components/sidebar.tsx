@@ -65,6 +65,13 @@ export default function Sidebar({
     setOpenDropdown(openDropdown === id ? '' : id);
   };
 
+  // Function to handle style changes
+  const handleStyleChange = () => {
+    if (window.updateMapStyles) {
+      window.updateMapStyles();
+    }
+  };
+
   // Load shapefile data
   const loadShapefile = async () => {
     if (!category || !subcategory) {
@@ -227,8 +234,6 @@ export default function Sidebar({
                 ? 'max-h-[300px] opacity-100 translate-y-0'
                 : 'max-h-0 opacity-0 -translate-y-2 overflow-hidden border-none'
               }`}>
-
-              
               <div className="p-3 cursor-pointer flex items-center hover:bg-gray-50 transition-transform duration-200 hover:translate-x-1 border-b border-gray-100" onClick={() => selectAnalysisTool('Intersection')}>
                 <i className="fas fa-object-group mr-2.5 w-5 text-center text-blue-500"></i> Intersection
               </div>
@@ -261,7 +266,10 @@ export default function Sidebar({
                 type="color"
                 id="lineColor"
                 value={lineColor}
-                onChange={(e) => setLineColor(e.target.value)}
+                onChange={(e) => {
+                  setLineColor(e.target.value);
+                  handleStyleChange();
+                }}
                 className="h-8 w-8 p-0 border-0 rounded cursor-pointer bg-transparent"
               />
             </div>
@@ -272,7 +280,10 @@ export default function Sidebar({
                 type="color"
                 id="fillColor"
                 value={fillColor}
-                onChange={(e) => setFillColor(e.target.value)}
+                onChange={(e) => {
+                  setFillColor(e.target.value);
+                  handleStyleChange();
+                }}
                 className="h-8 w-8 p-0 border-0 rounded cursor-pointer bg-transparent"
               />
             </div>
@@ -289,7 +300,10 @@ export default function Sidebar({
               max="1"
               step="0.1"
               value={opacity}
-              onChange={(e) => setOpacity(parseFloat(e.target.value))}
+              onChange={(e) => {
+                setOpacity(parseFloat(e.target.value));
+                handleStyleChange();
+              }}
               className="w-full h-1.5 bg-gray-200 rounded-md appearance-none cursor-pointer focus:outline-none"
             />
           </div>
@@ -305,7 +319,10 @@ export default function Sidebar({
               max="10"
               step="1"
               value={weight}
-              onChange={(e) => setWeight(parseInt(e.target.value))}
+              onChange={(e) => {
+                setWeight(parseInt(e.target.value));
+                handleStyleChange();
+              }}
               className="w-full h-1.5 bg-gray-200 rounded-md appearance-none cursor-pointer focus:outline-none"
             />
           </div>
@@ -328,7 +345,7 @@ export default function Sidebar({
             <i className="fas fa-sliders-h mr-2 text-blue-500"></i> Display Settings
           </div>
 
-          <div className="flex items-center mb-2">
+          {/* <div className="flex items-center mb-2">
             <input
               className="mr-2 rounded text-blue-500 focus:ring-blue-500"
               type="checkbox"
@@ -337,7 +354,7 @@ export default function Sidebar({
               onChange={(e) => setShowGrid(e.target.checked)}
             />
             <label className="text-sm text-gray-700" htmlFor="grid-toggle">Coordinate Grid</label>
-          </div>
+          </div> */}
 
           <div className="flex items-center mb-2">
             <input

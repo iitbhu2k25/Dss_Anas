@@ -36,7 +36,7 @@ export default function Header() {
 
           {/* Middle Section with Title and Running Tagline */}
           <div className="text-center w-1/2 px-3">
-            <h2 className="text-2xl font-bold text-blue-800 tracking-wide">Decision Support System</h2>
+            <h2 className="text-4xl font-bold text-blue-900 tracking-wide">Decision Support System</h2>
             <div className="w-full overflow-hidden mt-1">
               <p className="text-sm text-blue-600 font-medium whitespace-nowrap overflow-hidden relative">
                 <span 

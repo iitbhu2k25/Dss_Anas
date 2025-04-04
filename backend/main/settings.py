@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "Basic",
     "raster_visual",
+    "mapplot",
 ]
 
 MIDDLEWARE = [
@@ -129,3 +130,10 @@ CORS_ALLOWED_ORIGINS = [
 
 # Optional: Allow credentials (cookies, etc.) if needed
 CORS_ALLOW_CREDENTIALS = True
+
+
+
+
+# Media files (User uploaded files)
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/DSS_Anas/media/'

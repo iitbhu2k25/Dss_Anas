@@ -6,6 +6,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 
+
 export default function Map({
   sidebarCollapsed,
   onFeatureClick,
@@ -15,6 +16,7 @@ export default function Map({
   gridVisible,
   showNotification
 }) {
+  const [geoJsonLayer, setGeoJsonLayer] = useState(null);
   const mapRef = useRef(null);
   const mapContainerRef = useRef(null);
   const [map, setMap] = useState(null);
@@ -28,6 +30,7 @@ export default function Map({
   const [bufferToolVisible, setBufferToolVisible] = useState(false); // Toggle for buffer tool visibility
   const mapInstanceRef = useRef(null);
   const drawControlRef = useRef(null);
+  
 
   // Initialize map when component mounts
   useEffect(() => {
@@ -98,6 +101,8 @@ export default function Map({
 
         // L.control.bigImage({position: 'topleft'}).addTo(newMap);
         
+        
+
         // Drawing tools - create feature group to store drawn items
         const drawnItems = new L.FeatureGroup();
         newMap.addLayer(drawnItems);
@@ -444,7 +449,7 @@ export default function Map({
           setLoading(true);
           
           // Make API call to backend
-          const response = await fetch(`localhost:8000/mapplot/get_shapefile_data?category=${category}&subcategory=${subcategory}`);
+          const response = await fetch(`http://localhost:9000/api/mapplot/get_shapefile_data?category=${category}&subcategory=${subcategory}`);
           
           if (!response.ok) {
             throw new Error(`Failed to fetch data: ${response.statusText}`);
@@ -453,19 +458,21 @@ export default function Map({
           const geoJsonData = await response.json();
           
           // Clear any existing GeoJSON layers
-          if (currentLayer && mapInstanceRef.current.hasLayer(currentLayer)) {
-            mapInstanceRef.current.removeLayer(currentLayer);
+          if (geoJsonLayer) {
+            mapInstanceRef.current.removeLayer(geoJsonLayer);
           }
           
           // Create new GeoJSON layer
           const L = require('leaflet');
           const newLayer = L.geoJSON(geoJsonData, {
-            style: {
-              color: document.getElementById('lineColor')?.value || '#000000',
-              weight: parseInt(document.getElementById('weight')?.value || '2'),
-              opacity: parseFloat(document.getElementById('opacity')?.value || '0.8'),
-              fillColor: document.getElementById('fillColor')?.value || '#78b4db',
-              fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.8')
+            style: function() {
+              return {
+                color: document.getElementById('lineColor')?.value || '#000000',
+                weight: parseInt(document.getElementById('weight')?.value || '2'),
+                opacity: 1, // Set line opacity to 1 (full)
+                fillColor: document.getElementById('fillColor')?.value || '#78b4db',
+                fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.8')
+              };
             },
             onEachFeature: (feature, layer) => {
               // Bind popup with properties
@@ -485,6 +492,9 @@ export default function Map({
               });
             }
           }).addTo(mapInstanceRef.current);
+          
+          // Save reference to the new layer
+          setGeoJsonLayer(newLayer);
           
           // Fit map to GeoJSON bounds
           if (newLayer.getBounds().isValid()) {
@@ -515,6 +525,32 @@ export default function Map({
       }
     };
   }, [currentLayer, onFeatureClick, showNotification]);
+
+
+  const updateLayerStyles = () => {
+    if (!geoJsonLayer) return;
+    
+    const newStyle = {
+      color: document.getElementById('lineColor')?.value || '#000000',
+      weight: parseInt(document.getElementById('weight')?.value || '2'),
+      opacity: 1, // Keep line opacity at full (1)
+      fillColor: document.getElementById('fillColor')?.value || '#78b4db',
+      fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.8')
+    };
+    
+    geoJsonLayer.setStyle(newStyle);
+  };
+  useEffect(() => {
+  if (typeof window !== 'undefined') {
+    window.updateMapStyles = updateLayerStyles;
+  }
+  
+  return () => {
+    if (typeof window !== 'undefined') {
+      delete window.updateMapStyles;
+    }
+  };
+}, [geoJsonLayer]); // Update dependency
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {

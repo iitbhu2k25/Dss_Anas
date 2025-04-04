@@ -12,6 +12,9 @@
 /backend/.mypy_cache/
 /backend/.pytest_cache/
 /backend/media/
+/media/
+backend/media/
+
 # Docker related
 docker-compose.override.yml
 *.log
