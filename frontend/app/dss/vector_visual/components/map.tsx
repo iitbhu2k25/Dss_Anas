@@ -5,6 +5,10 @@
 import React, { useEffect, useState, useRef } from 'react';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
+// import L from 'leaflet'//import leafletjs
+// import 'leaflet-easyprint'//imported leaflet-easy print
+
+
 
 
 export default function Map({
@@ -31,7 +35,10 @@ export default function Map({
   const mapInstanceRef = useRef(null);
   const drawControlRef = useRef(null);
   
+  
 
+
+  
   // Initialize map when component mounts
   useEffect(() => {
     if (typeof window !== 'undefined' && !mapInstanceRef.current) {
@@ -99,11 +106,21 @@ export default function Map({
           position: 'bottomleft',
         }).addTo(newMap);
 
-        // L.control.bigImage({position: 'topleft'}).addTo(newMap);
+     
+    
+        
+        // L.easyPrint({
+        //   title: 'Download Map',
+        //   position: 'topright',
+        //   sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
+        //   exportOnly: true,
+        //   filename: 'MyMap',
+        // }).addTo(newMap);//downloading button added
         
         
 
         // Drawing tools - create feature group to store drawn items
+        
         const drawnItems = new L.FeatureGroup();
         newMap.addLayer(drawnItems);
         drawnItemsRef.current = drawnItems;
@@ -456,7 +473,9 @@ export default function Map({
           }
           
           const geoJsonData = await response.json();
-          
+          if (!geoJsonData.features || geoJsonData.features.length === 0) {
+            throw new Error("No feature data received");
+          }
           // Clear any existing GeoJSON layers
           if (geoJsonLayer) {
             mapInstanceRef.current.removeLayer(geoJsonLayer);
@@ -469,7 +488,7 @@ export default function Map({
               return {
                 color: document.getElementById('lineColor')?.value || '#000000',
                 weight: parseInt(document.getElementById('weight')?.value || '2'),
-                opacity: 1, // Set line opacity to 1 (full)
+                opacity: 2, // Set line opacity to 1 (full)
                 fillColor: document.getElementById('fillColor')?.value || '#78b4db',
                 fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.8')
               };
@@ -645,6 +664,7 @@ export default function Map({
   // Function to handle shapefile download
   const handleDownload = () => {
     showNotification(
+      "not implemented asap we do that in the backend",
       "Download Started",
       "Your vector data is being downloaded",
       "success"
