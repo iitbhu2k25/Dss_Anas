@@ -11,7 +11,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
 
   // Position the modal at the top center when it opens
   useEffect(() => {
-    if (isOpen && window) {
+    if (isOpen && typeof window !== 'undefined') {
       setPosition({
         x: (window.innerWidth - 400) / 2, // Adjust width as needed
         y: 200 // Position from top of screen
@@ -21,7 +21,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
 
   // Custom dragging implementation
   const handleMouseDown = (e) => {
-    if (e.target.closest('.modal-header')) {
+    if (modalRef.current && e.target.closest('.modal-header')) {
       setIsDragging(true);
       const rect = modalRef.current.getBoundingClientRect();
       setDragOffset({
@@ -61,84 +61,51 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging]);
+  }, [isDragging, handleMouseMove, handleMouseUp]);
 
   // Function to export all vector layers to a single GeoJSON
   const exportAllLayersToGeoJSON = () => {
     if (!mapInstanceRef.current || !drawnItemsRef.current) return null;
     
     const allFeatures = [];
-    const L = require('leaflet');
     
-    // Process drawn items with special handling for circles
-    drawnItemsRef.current.eachLayer(function (layer) {
-      // Special handling for circle
-      if (layer instanceof L.Circle) {
-        // Circles need special handling as they're not directly supported in GeoJSON
-        const center = layer.getLatLng();
-        const radius = layer.getRadius();
-        
-        // Create a GeoJSON feature for the circle
-        const circleFeature = {
-          type: "Feature",
-          properties: {
-            type: "Circle",
-            radius: radius // Store radius in properties
-          },
-          geometry: {
-            type: "Point",
-            coordinates: [center.lng, center.lat]
-          }
-        };
-        
-        // Add pop-up content to properties if available
-        if (layer.getPopup()) {
-          circleFeature.properties.popupContent = layer.getPopup().getContent();
-        }
-        
-        allFeatures.push(circleFeature);
-      } 
-      // Handle all other geometry types (including lines and polylines)
-      else if (layer.toGeoJSON) {
-        const geojson = layer.toGeoJSON();
-        
-        // Preserve any popup content
-        if (layer.getPopup()) {
-          if (geojson.properties === undefined) {
-            geojson.properties = {};
-          }
-          geojson.properties.popupContent = layer.getPopup().getContent();
-        }
-        
-        // For LineString, make sure it's properly formatted
-        if (geojson.geometry && geojson.geometry.type === "LineString") {
-          // Ensure coordinates are properly formatted
-          if (!Array.isArray(geojson.geometry.coordinates) || geojson.geometry.coordinates.length < 2) {
-            console.warn("Invalid LineString detected, skipping");
-            return; // Skip this feature
-          }
-        }
-        
-        // Handle Feature or FeatureCollection
-        if (geojson.type === "FeatureCollection") {
-          geojson.features.forEach(feature => {
-            if (feature.geometry) {
-              allFeatures.push(feature);
+    try {
+      // We need to ensure Leaflet is available
+      const L = window.L || require('leaflet');
+      
+      // Process drawn items with special handling for circles
+      drawnItemsRef.current.eachLayer(function (layer) {
+        // Special handling for circle
+        if (layer instanceof L.Circle) {
+          // Circles need special handling as they're not directly supported in GeoJSON
+          const center = layer.getLatLng();
+          const radius = layer.getRadius();
+          
+          // Create a GeoJSON feature for the circle
+          const circleFeature = {
+            type: "Feature",
+            properties: {
+              type: "Circle",
+              radius: radius // Store radius in properties
+            },
+            geometry: {
+              type: "Point",
+              coordinates: [center.lng, center.lat]
             }
-          });
-        } else if (geojson.type === "Feature" && geojson.geometry) {
-          allFeatures.push(geojson);
-        }
-      }
-    });
-    
-    // Add features from loaded GeoJSON layer if it exists
-    if (geoJsonLayer) {
-      geoJsonLayer.eachLayer(function (layer) {
-        if (layer.toGeoJSON) {
+          };
+          
+          // Add pop-up content to properties if available
+          if (layer.getPopup()) {
+            circleFeature.properties.popupContent = layer.getPopup().getContent();
+          }
+          
+          allFeatures.push(circleFeature);
+        } 
+        // Handle all other geometry types (including lines and polylines)
+        else if (layer.toGeoJSON) {
           const geojson = layer.toGeoJSON();
           
-          // Add popup content to properties if available
+          // Preserve any popup content
           if (layer.getPopup()) {
             if (geojson.properties === undefined) {
               geojson.properties = {};
@@ -146,6 +113,16 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
             geojson.properties.popupContent = layer.getPopup().getContent();
           }
           
+          // For LineString, make sure it's properly formatted
+          if (geojson.geometry && geojson.geometry.type === "LineString") {
+            // Ensure coordinates are properly formatted
+            if (!Array.isArray(geojson.geometry.coordinates) || geojson.geometry.coordinates.length < 2) {
+              console.warn("Invalid LineString detected, skipping");
+              return; // Skip this feature
+            }
+          }
+          
+          // Handle Feature or FeatureCollection
           if (geojson.type === "FeatureCollection") {
             geojson.features.forEach(feature => {
               if (feature.geometry) {
@@ -157,6 +134,41 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
           }
         }
       });
+      
+      // Add features from loaded GeoJSON layer if it exists
+      if (geoJsonLayer) {
+        geoJsonLayer.eachLayer(function (layer) {
+          if (layer.toGeoJSON) {
+            const geojson = layer.toGeoJSON();
+            
+            // Add popup content to properties if available
+            if (layer.getPopup()) {
+              if (geojson.properties === undefined) {
+                geojson.properties = {};
+              }
+              geojson.properties.popupContent = layer.getPopup().getContent();
+            }
+            
+            if (geojson.type === "FeatureCollection") {
+              geojson.features.forEach(feature => {
+                if (feature.geometry) {
+                  allFeatures.push(feature);
+                }
+              });
+            } else if (geojson.type === "Feature" && geojson.geometry) {
+              allFeatures.push(geojson);
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error processing layers:", error);
+      showNotification(
+        "Export Error",
+        "Error processing map layers",
+        "error"
+      );
+      return null;
     }
 
     // Final GeoJSON FeatureCollection
@@ -227,81 +239,81 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
         return;
       }
 
-      import('html2canvas').then(({ default: html2canvas }) => {
-        import('jspdf').then(({ default: jsPDF }) => {
-          // Add title to the map (temporarily)
-          const titleElement = document.createElement('div');
-          titleElement.style.position = 'absolute';
-          titleElement.style.top = '10px';
-          titleElement.style.left = '50%';
-          titleElement.style.transform = 'translateX(-50%)';
-          titleElement.style.zIndex = '1000';
-          titleElement.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
-          titleElement.style.padding = '5px 10px';
-          titleElement.style.borderRadius = '4px';
-          titleElement.style.fontWeight = 'bold';
-          titleElement.style.fontSize = '16px';
-          titleElement.innerText = mapTitle;
+      // Use dynamic imports for better error handling
+      Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]).then(([{ default: html2canvas }, { default: jsPDF }]) => {
+        // Add title to the map (temporarily)
+        const titleElement = document.createElement('div');
+        titleElement.style.position = 'absolute';
+        titleElement.style.top = '10px';
+        titleElement.style.left = '50%';
+        titleElement.style.transform = 'translateX(-50%)';
+        titleElement.style.zIndex = '1000';
+        titleElement.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
+        titleElement.style.padding = '5px 10px';
+        titleElement.style.borderRadius = '4px';
+        titleElement.style.fontWeight = 'bold';
+        titleElement.style.fontSize = '16px';
+        titleElement.innerText = mapTitle;
+        
+        const mapContainer = mapInstanceRef.current.getContainer();
+        mapContainer.appendChild(titleElement);
+        
+        // Calculate dimensions based on DPI
+        const scaleFactor = dpi / 96; // Standard screen is typically 96 DPI
+        
+        html2canvas(mapContainer, {
+          useCORS: true,
+          scale: scaleFactor,
+          logging: false,
+          allowTaint: true,
+        }).then((canvas) => {
+          // Remove the temporary title
+          mapContainer.removeChild(titleElement);
           
-          const mapContainer = mapInstanceRef.current.getContainer();
-          mapContainer.appendChild(titleElement);
-          
-          // Calculate dimensions based on DPI
-          const scaleFactor = dpi / 96; // Standard screen is typically 96 DPI
-          
-          html2canvas(mapContainer, {
-            useCORS: true,
-            scale: scaleFactor,
-            logging: false,
-            allowTaint: true,
-          }).then((canvas) => {
-            // Remove the temporary title
-            mapContainer.removeChild(titleElement);
-            
-            const imgData = canvas.toDataURL('image/jpeg', 1.0);
-            const pdf = new jsPDF({
-              orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-              unit: 'mm',
-            });
-            
-            // Calculate PDF dimensions to fit the canvas
-            const pdfWidth = pdf.internal.pageSize.getWidth();
-            const pdfHeight = pdf.internal.pageSize.getHeight();
-            const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
-            const imgWidth = canvas.width * ratio;
-            const imgHeight = canvas.height * ratio;
-            const x = (pdfWidth - imgWidth) / 2;
-            const y = (pdfHeight - imgHeight) / 2;
-            
-            pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
-            pdf.save(`${mapTitle.replace(/\s+/g, '_')}.pdf`);
-            
-            showNotification(
-              "Export Successful",
-              "Map exported to PDF successfully",
-              "success"
-            );
-          }).catch(err => {
-            console.error("Canvas rendering error:", err);
-            showNotification(
-              "Export Error",
-              `Failed to render map: ${err.message}`,
-              "error"
-            );
+          const imgData = canvas.toDataURL('image/jpeg', 1.0);
+          const pdf = new jsPDF({
+            orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+            unit: 'mm',
           });
+          
+          // Calculate PDF dimensions to fit the canvas
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = pdf.internal.pageSize.getHeight();
+          const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+          const imgWidth = canvas.width * ratio;
+          const imgHeight = canvas.height * ratio;
+          const x = (pdfWidth - imgWidth) / 2;
+          const y = (pdfHeight - imgHeight) / 2;
+          
+          pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+          pdf.save(`${mapTitle.replace(/\s+/g, '_')}.pdf`);
+          
+          showNotification(
+            "Export Successful",
+            "Map exported to PDF successfully",
+            "success"
+          );
         }).catch(err => {
-          console.error("jsPDF loading error:", err);
+          // Make sure to remove title if there's an error
+          if (mapContainer.contains(titleElement)) {
+            mapContainer.removeChild(titleElement);
+          }
+          
+          console.error("Canvas rendering error:", err);
           showNotification(
             "Export Error",
-            "Failed to load PDF library",
+            `Failed to render map: ${err.message}`,
             "error"
           );
         });
       }).catch(err => {
-        console.error("html2canvas loading error:", err);
+        console.error("Library loading error:", err);
         showNotification(
           "Export Error",
-          "Failed to load canvas conversion library",
+          "Failed to load required libraries",
           "error"
         );
       });
@@ -355,6 +367,10 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
           
           // Convert to JPG and download
           canvas.toBlob((blob) => {
+            if (!blob) {
+              throw new Error("Failed to create image blob");
+            }
+            
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -371,6 +387,11 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
             );
           }, 'image/jpeg', 0.9);
         }).catch(err => {
+          // Make sure to remove title if there's an error
+          if (mapContainer.contains(titleElement)) {
+            mapContainer.removeChild(titleElement);
+          }
+          
           console.error("Canvas rendering error:", err);
           showNotification(
             "Export Error",
@@ -513,17 +534,23 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
         left: `${position.x}px`, 
         top: `${position.y}px`,
         width: '400px',
-        cursor: isDragging ? 'grabbing' : 'auto'
+        cursor: isDragging ? 'grabbing' : 'auto',
+        userSelect: 'none', // Prevent text selection during drag
+        pointerEvents: 'auto' // Ensure modal is clickable
       }}
     >
       {/* Draggable Header */}
-      <div className="modal-header bg-blue-600 text-white px-4 py-2 flex justify-between items-center cursor-grab rounded-t-md">
+      <div 
+        className="modal-header bg-blue-600 text-white px-4 py-2 flex justify-between items-center rounded-t-md"
+        style={{ cursor: 'grab' }}
+      >
         <h3 className="font-semibold text-sm">Export Map</h3>
         <button 
           onClick={onClose} 
-          className="text-white hover:text-gray-200"
+          className="text-white hover:text-gray-200 cursor-pointer"
+          aria-label="Close"
         >
-          <i className="fas fa-times"></i>
+          ×
         </button>
       </div>
 
@@ -533,7 +560,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
         <div className="mb-3">
           <label className="block text-gray-700 text-sm font-medium mb-1">Export Format:</label>
           <div className="grid grid-cols-2 gap-2">
-            <label className="flex items-center">
+            <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 name="exportFormat"
@@ -544,7 +571,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
               />
               <span className="ml-2 text-sm">PDF</span>
             </label>
-            <label className="flex items-center">
+            <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 name="exportFormat"
@@ -555,7 +582,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
               />
               <span className="ml-2 text-sm">JPG</span>
             </label>
-            <label className="flex items-center">
+            <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 name="exportFormat"
@@ -566,7 +593,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
               />
               <span className="ml-2 text-sm">SVG</span>
             </label>
-            <label className="flex items-center">
+            <label className="flex items-center cursor-pointer">
               <input
                 type="radio"
                 name="exportFormat"
@@ -621,7 +648,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
       <div className="bg-gray-50 px-4 py-2 flex justify-end rounded-b-md">
         <button
           onClick={handleExport}
-          className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
         >
           Export
         </button>
