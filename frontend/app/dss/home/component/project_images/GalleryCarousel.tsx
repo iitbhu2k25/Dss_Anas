@@ -40,7 +40,7 @@ export default function GalleryCarousel() {
   };
 
   return (
-    <section className="w-full bg-blue-200 py-5 overflow-hidden">
+    <section className="w-full bg-200 py-5 overflow-hidden">
       <div className="container mx-auto px-4">
         <div className="relative">
           {/* Images */}

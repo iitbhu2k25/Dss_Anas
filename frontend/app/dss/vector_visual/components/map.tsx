@@ -1,12 +1,16 @@
 // app/vector/components/map.tsx
 
 'use client';
-
+import ExportModal from '../components/export';
 import React, { useEffect, useState, useRef } from 'react';
+import Draggable from 'react-draggable';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
 // import L from 'leaflet'//import leafletjs
 // import 'leaflet-easyprint'//imported leaflet-easy print
+// import "leaflet.locatecontrol"; // Import plugin
+// import "leaflet.locatecontrol/dist/L.Control.Locate.min.css"; // Import styles
+
 
 
 
@@ -34,10 +38,9 @@ export default function Map({
   const [bufferToolVisible, setBufferToolVisible] = useState(false); // Toggle for buffer tool visibility
   const mapInstanceRef = useRef(null);
   const drawControlRef = useRef(null);
-  
-  
 
-
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  
   
   // Initialize map when component mounts
   useEffect(() => {
@@ -106,8 +109,10 @@ export default function Map({
           position: 'bottomleft',
         }).addTo(newMap);
 
-     
+        
     
+     
+        // L.control.locate().addTo(newMap);
         
         // L.easyPrint({
         //   title: 'Download Map',
@@ -486,11 +491,11 @@ export default function Map({
           const newLayer = L.geoJSON(geoJsonData, {
             style: function() {
               return {
-                color: document.getElementById('lineColor')?.value || '#000000',
+                color: document.getElementById('lineColor')?.value || 'red',
                 weight: parseInt(document.getElementById('weight')?.value || '2'),
-                opacity: 2, // Set line opacity to 1 (full)
+                opacity: 1, // Set line opacity to 1 (full)
                 fillColor: document.getElementById('fillColor')?.value || '#78b4db',
-                fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.8')
+                fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.1')
               };
             },
             onEachFeature: (feature, layer) => {
@@ -499,7 +504,7 @@ export default function Map({
                 .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
                 .join('<br>');
               
-              layer.bindPopup(popupContent);
+              // layer.bindPopup(popupContent);
               
               // Add click handler
               layer.on({
@@ -554,7 +559,7 @@ export default function Map({
       weight: parseInt(document.getElementById('weight')?.value || '2'),
       opacity: 1, // Keep line opacity at full (1)
       fillColor: document.getElementById('fillColor')?.value || '#78b4db',
-      fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.8')
+      fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.1')
     };
     
     geoJsonLayer.setStyle(newStyle);
@@ -887,6 +892,11 @@ export default function Map({
   };
   
 
+  
+  
+
+
+
   return (
     <div className="relative w-full h-200" ref={mapContainerRef}>
       {/* Map container - set explicit position and z-index */}
@@ -968,7 +978,29 @@ export default function Map({
         >
           <i className="fas fa-download mr-2 text-blue-500 hover:text-white transition-colors"></i> Download Shapefile
         </button>
+
+
         
+            {/* Export Button - Replaces the previous GeoJSON Export button */}
+      <button 
+        onClick={() => setExportModalOpen(true)}
+        className="absolute top-2 left-72 bg-white rounded-lg py-2.5 px-4 shadow-md z-100 flex items-center font-medium text-gray-700 pointer-events-auto cursor-pointer transition-all duration-300 hover:bg-green-500 hover:text-white hover:-translate-y-0.5 hover:shadow-lg"
+      >
+        <i className="fas fa-file-export mr-2 text-green-500 hover:text-white transition-colors"></i> Export
+      </button>
+      
+      {/* Export Modal */}
+      <ExportModal 
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        mapInstanceRef={mapInstanceRef}
+        drawnItemsRef={drawnItemsRef}
+        geoJsonLayer={geoJsonLayer}
+        showNotification={showNotification}
+      />
+
+
+
         {/* Map Controls */}
         <div className="absolute right-2 top-140  bg-white rounded-xl shadow-md z-10 flex flex-col p-1.5 transition-transform duration-300 hover:-translate-x-1 pointer-events-auto">
           <button onClick={handleZoomIn} className="w-10 h-10 border-none bg-white rounded-lg my-0.5 cursor-pointer transition-all duration-200 flex items-center justify-center text-gray-700 hover:bg-blue-500 hover:text-white hover:scale-110" title="Zoom In">

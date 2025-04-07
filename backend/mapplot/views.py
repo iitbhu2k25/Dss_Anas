@@ -26,10 +26,10 @@ logger = logging.getLogger(__name__)
 # Set GDAL configuration
 os.environ['SHAPE_RESTORE_SHX'] = 'YES'
 
-ALLOWED_EXTENSIONS = {'shp', 'dbf', 'shx', 'prj'}
+# ALLOWED_EXTENSIONS = {'shp', 'dbf', 'shx', 'prj'}
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# def allowed_file(filename):
+#     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 
@@ -108,6 +108,7 @@ def get_shapefile_data(request):
                 
         if category in shapefile_paths and subcategory in shapefile_paths[category]:
             shapefile_path = os.path.join(settings.MEDIA_ROOT, shapefile_paths[category][subcategory])
+              
             
             # Check if file exists
             if not os.path.exists(shapefile_path):

@@ -1,220 +1,48 @@
 'use client'
-import { useState, useEffect } from 'react';
-import { ChevronDown, ChevronUp, Layers, Settings, Eye, EyeOff, RefreshCw, AlertTriangle, Info } from 'lucide-react';
+import { ChevronDown, ChevronUp, Layers, Eye, EyeOff, RefreshCw, AlertTriangle } from 'lucide-react';
+import { useMapContext } from '@/app/contexts/MapContext';
+import { useEffect } from 'react';
 
-// Updated interface definitions to work with OpenLayers component
-interface RasterLayerProps {
-  id: string;
-  name: string;
-  visible: boolean;
-  url?: string;
-  opacity?: number;
-}
+const Sidebar: React.FC = () => {
+  const {
+    selectedRasterLayers,
+    selectedOrganisation,
+    selectedRasterFile,
+    pixelInfo,
+    isOrganisationsLoading,
+    isRasterFilesLoading,
+    organisationsError,
+    rasterFilesError,
+    organisationDropdownOpen,
+    rasterFileDropdownOpen,
+    organisations,
+    rasterFiles,
+    handleOrganisationSelect,
+    handleRasterFileSelect,
+    toggleRasterVisibility,
+    updateRasterOpacity,
+    removeRasterLayer,
+    setOrganisationDropdownOpen,
+    setRasterFileDropdownOpen,
+    getOrganisationName,
+    getRasterFileName
+  } = useMapContext();
 
-interface SidebarProps {
-  selectedMapLibrary: 'openlayers' | 'leaflet';
-  onMapLibraryChange: (library: 'openlayers' | 'leaflet') => void;
-  onRasterSelectionChange?: (selectedRasters: RasterLayerProps[]) => void;
-  pixelInfo?: Record<string, any>;
-}
-
-interface Organisation {
-  id: string;
-  name: string;
-}
-
-interface RasterFile {
-  id: string;
-  name: string;
-  url?: string;
-}
-
-const Sidebar: React.FC<SidebarProps> = ({ 
-  selectedMapLibrary, 
-  onMapLibraryChange,
-  onRasterSelectionChange,
-  pixelInfo = {}
-}) => {
-  // State for Organisations and raster files
-  const [organisations, setOrganisations] = useState<Organisation[]>([]);
-  const [rasterFiles, setRasterFiles] = useState<RasterFile[]>([]);
-
-  // State for selected items
-  const [selectedOrganisation, setSelectedOrganisation] = useState<string>('');
-  const [selectedRasterFile, setSelectedRasterFile] = useState<string>('');
-  const [selectedRasterLayers, setSelectedRasterLayers] = useState<RasterLayerProps[]>([]);
-
-  // UI state
-  const [isOrganisationsLoading, setIsOrganisationsLoading] = useState<boolean>(true);
-  const [isRasterFilesLoading, setIsRasterFilesLoading] = useState<boolean>(false);
-  const [organisationsError, setOrganisationsError] = useState<string | null>(null);
-  const [rasterFilesError, setRasterFilesError] = useState<string | null>(null);
+  // Get the currently active (visible) layer, if any
+  const activeLayer = selectedRasterLayers.find(layer => layer.visible);
   
-  // Dropdown state
-  const [organisationDropdownOpen, setOrganisationDropdownOpen] = useState<boolean>(false);
-  const [rasterFileDropdownOpen, setRasterFileDropdownOpen] = useState<boolean>(false);
-
-  // Fetch Organisations on component mount
+  // Debug logging
   useEffect(() => {
-    const fetchOrganisations = async () => {
-      try {
-        setIsOrganisationsLoading(true);
-        setOrganisationsError(null);
-        const response = await fetch('http://localhost:9000/api/raster_visual/categories/');
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch Organisations: ${response.statusText}`);
-        }      
-          
-        const data = await response.json();
-        console.log("data is ",data)
-        setOrganisations(data);
-      } catch (error) {
-        console.error('Error fetching Organisations:', error);
-        setOrganisationsError(error instanceof Error ? error.message : 'Failed to load Organisations');
-      } finally {
-        setIsOrganisationsLoading(false);
-      }
-    };
-
-    fetchOrganisations();
-  }, []);
-
-  // Fetch raster files when Organisation is selected
+    console.log("Selected organisation:", selectedOrganisation);
+    console.log("Available organisations:", organisations);
+  }, [selectedOrganisation, organisations]);
+  
   useEffect(() => {
-    if (!selectedOrganisation) return;
-    
-    const fetchRasterFiles = async () => {
-      try {
-        setIsRasterFilesLoading(true);
-        setRasterFilesError(null);
-        
-        const response = await fetch(`http://localhost:9000/api/raster_visual/categories/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ organisation: selectedOrganisation }),
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch raster files: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        console.log('Raster files:', data);
-        setRasterFiles(data);
-      } catch (error) {
-        console.error('Error fetching raster files:', error);
-        setRasterFilesError(error instanceof Error ? error.message : 'Failed to load raster files');
-      } finally {
-        setIsRasterFilesLoading(false);
-      }
-    };
-
-    fetchRasterFiles();
-  }, [selectedOrganisation]);
-
-  // Handle Organisation selection
-  const handleOrganisationSelect = (organisationName: string) => {
-    setSelectedOrganisation(organisationName);
-    setSelectedRasterFile(''); // Reset raster file selection
-    setSelectedRasterLayers([]); // Reset raster layers
-    setOrganisationDropdownOpen(false);
-    
-    // Clear any selected rasters in parent component
-    if (onRasterSelectionChange) {
-      onRasterSelectionChange([]);
-    }
-  };
-
-  // Handle raster file selection
-  const handleRasterFileSelect = async (rasterFileId: string) => {
-    setSelectedRasterFile(rasterFileId);
-    setRasterFileDropdownOpen(false);
-    
-    // Find the selected raster file
-    const selectedFile = rasterFiles.find(file => file.id === rasterFileId);
-    
-    if (selectedFile && onRasterSelectionChange) {
-      try {
-        // Fetch detailed information including URL if not present
-        let rasterUrl = selectedFile.url;
-        
-        if (!rasterUrl) {
-          // Fetch the raster file URL
-          const response = await fetch(`http://localhost:9000/api/raster_visual/rasters/${rasterFileId}/`);
-          if (response.ok) {
-            const data = await response.json();
-            rasterUrl = data.file_url || data.url;
-          }
-        }
-        
-        // Create raster layer
-        const rasterLayer: RasterLayerProps = {
-          id: selectedFile.id,
-          name: selectedFile.name,
-          visible: true,
-          url: rasterUrl,
-          opacity: 1.0
-        };
-        
-        setSelectedRasterLayers([rasterLayer]);
-        onRasterSelectionChange([rasterLayer]);
-        console.log('Selected raster layer:', rasterLayer);
-      } catch (error) {
-        console.error('Error fetching raster details:', error);
-      }
-    }
-  };
-
-  // Toggle raster layer visibility
-  const toggleRasterVisibility = (rasterId: string) => {
-    const updatedLayers = selectedRasterLayers.map(layer => 
-      layer.id === rasterId ? { ...layer, visible: !layer.visible } : layer
-    );
-    
-    setSelectedRasterLayers(updatedLayers);
-    if (onRasterSelectionChange) {
-      onRasterSelectionChange(updatedLayers);
-    }
-  };
-
-  // Update raster layer opacity
-  const updateRasterOpacity = (rasterId: string, opacity: number) => {
-    const updatedLayers = selectedRasterLayers.map(layer => 
-      layer.id === rasterId ? { ...layer, opacity } : layer
-    );
-    
-    setSelectedRasterLayers(updatedLayers);
-    if (onRasterSelectionChange) {
-      onRasterSelectionChange(updatedLayers);
-    }
-  };
-
-  // Remove raster layer
-  const removeRasterLayer = (rasterId: string) => {
-    const updatedLayers = selectedRasterLayers.filter(layer => layer.id !== rasterId);
-    setSelectedRasterLayers(updatedLayers);
-    if (onRasterSelectionChange) {
-      onRasterSelectionChange(updatedLayers);
-    }
-  };
-
-  // Get Organisation name by ID
-  const getOrganisationName = (id: string) => {
-    const org = organisations.find(org => org.id === id);
-    return org ? org.name : 'Select an Organisation';
-  };
-
-  // Get raster file name by ID
-  const getRasterFileName = (id: string) => {
-    const file = rasterFiles.find(file => file.id === id);
-    return file ? file.name : 'Select a raster file';
-  };
+    console.log("Raster files:", rasterFiles);
+  }, [rasterFiles]);
 
   return (
-    <div className="w-64 bg-white shadow-md p-4 h-full flex flex-col">
+    <div className="w-100 bg-white shadow-md p-4 h-full flex flex-col">
       <div className="mb-6">
         <h2 className="text-lg font-semibold mb-2 flex items-center">
           <Layers className="mr-2 h-5 w-5 text-blue-500" />
@@ -283,7 +111,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => setRasterFileDropdownOpen(!rasterFileDropdownOpen)}
                 disabled={!selectedOrganisation || isRasterFilesLoading}
               >
-                <span className="truncate">{selectedRasterFile ? getRasterFileName(selectedRasterFile) : 'Select a raster file'}</span>
+                <span className="truncate">
+                  {selectedRasterFile ? getRasterFileName(selectedRasterFile) : 'Select a raster file'}
+                </span>
                 {isRasterFilesLoading ? (
                   <RefreshCw className="h-4 w-4 text-gray-400 animate-spin" />
                 ) : (
@@ -322,56 +152,63 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </div>
       
-      {/* Selected Layers Section */}
+      {/* Available Layers Section */}
       {selectedRasterLayers.length > 0 && (
         <div className="mt-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Selected Layers</h3>
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Available Layers</h3>
           <ul className="space-y-2">
             {selectedRasterLayers.map(layer => (
-              <li key={layer.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                <div className="flex items-center flex-1 min-w-0">
+              <li key={layer.id} className={`p-2 rounded ${layer.visible ? 'bg-blue-50' : 'bg-gray-50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center flex-1 min-w-0">
+                    <button 
+                      className={`mr-2 hover:text-gray-700 flex-shrink-0 ${layer.visible ? 'text-blue-500' : 'text-gray-500'}`}
+                      onClick={() => toggleRasterVisibility(layer.id)}
+                      title={layer.visible ? "Active layer" : "Show this layer"}
+                    >
+                      {layer.visible ? 
+                        <Eye className="h-4 w-4" /> : 
+                        <EyeOff className="h-4 w-4" />
+                      }
+                    </button>
+                    <span className={`text-sm truncate ${layer.visible ? 'font-medium' : ''}`}>{layer.name}</span>
+                  </div>
                   <button 
-                    className="mr-2 text-gray-500 hover:text-gray-700 flex-shrink-0"
-                    onClick={() => toggleRasterVisibility(layer.id)}
-                    title={layer.visible ? "Hide layer" : "Show layer"}
+                    className="text-gray-500 hover:text-red-500 ml-2 flex-shrink-0"
+                    onClick={() => removeRasterLayer(layer.id)}
+                    title="Remove layer"
                   >
-                    {layer.visible ? 
-                      <Eye className="h-4 w-4" /> : 
-                      <EyeOff className="h-4 w-4" />
-                    }
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                   </button>
-                  <span className="text-sm truncate">{layer.name}</span>
                 </div>
-                <button 
-                  className="text-gray-500 hover:text-gray-700 ml-2 flex-shrink-0"
-                  onClick={() => removeRasterLayer(layer.id)}
-                  title="Remove layer"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                
+                {/* Only show opacity controls for visible layers */}
+                {layer.visible && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-medium text-gray-700">
+                        Opacity
+                      </label>
+                      <span className="text-xs text-gray-500">
+                        {Math.round(((layer.opacity ?? 1) * 100))}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={layer.opacity ?? 1}
+                      onChange={(e) => updateRasterOpacity(layer.id, parseFloat(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer mt-1"
+                    />
+                  </div>
+                )}
               </li>
             ))}
           </ul>
-          
-          {/* Opacity Slider for the selected layer */}
-          {selectedRasterLayers.length > 0 && (
-            <div className="mt-3">
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Opacity: {(selectedRasterLayers[0].opacity ?? 1) * 100}%
-              </label>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={selectedRasterLayers[0].opacity ?? 1}
-                onChange={(e) => updateRasterOpacity(selectedRasterLayers[0].id, parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-              />
-            </div>
-          )}
         </div>
       )}
       
@@ -381,16 +218,27 @@ const Sidebar: React.FC<SidebarProps> = ({
           <h3 className="text-sm font-medium text-gray-700 mb-2">Pixel Information</h3>
           {Object.entries(pixelInfo).map(([rasterId, info]) => {
             const raster = selectedRasterLayers.find(r => r.id === rasterId);
+            if (!raster?.visible) return null; // Only show info for active layers
+            
             return (
               <div key={rasterId} className="mb-3 p-2 bg-gray-50 rounded text-xs">
                 <p className="font-medium">{raster?.name || `Raster ${rasterId}`}</p>
-                <p>
-                  Lon: {info.coords[0].toFixed(6)}, Lat: {info.coords[1].toFixed(6)}
-                </p>
-                {info.value !== null ? (
-                  <p>Value: {typeof info.value === 'number' ? info.value.toFixed(2) : info.value}</p>
+                {info.loading ? (
+                  <div className="flex items-center mt-1">
+                    <RefreshCw className="h-3 w-3 text-gray-400 animate-spin mr-1" />
+                    <span>Loading data...</span>
+                  </div>
                 ) : (
-                  <p className="text-red-500">{info.error || 'No data available'}</p>
+                  <>
+                    <p>
+                      Lon: {info.coords[0].toFixed(6)}, Lat: {info.coords[1].toFixed(6)}
+                    </p>
+                    {info.value !== null ? (
+                      <p>Value: {typeof info.value === 'number' ? info.value.toFixed(2) : info.value}</p>
+                    ) : (
+                      <p className="text-red-500">{info.error || 'No data available'}</p>
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -398,22 +246,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       )}
       
-      {/* Map Library Selection */}
+      {/* Footer info */}
       <div className="mt-auto pt-4 border-t">
-        <h3 className="text-sm font-medium text-gray-700 mb-2">Map Library</h3>
-        <div className="flex space-x-2">
-          <button
-            className={`px-3 py-1 text-sm rounded ${selectedMapLibrary === 'openlayers' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-            onClick={() => onMapLibraryChange('openlayers')}
-          >
-            OpenLayers
-          </button>
-          <button
-            className={`px-3 py-1 text-sm rounded ${selectedMapLibrary === 'leaflet' ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'}`}
-            onClick={() => onMapLibraryChange('leaflet')}
-          >
-            Leaflet
-          </button>
+        <div className="text-xs text-gray-500 text-center">
+          Powered by OpenLayers
         </div>
       </div>
     </div>
