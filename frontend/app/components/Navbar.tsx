@@ -177,18 +177,18 @@ const Navbar = (): JSX.Element => {
                   </div>
                   <ul className={`${openDropdowns.gwAquifer ? 'block' : 'hidden'} lg:hidden lg:group-hover/submenu:block lg:absolute lg:left-full lg:top-0 lg:bg-white lg:bg-opacity-95 lg:border lg:border-gray-200 lg:border-opacity-10 lg:rounded-lg lg:shadow-lg lg:min-w-[300px] lg:p-3 lg:ml-1 lg:z-50 ml-4`}>
                     <li>
+                      <Link href="/dss/mar/gwa" className="block px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 hover:bg-opacity-10 rounded-md transition duration-200">
+                        Ground Water Assessment
+                      </Link>
+                    </li>
+                    <li>
                       <Link href="#" className="block px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 hover:bg-opacity-10 rounded-md transition duration-200">
-                        Local Scale Water Estimation
+                        Surface Water Assessment
                       </Link>
                     </li>
                     <li>
                       <Link href="#" className="block px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 hover:bg-opacity-10 rounded-md transition duration-200">
                         Climate Change
-                      </Link>
-                    </li>
-                    <li>
-                      <Link href="#" className="block px-4 py-2 text-blue-600 font-semibold hover:bg-blue-50 hover:bg-opacity-10 rounded-md transition duration-200">
-                        Site suitability For MAR
                       </Link>
                     </li>
                     <li>

@@ -12,9 +12,6 @@ import 'leaflet-draw/dist/leaflet.draw.css';
 // import "leaflet.locatecontrol/dist/L.Control.Locate.min.css"; // Import styles
 
 
-
-
-
 export default function Map({
   sidebarCollapsed,
   onFeatureClick,
@@ -136,29 +133,29 @@ export default function Map({
           draw: {
             polyline: {
               shapeOptions: {
-                color: '#3498db',
-                weight: 4,
+                color: 'red',
+                weight: 3,
               },
             },
             polygon: {
               allowIntersection: false,
               drawError: {
-                color: '#e74c3c',
+                color: 'red',
                 timeout: 1000,
               },
               shapeOptions: {
-                color: '#3498db',
+                color: 'red',
               },
             },
             circle: {
               shapeOptions: {
-                color: '#3498db',
+                color: 'red',
               },
             },
             marker: true,
             rectangle: {
               shapeOptions: {
-                color: '#3498db',
+                color: 'red',
               },
             },
           },
@@ -615,7 +612,7 @@ export default function Map({
       // Add a marker at the location
       const locationMarker = L.circleMarker(e.latlng, {
         radius: 8,
-        color: "#3498db",
+        color: "red",
         weight: 3,
         opacity: 1,
         fillColor: "#3498db",

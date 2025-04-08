@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 
+
 const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLayer, showNotification }) => {
   const [exportFormat, setExportFormat] = useState('pdf');
   const [mapTitle, setMapTitle] = useState('Enter Map Title');
-  const [dpi, setDpi] = useState(300);
+  const [dpi, setDpi] = useState(100);
   const modalRef = useRef(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -56,7 +57,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     }
-    
+
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
@@ -66,13 +67,13 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
   // Function to export all vector layers to a single GeoJSON
   const exportAllLayersToGeoJSON = () => {
     if (!mapInstanceRef.current || !drawnItemsRef.current) return null;
-    
+
     const allFeatures = [];
-    
+
     try {
       // We need to ensure Leaflet is available
       const L = window.L || require('leaflet');
-      
+
       // Process drawn items with special handling for circles
       drawnItemsRef.current.eachLayer(function (layer) {
         // Special handling for circle
@@ -80,7 +81,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
           // Circles need special handling as they're not directly supported in GeoJSON
           const center = layer.getLatLng();
           const radius = layer.getRadius();
-          
+
           // Create a GeoJSON feature for the circle
           const circleFeature = {
             type: "Feature",
@@ -93,18 +94,18 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
               coordinates: [center.lng, center.lat]
             }
           };
-          
+
           // Add pop-up content to properties if available
           if (layer.getPopup()) {
             circleFeature.properties.popupContent = layer.getPopup().getContent();
           }
-          
+
           allFeatures.push(circleFeature);
-        } 
+        }
         // Handle all other geometry types (including lines and polylines)
         else if (layer.toGeoJSON) {
           const geojson = layer.toGeoJSON();
-          
+
           // Preserve any popup content
           if (layer.getPopup()) {
             if (geojson.properties === undefined) {
@@ -112,7 +113,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
             }
             geojson.properties.popupContent = layer.getPopup().getContent();
           }
-          
+
           // For LineString, make sure it's properly formatted
           if (geojson.geometry && geojson.geometry.type === "LineString") {
             // Ensure coordinates are properly formatted
@@ -121,7 +122,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
               return; // Skip this feature
             }
           }
-          
+
           // Handle Feature or FeatureCollection
           if (geojson.type === "FeatureCollection") {
             geojson.features.forEach(feature => {
@@ -134,13 +135,13 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
           }
         }
       });
-      
+
       // Add features from loaded GeoJSON layer if it exists
       if (geoJsonLayer) {
         geoJsonLayer.eachLayer(function (layer) {
           if (layer.toGeoJSON) {
             const geojson = layer.toGeoJSON();
-            
+
             // Add popup content to properties if available
             if (layer.getPopup()) {
               if (geojson.properties === undefined) {
@@ -148,7 +149,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
               }
               geojson.properties.popupContent = layer.getPopup().getContent();
             }
-            
+
             if (geojson.type === "FeatureCollection") {
               geojson.features.forEach(feature => {
                 if (feature.geometry) {
@@ -190,7 +191,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
   const handleExportGeoJSON = () => {
     try {
       const geojsonData = exportAllLayersToGeoJSON();
-      
+
       if (!geojsonData || geojsonData.features.length === 0) {
         showNotification(
           "Export Error",
@@ -199,23 +200,23 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
         );
         return;
       }
-      
+
       // Convert to string
       const geojsonString = JSON.stringify(geojsonData, null, 2);
-      
+
       // Create a blob and download link
       const blob = new Blob([geojsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${mapTitle.replace(/\s+/g, '_')}.geojson`;
-      
+
       // Append to body, trigger click and clean up
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      
+
       showNotification(
         "Export Successful",
         `Exported ${geojsonData.features.length} features successfully`,
@@ -231,19 +232,18 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
     }
   };
 
-  // Handler for PDF export
-  const handleExportPDF = () => {
-    try {
-      if (!mapInstanceRef.current) {
-        showNotification("Export Error", "Map instance not found", "error");
-        return;
-      }
+ // Handler for SVG export - modified to return SVG dataUrl
+  const handleExportSVG = async (download = true) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        if (!mapInstanceRef.current) {
+          showNotification("Export Error", "Map instance not found", "error");
+          reject(new Error("Map instance not found"));
+          return;
+        }
 
-      // Use dynamic imports for better error handling
-      Promise.all([
-        import('html2canvas'),
-        import('jspdf')
-      ]).then(([{ default: html2canvas }, { default: jsPDF }]) => {
+        const { toSvg } = await import('html-to-image');
+
         // Add title to the map (temporarily)
         const titleElement = document.createElement('div');
         titleElement.style.position = 'absolute';
@@ -257,156 +257,125 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
         titleElement.style.fontWeight = 'bold';
         titleElement.style.fontSize = '16px';
         titleElement.innerText = mapTitle;
-        
+
         const mapContainer = mapInstanceRef.current.getContainer();
         mapContainer.appendChild(titleElement);
-        
-        // Calculate dimensions based on DPI
-        const scaleFactor = dpi / 96; // Standard screen is typically 96 DPI
-        
-        html2canvas(mapContainer, {
-          useCORS: true,
-          scale: scaleFactor,
-          logging: false,
-          allowTaint: true,
-        }).then((canvas) => {
-          // Remove the temporary title
-          mapContainer.removeChild(titleElement);
-          
-          const imgData = canvas.toDataURL('image/jpeg', 1.0);
-          const pdf = new jsPDF({
-            orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
-            unit: 'mm',
-          });
-          
-          // Calculate PDF dimensions to fit the canvas
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = pdf.internal.pageSize.getHeight();
-          const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
-          const imgWidth = canvas.width * ratio;
-          const imgHeight = canvas.height * ratio;
-          const x = (pdfWidth - imgWidth) / 2;
-          const y = (pdfHeight - imgHeight) / 2;
-          
-          pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
-          pdf.save(`${mapTitle.replace(/\s+/g, '_')}.pdf`);
-          
-          showNotification(
-            "Export Successful",
-            "Map exported to PDF successfully",
-            "success"
-          );
-        }).catch(err => {
-          // Make sure to remove title if there's an error
-          if (mapContainer.contains(titleElement)) {
+
+        toSvg(mapContainer, {
+          quality: 1.0,
+          width: mapContainer.offsetWidth * (dpi / 96),
+          height: mapContainer.offsetHeight * (dpi / 96)
+        })
+          .then((dataUrl) => {
+            // Remove the temporary title
             mapContainer.removeChild(titleElement);
-          }
-          
-          console.error("Canvas rendering error:", err);
-          showNotification(
-            "Export Error",
-            `Failed to render map: ${err.message}`,
-            "error"
-          );
-        });
-      }).catch(err => {
-        console.error("Library loading error:", err);
+
+            // If direct download is requested, create the download link
+            if (download) {
+              const link = document.createElement('a');
+              link.download = `${mapTitle.replace(/\s+/g, '_')}.svg`;
+              link.href = dataUrl;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+
+              showNotification(
+                "Export Successful",
+                "Map exported to SVG successfully",
+                "success"
+              );
+            }
+
+            // Return the SVG data URL
+            resolve(dataUrl);
+          })
+          .catch((error) => {
+            // Remove the temporary title if there was an error
+            if (mapContainer.contains(titleElement)) {
+              mapContainer.removeChild(titleElement);
+            }
+
+            console.error("SVG export error:", error);
+            showNotification(
+              "Export Error",
+              `Failed to export SVG: ${error.message}`,
+              "error"
+            );
+            reject(error);
+          });
+      } catch (error) {
+        console.error("SVG export error:", error);
         showNotification(
           "Export Error",
-          "Failed to load required libraries",
+          `Failed to export SVG: ${error.message}`,
           "error"
         );
-      });
-    } catch (error) {
-      console.error("PDF export error:", error);
-      showNotification(
-        "Export Error",
-        `Failed to export PDF: ${error.message}`,
-        "error"
-      );
-    }
+        reject(error);
+      }
+    });
   };
 
-  // Handler for JPG export
-  const handleExportJPG = () => {
-    try {
-      if (!mapInstanceRef.current) {
-        showNotification("Export Error", "Map instance not found", "error");
-        return;
+  // Utility function to convert SVG string to Image
+  const svgStringToImage = (svgString, width, height) => {
+    return new Promise((resolve, reject) => {
+      try {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = (e) => reject(new Error("Failed to load SVG as image"));
+        img.src = svgString;
+      } catch (error) {
+        reject(error);
       }
+    });
+  };
 
-      import('html2canvas').then(({ default: html2canvas }) => {
-        // Add title to the map (temporarily)
-        const titleElement = document.createElement('div');
-        titleElement.style.position = 'absolute';
-        titleElement.style.top = '10px';
-        titleElement.style.left = '50%';
-        titleElement.style.transform = 'translateX(-50%)';
-        titleElement.style.zIndex = '1000';
-        titleElement.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
-        titleElement.style.padding = '5px 10px';
-        titleElement.style.borderRadius = '4px';
-        titleElement.style.fontWeight = 'bold';
-        titleElement.style.fontSize = '16px';
-        titleElement.innerText = mapTitle;
-        
-        const mapContainer = mapInstanceRef.current.getContainer();
-        mapContainer.appendChild(titleElement);
-        
-        // Calculate dimensions based on DPI
-        const scaleFactor = dpi / 96; // Standard screen is typically 96 DPI
-        
-        html2canvas(mapContainer, {
-          useCORS: true,
-          scale: scaleFactor,
-          logging: false,
-          allowTaint: true,
-        }).then((canvas) => {
-          // Remove the temporary title
-          mapContainer.removeChild(titleElement);
-          
-          // Convert to JPG and download
-          canvas.toBlob((blob) => {
-            if (!blob) {
-              throw new Error("Failed to create image blob");
-            }
-            
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `${mapTitle.replace(/\s+/g, '_')}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-            
-            showNotification(
-              "Export Successful",
-              "Map exported to JPG successfully",
-              "success"
-            );
-          }, 'image/jpeg', 0.9);
-        }).catch(err => {
-          // Make sure to remove title if there's an error
-          if (mapContainer.contains(titleElement)) {
-            mapContainer.removeChild(titleElement);
-          }
-          
-          console.error("Canvas rendering error:", err);
-          showNotification(
-            "Export Error",
-            `Failed to render map: ${err.message}`,
-            "error"
-          );
-        });
-      }).catch(err => {
-        console.error("html2canvas loading error:", err);
+  // Handler for JPG export using the SVG
+  const handleExportJPG = async () => {
+    try {
+      // Get SVG string from the SVG export function
+      const svgString = await handleExportSVG(false); // Don't download SVG
+
+      // Convert SVG to image
+      const imgElement = await svgStringToImage(svgString, width, height);
+
+      // Create canvas for the JPG conversion
+      const canvas = document.createElement("canvas");
+      const scaleFactor = dpi / 96; // Standard screen is typically 96 DPI
+      canvas.width = imgElement.width * scaleFactor;
+      canvas.height = imgElement.height * scaleFactor;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas context not found");
+
+      // Draw white background
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Draw the SVG image
+      ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+
+      // Convert to JPG and download
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          throw new Error("Failed to create image blob");
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${mapTitle.replace(/\s+/g, '_')}.jpg`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
         showNotification(
-          "Export Error",
-          "Failed to load canvas conversion library",
-          "error"
+          "Export Successful",
+          "Map exported to JPG successfully",
+          "success"
         );
-      });
+      }, 'image/jpeg', 0.9);
+
     } catch (error) {
       console.error("JPG export error:", error);
       showNotification(
@@ -417,85 +386,132 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
     }
   };
 
-  // Handler for SVG export
-  const handleExportSVG = () => {
-    try {
-      if (!mapInstanceRef.current) {
-        showNotification("Export Error", "Map instance not found", "error");
-        return;
-      }
+  // Handler for PDF export using the SVG
+  const handleExportPDF = async () => {
+  try {
+    const svgString = await handleExportSVG(false);
+    const [{ default: jsPDF }] = await Promise.all([import("jspdf")]);
+    
+    const layout = "landscape";
+    const width = layout === "landscape" ? 1200 : 850;
+    const height = layout === "landscape" ? 850 : 1200;
+    const dpi = 90;
+    
+    const imgElement = await svgStringToImage(svgString, width, height);
+    const scaleFactor = dpi / 72;
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = width * scaleFactor;
+    exportCanvas.height = height * scaleFactor;
+    const ctx = exportCanvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas context not found");
 
-      import('html-to-image').then(({ toSvg }) => {
-        // Add title to the map (temporarily)
-        const titleElement = document.createElement('div');
-        titleElement.style.position = 'absolute';
-        titleElement.style.top = '10px';
-        titleElement.style.left = '50%';
-        titleElement.style.transform = 'translateX(-50%)';
-        titleElement.style.zIndex = '1000';
-        titleElement.style.backgroundColor = 'rgba(255, 255, 255, 0.7)';
-        titleElement.style.padding = '5px 10px';
-        titleElement.style.borderRadius = '4px';
-        titleElement.style.fontWeight = 'bold';
-        titleElement.style.fontSize = '16px';
-        titleElement.innerText = mapTitle;
-        
-        const mapContainer = mapInstanceRef.current.getContainer();
-        mapContainer.appendChild(titleElement);
-        
-        toSvg(mapContainer, { 
-          quality: 1.0,
-          width: mapContainer.offsetWidth * (dpi / 96),
-          height: mapContainer.offsetHeight * (dpi / 96)
-        })
-          .then((dataUrl) => {
-            // Remove the temporary title
-            mapContainer.removeChild(titleElement);
-            
-            // Create a download link
-            const link = document.createElement('a');
-            link.download = `${mapTitle.replace(/\s+/g, '_')}.svg`;
-            link.href = dataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            showNotification(
-              "Export Successful",
-              "Map exported to SVG successfully",
-              "success"
-            );
-          })
-          .catch((error) => {
-            // Remove the temporary title if there was an error
-            if (mapContainer.contains(titleElement)) {
-              mapContainer.removeChild(titleElement);
-            }
-            
-            console.error("SVG export error:", error);
-            showNotification(
-              "Export Error",
-              `Failed to export SVG: ${error.message}`,
-              "error"
-            );
-          });
-      }).catch(err => {
-        console.error("html-to-image loading error:", err);
-        showNotification(
-          "Export Error",
-          "Failed to load SVG conversion library",
-          "error"
-        );
-      });
-    } catch (error) {
-      console.error("SVG export error:", error);
-      showNotification(
-        "Export Error",
-        `Failed to export SVG: ${error.message}`,
-        "error"
-      );
+    ctx.scale(scaleFactor, scaleFactor);
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, width, height);
+
+    // Title
+    ctx.fillStyle = "#333";
+    ctx.font = "bold 28px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(mapTitle, width / 2, 50);
+
+    ctx.font = "18px Arial";
+    ctx.fillStyle = "#666";
+    ctx.fillText(`Category: , Subcategory: `, width / 2, 80);
+
+    // Map positioning
+    const mapX = 40;
+    const mapY = 120;
+    const mapWidth = 1100;
+    const mapHeight = 600;
+
+    // Draw border
+    ctx.strokeStyle = "blue";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(mapX - 2, mapY - 2, mapWidth + 4, mapHeight + 4);
+    ctx.drawImage(imgElement, mapX, mapY, mapWidth, mapHeight);
+
+    // Dynamic bounds (you'll need to get these from your map object)
+    const bounds = {
+      west: 68,  // Replace with map.getBounds().getWest()
+      east: 98,  // Replace with map.getBounds().getEast()
+      south: 8,  // Replace with map.getBounds().getSouth()
+      north: 38  // Replace with map.getBounds().getNorth()
+    };
+
+    // Coordinate scales
+    const numDivisions = 5;
+    ctx.font = "12px Arial";
+    ctx.fillStyle = "#666";
+
+    // Latitude scales (left)
+    ctx.textAlign = "right";
+    for (let i = 0; i <= numDivisions; i++) {
+      const lat = bounds.south + ((bounds.north - bounds.south) * i) / numDivisions;
+      const yPos = mapY + mapHeight - (mapHeight * i) / numDivisions;
+      const latLabel = `${lat.toFixed(1)}°N`;
+      ctx.fillText(latLabel, mapX - 10, yPos + 4);
+      // Tick mark
+      ctx.beginPath();
+      ctx.moveTo(mapX - 2, yPos);
+      ctx.lineTo(mapX, yPos);
+      ctx.strokeStyle = "#666";
+      ctx.stroke();
     }
-  };
+
+    // Longitude scales (top)
+    ctx.textAlign = "center";
+    for (let i = 0; i <= numDivisions; i++) {
+      const lon = bounds.west + ((bounds.east - bounds.west) * i) / numDivisions;
+      const xPos = mapX + (mapWidth * i) / numDivisions;
+      const lonLabel = `${lon.toFixed(1)}°E`;
+      ctx.fillText(lonLabel, xPos, mapY - 5);
+      // Tick mark
+      ctx.beginPath();
+      ctx.moveTo(xPos, mapY - 2);
+      ctx.lineTo(xPos, mapY);
+      ctx.stroke();
+    }
+
+    // Add compass directions
+    ctx.font = "bold 14px Arial";
+    ctx.fillText("N", mapX + mapWidth/2, mapY - 15);
+    ctx.fillText("S", mapX + mapWidth/2, mapY + mapHeight + 20);
+    ctx.fillText("W", mapX - 15, mapY + mapHeight/2);
+    ctx.fillText("E", mapX + mapWidth + 15, mapY + mapHeight/2);
+
+    // Metadata
+    const metadataY = mapY + mapHeight + 30;
+    ctx.font = "14px Arial";
+    ctx.fillStyle = "#333";
+    ctx.textAlign = "center";
+    ctx.fillText(`Generated on: ${new Date().toLocaleString()} | India GIS Viewer`, width / 2, metadataY);
+
+    // Footer
+    ctx.fillStyle = "#666";
+    ctx.font = "12px Arial";
+    ctx.fillText(`Copyright 2024 India GIS Viewer`, width / 2, height - 20);
+
+    // Generate PDF
+    const imgData = exportCanvas.toDataURL("image/jpeg", 1.0);
+    const pdf = new jsPDF({
+      orientation: layout,
+      unit: "px",
+      format: [width, height],
+      putOnlyUsedFonts: true,
+      floatPrecision: 16
+    });
+
+    pdf.addImage(imgData, "JPEG", 0, 0, width, height, null, "SLOW");
+    pdf.save(`${mapTitle.replace(/\s+/g, "_")}.pdf`);
+
+    showNotification("Export Successful", "Map exported to PDF successfully", "success");
+
+  } catch (error) {
+    console.error("PDF export error:", error);
+    showNotification("Export Error", error.message, "error");
+  }
+};
 
   // Main export handler
   const handleExport = () => {
@@ -507,7 +523,7 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
         handleExportJPG();
         break;
       case 'svg':
-        handleExportSVG();
+        handleExportSVG(true); // true means download directly
         break;
       case 'geojson':
         handleExportGeoJSON();
@@ -523,15 +539,16 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
     // onClose();
   };
 
+
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       ref={modalRef}
       onMouseDown={handleMouseDown}
       className="bg-white rounded-md shadow-lg border border-gray-300 fixed z-50"
-      style={{ 
-        left: `${position.x}px`, 
+      style={{
+        left: `${position.x}px`,
         top: `${position.y}px`,
         width: '400px',
         cursor: isDragging ? 'grabbing' : 'auto',
@@ -540,13 +557,13 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
       }}
     >
       {/* Draggable Header */}
-      <div 
+      <div
         className="modal-header bg-blue-600 text-white px-4 py-2 flex justify-between items-center rounded-t-md"
         style={{ cursor: 'grab' }}
       >
         <h3 className="font-semibold text-sm">Export Map</h3>
-        <button 
-          onClick={onClose} 
+        <button
+          onClick={onClose}
           className="text-white hover:text-gray-200 cursor-pointer"
           aria-label="Close"
         >

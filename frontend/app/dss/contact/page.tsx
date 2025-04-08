@@ -135,11 +135,11 @@ export default function ContactPage() {
               </div>
               
               {/* Map */}
-              <div className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-100 h-[500px]">
+              <div className="bg-white rounded-xl overflow-hidden shadow-md border border-gray-100 h-[580px]">
                 <iframe
                   src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3608.218529759872!2d82.99154878507075!3d25.26323320476016!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x398e322a6031e99d%3A0x962763bc1a36226!2sDepartment%20of%20Civil%20Engineering%2C%20IIT%20(Banaras%20Hindu%20University)!5e0!3m2!1sen!2sin!4v1739171130935!5m2!1sen!2sin"
                   width="600" 
-                  height="500" 
+                  height="1000" 
                   className="w-full h-full border-0"
                   allowFullScreen={true}
                   loading="lazy"

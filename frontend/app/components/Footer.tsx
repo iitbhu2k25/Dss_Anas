@@ -96,8 +96,8 @@ export default function Footer() {
         </div>
       </div>
       
-      {/* Information section
-      <div className="bg-[#00008B] text-white p-5 text-sm">
+      {/* Information section */}
+      <div className="bg-[blue] text-white font-bold p-5 text-sm">
         <div className="max-w-[1140px] mx-auto flex flex-wrap justify-between">
           <div className="flex-1 min-w-[200px] mr-5 mb-5">
             <h4 className="text-base mt-0 mb-4 pb-1.5 border-b border-white/20">
@@ -183,10 +183,10 @@ export default function Footer() {
             </ul>
           </div>
         </div>
-      </div> */}
+      </div> 
       
-      {/* Copyright bar */}
-      <div className="bg-[#000066] text-white/70 text-center py-2.5 text-sm">
+     {/* Copyright bar */}
+      <div className="bg-[lightblue] text-black/100 font-bold text-center py-2.5 text-sm">
         © {new Date().getFullYear()} Decision Support System for Water Governance. All Rights Reserved.
       </div>
     </footer>

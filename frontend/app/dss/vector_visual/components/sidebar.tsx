@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+import UidModal from './analysis';
 
 export default function Sidebar({
   collapsed,
@@ -38,6 +39,9 @@ export default function Sidebar({
   const [showGrid, setShowGrid] = useState(true);
   const [showInfoPanel, setShowInfoPanel] = useState(true);
   const [showCompass, setShowCompass] = useState(true);
+  
+  // State for Union modal
+  const [unionModalOpen, setUnionModalOpen] = useState(false);
 
   // Dropdown state
   const [openDropdown, setOpenDropdown] = useState('');
@@ -111,6 +115,11 @@ export default function Sidebar({
   const selectAnalysisTool = (tool) => {
     showNotification('Analysis Tool', `${tool} analysis tool selected`, 'info');
     toggleDropdown('');
+    
+    // Open the Union modal when Union is selected
+    if (tool === 'Union') {
+      setUnionModalOpen(true);
+    }
   };
 
   return (
@@ -169,8 +178,8 @@ export default function Sidebar({
             onClick={loadShapefile}
             disabled={!category || !subcategory}
             className={`w-full py-3 px-5 mt-4 rounded-lg border-none text-white font-medium flex justify-center items-center cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1 relative ${!category || !subcategory
-                ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-blue-500 hover:bg-blue-600 after:content-[""] after:absolute after:top-0 after:left-0 after:w-full after:h-full after:rounded-lg after:bg-blue-500 after:z-[-1] after:opacity-50 after:animate-pulse'
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-blue-500 hover:bg-blue-600 after:content-[""] after:absolute after:top-0 after:left-0 after:w-full after:h-full after:rounded-lg after:bg-blue-500 after:z-[-1] after:opacity-50 after:animate-pulse'
               }`}
           >
             <i className="fas fa-map-marked-alt mr-2"></i> Plot Features
@@ -193,8 +202,7 @@ export default function Sidebar({
               <i className={`fas fa-chevron-down transition-transform duration-300 ${openDropdown === 'basemap' ? 'rotate-180' : ''}`}></i>
             </div>
 
-            <div className={`absolute left-0 right-0 bg-white border border-blue-500 border-t-0 rounded-b-lg shadow-md z-[1001] transition-all duration-300 ${
-                openDropdown === 'basemap'
+            <div className={`absolute left-0 right-0 bg-white border border-blue-500 border-t-0 rounded-b-lg shadow-md z-[1001] transition-all duration-300 ${openDropdown === 'basemap'
                 ? 'max-h-[300px] opacity-100 translate-y-0'
                 : 'max-h-0 opacity-0 -translate-y-2 overflow-hidden border-none'
               }`}>
@@ -229,8 +237,7 @@ export default function Sidebar({
               <i className={`fas fa-chevron-down transition-transform duration-300 ${openDropdown === 'analysis' ? 'rotate-180' : ''}`}></i>
             </div>
 
-            <div className={`absolute left-0 right-0 bg-white border border-blue-500 border-t-0 rounded-b-lg shadow-md z-[1001] transition-all duration-300 ${
-                openDropdown === 'analysis'
+            <div className={`absolute left-0 right-0 bg-white border border-blue-500 border-t-0 rounded-b-lg shadow-md z-[1001] transition-all duration-300 ${openDropdown === 'analysis'
                 ? 'max-h-[300px] opacity-100 translate-y-0'
                 : 'max-h-0 opacity-0 -translate-y-2 overflow-hidden border-none'
               }`}>
@@ -345,17 +352,6 @@ export default function Sidebar({
             <i className="fas fa-sliders-h mr-2 text-blue-500"></i> Display Settings
           </div>
 
-          {/* <div className="flex items-center mb-2">
-            <input
-              className="mr-2 rounded text-blue-500 focus:ring-blue-500"
-              type="checkbox"
-              id="grid-toggle"
-              checked={showGrid}
-              onChange={(e) => setShowGrid(e.target.checked)}
-            />
-            <label className="text-sm text-gray-700" htmlFor="grid-toggle">Coordinate Grid</label>
-          </div> */}
-
           <div className="flex items-center mb-2">
             <input
               className="mr-2 rounded text-blue-500 focus:ring-blue-500"
@@ -384,12 +380,18 @@ export default function Sidebar({
       <button
         onClick={onToggle}
         className={`absolute z-[999] flex items-center justify-center w-10 h-10 rounded-full bg-white shadow-md border-none cursor-pointer transition-all duration-300 hover:bg-blue-500 hover:text-white hover:scale-110 ${collapsed
-            ? 'left-5 top-5'
-            : 'left-[300px] top-5'
+          ? 'left-5 top-5'
+          : 'left-[300px] top-5'
           }`}
       >
         <i className={`fas ${collapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
       </button>
+
+      {/* Union Modal */}
+      <UidModal 
+        isOpen={unionModalOpen} 
+        onOpenChange={(isOpen) => setUnionModalOpen(isOpen)} 
+      />
     </>
   );
 }
