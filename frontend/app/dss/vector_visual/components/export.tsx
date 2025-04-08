@@ -329,189 +329,189 @@ const ExportModal = ({ isOpen, onClose, mapInstanceRef, drawnItemsRef, geoJsonLa
     });
   };
 
-  // Handler for JPG export using the SVG
-  const handleExportJPG = async () => {
-    try {
-      // Get SVG string from the SVG export function
-      const svgString = await handleExportSVG(false); // Don't download SVG
+// Handler for JPG export using the SVG
+// const handleExportJPG = async () => {
+//     try {
+//       // Get SVG string from the SVG export function
+//       const svgString = await handleExportSVG(false); // Don't download SVG
 
-      // Convert SVG to image
-      const imgElement = await svgStringToImage(svgString, width, height);
+//       // Convert SVG to image
+//       const imgElement = await svgStringToImage(svgString, width, height);
 
-      // Create canvas for the JPG conversion
-      const canvas = document.createElement("canvas");
-      const scaleFactor = dpi / 96; // Standard screen is typically 96 DPI
-      canvas.width = imgElement.width * scaleFactor;
-      canvas.height = imgElement.height * scaleFactor;
+//       // Create canvas for the JPG conversion
+//       const canvas = document.createElement("canvas");
+//       const scaleFactor = dpi / 96; // Standard screen is typically 96 DPI
+//       canvas.width = imgElement.width * scaleFactor;
+//       canvas.height = imgElement.height * scaleFactor;
 
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas context not found");
+//       const ctx = canvas.getContext("2d");
+//       if (!ctx) throw new Error("Canvas context not found");
 
-      // Draw white background
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+//       // Draw white background
+//       ctx.fillStyle = "white";
+//       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Draw the SVG image
-      ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+//       // Draw the SVG image
+//       ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
 
-      // Convert to JPG and download
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          throw new Error("Failed to create image blob");
-        }
+//       // Convert to JPG and download
+//       canvas.toBlob((blob) => {
+//         if (!blob) {
+//           throw new Error("Failed to create image blob");
+//         }
 
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${mapTitle.replace(/\s+/g, '_')}.jpg`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+//         const url = URL.createObjectURL(blob);
+//         const link = document.createElement('a');
+//         link.href = url;
+//         link.download = `${mapTitle.replace(/\s+/g, '_')}.jpg`;
+//         document.body.appendChild(link);
+//         link.click();
+//         document.body.removeChild(link);
+//         URL.revokeObjectURL(url);
 
-        showNotification(
-          "Export Successful",
-          "Map exported to JPG successfully",
-          "success"
-        );
-      }, 'image/jpeg', 0.9);
+//         showNotification(
+//           "Export Successful",
+//           "Map exported to JPG successfully",
+//           "success"
+//         );
+//       }, 'image/jpeg', 0.9);
 
-    } catch (error) {
-      console.error("JPG export error:", error);
-      showNotification(
-        "Export Error",
-        `Failed to export JPG: ${error.message}`,
-        "error"
-      );
-    }
-  };
+//     } catch (error) {
+//       console.error("JPG export error:", error);
+//       showNotification(
+//         "Export Error",
+//         `Failed to export JPG: ${error.message}`,
+//         "error"
+//       );
+//     }
+//   };
 
   // Handler for PDF export using the SVG
-  const handleExportPDF = async () => {
-  try {
-    const svgString = await handleExportSVG(false);
-    const [{ default: jsPDF }] = await Promise.all([import("jspdf")]);
+//   const handleExportPDF = async () => {
+//   try {
+//     const svgString = await handleExportSVG(false);
+//     const [{ default: jsPDF }] = await Promise.all([import("jspdf")]);
     
-    const layout = "landscape";
-    const width = layout === "landscape" ? 1200 : 850;
-    const height = layout === "landscape" ? 850 : 1200;
-    const dpi = 90;
+//     const layout = "landscape";
+//     const width = layout === "landscape" ? 1200 : 850;
+//     const height = layout === "landscape" ? 850 : 1200;
+//     const dpi = 90;
     
-    const imgElement = await svgStringToImage(svgString, width, height);
-    const scaleFactor = dpi / 72;
-    const exportCanvas = document.createElement("canvas");
-    exportCanvas.width = width * scaleFactor;
-    exportCanvas.height = height * scaleFactor;
-    const ctx = exportCanvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas context not found");
+//     const imgElement = await svgStringToImage(svgString, width, height);
+//     const scaleFactor = dpi / 72;
+//     const exportCanvas = document.createElement("canvas");
+//     exportCanvas.width = width * scaleFactor;
+//     exportCanvas.height = height * scaleFactor;
+//     const ctx = exportCanvas.getContext("2d");
+//     if (!ctx) throw new Error("Canvas context not found");
 
-    ctx.scale(scaleFactor, scaleFactor);
-    ctx.fillStyle = "white";
-    ctx.fillRect(0, 0, width, height);
+//     ctx.scale(scaleFactor, scaleFactor);
+//     ctx.fillStyle = "white";
+//     ctx.fillRect(0, 0, width, height);
 
-    // Title
-    ctx.fillStyle = "#333";
-    ctx.font = "bold 28px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(mapTitle, width / 2, 50);
+//     // Title
+//     ctx.fillStyle = "#333";
+//     ctx.font = "bold 28px Arial";
+//     ctx.textAlign = "center";
+//     ctx.fillText(mapTitle, width / 2, 50);
 
-    ctx.font = "18px Arial";
-    ctx.fillStyle = "#666";
-    ctx.fillText(`Category: , Subcategory: `, width / 2, 80);
+//     ctx.font = "18px Arial";
+//     ctx.fillStyle = "#666";
+//     ctx.fillText(`Category: , Subcategory: `, width / 2, 80);
 
-    // Map positioning
-    const mapX = 40;
-    const mapY = 120;
-    const mapWidth = 1100;
-    const mapHeight = 600;
+//     // Map positioning
+//     const mapX = 40;
+//     const mapY = 120;
+//     const mapWidth = 1100;
+//     const mapHeight = 600;
 
-    // Draw border
-    ctx.strokeStyle = "blue";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(mapX - 2, mapY - 2, mapWidth + 4, mapHeight + 4);
-    ctx.drawImage(imgElement, mapX, mapY, mapWidth, mapHeight);
+//     // Draw border
+//     ctx.strokeStyle = "blue";
+//     ctx.lineWidth = 2;
+//     ctx.strokeRect(mapX - 2, mapY - 2, mapWidth + 4, mapHeight + 4);
+//     ctx.drawImage(imgElement, mapX, mapY, mapWidth, mapHeight);
 
-    // Dynamic bounds (you'll need to get these from your map object)
-    const bounds = {
-      west: 68,  // Replace with map.getBounds().getWest()
-      east: 98,  // Replace with map.getBounds().getEast()
-      south: 8,  // Replace with map.getBounds().getSouth()
-      north: 38  // Replace with map.getBounds().getNorth()
-    };
+//     // Dynamic bounds (you'll need to get these from your map object)
+//     const bounds = {
+//       west: 68,  // Replace with map.getBounds().getWest()
+//       east: 98,  // Replace with map.getBounds().getEast()
+//       south: 8,  // Replace with map.getBounds().getSouth()
+//       north: 38  // Replace with map.getBounds().getNorth()
+//     };
 
-    // Coordinate scales
-    const numDivisions = 5;
-    ctx.font = "12px Arial";
-    ctx.fillStyle = "#666";
+//     // Coordinate scales
+//     const numDivisions = 5;
+//     ctx.font = "12px Arial";
+//     ctx.fillStyle = "#666";
 
-    // Latitude scales (left)
-    ctx.textAlign = "right";
-    for (let i = 0; i <= numDivisions; i++) {
-      const lat = bounds.south + ((bounds.north - bounds.south) * i) / numDivisions;
-      const yPos = mapY + mapHeight - (mapHeight * i) / numDivisions;
-      const latLabel = `${lat.toFixed(1)}°N`;
-      ctx.fillText(latLabel, mapX - 10, yPos + 4);
-      // Tick mark
-      ctx.beginPath();
-      ctx.moveTo(mapX - 2, yPos);
-      ctx.lineTo(mapX, yPos);
-      ctx.strokeStyle = "#666";
-      ctx.stroke();
-    }
+//     // Latitude scales (left)
+//     ctx.textAlign = "right";
+//     for (let i = 0; i <= numDivisions; i++) {
+//       const lat = bounds.south + ((bounds.north - bounds.south) * i) / numDivisions;
+//       const yPos = mapY + mapHeight - (mapHeight * i) / numDivisions;
+//       const latLabel = `${lat.toFixed(1)}°N`;
+//       ctx.fillText(latLabel, mapX - 10, yPos + 4);
+//       // Tick mark
+//       ctx.beginPath();
+//       ctx.moveTo(mapX - 2, yPos);
+//       ctx.lineTo(mapX, yPos);
+//       ctx.strokeStyle = "#666";
+//       ctx.stroke();
+//     }
 
-    // Longitude scales (top)
-    ctx.textAlign = "center";
-    for (let i = 0; i <= numDivisions; i++) {
-      const lon = bounds.west + ((bounds.east - bounds.west) * i) / numDivisions;
-      const xPos = mapX + (mapWidth * i) / numDivisions;
-      const lonLabel = `${lon.toFixed(1)}°E`;
-      ctx.fillText(lonLabel, xPos, mapY - 5);
-      // Tick mark
-      ctx.beginPath();
-      ctx.moveTo(xPos, mapY - 2);
-      ctx.lineTo(xPos, mapY);
-      ctx.stroke();
-    }
+//     // Longitude scales (top)
+//     ctx.textAlign = "center";
+//     for (let i = 0; i <= numDivisions; i++) {
+//       const lon = bounds.west + ((bounds.east - bounds.west) * i) / numDivisions;
+//       const xPos = mapX + (mapWidth * i) / numDivisions;
+//       const lonLabel = `${lon.toFixed(1)}°E`;
+//       ctx.fillText(lonLabel, xPos, mapY - 5);
+//       // Tick mark
+//       ctx.beginPath();
+//       ctx.moveTo(xPos, mapY - 2);
+//       ctx.lineTo(xPos, mapY);
+//       ctx.stroke();
+//     }
 
-    // Add compass directions
-    ctx.font = "bold 14px Arial";
-    ctx.fillText("N", mapX + mapWidth/2, mapY - 15);
-    ctx.fillText("S", mapX + mapWidth/2, mapY + mapHeight + 20);
-    ctx.fillText("W", mapX - 15, mapY + mapHeight/2);
-    ctx.fillText("E", mapX + mapWidth + 15, mapY + mapHeight/2);
+//     // Add compass directions
+//     ctx.font = "bold 14px Arial";
+//     ctx.fillText("N", mapX + mapWidth/2, mapY - 15);
+//     ctx.fillText("S", mapX + mapWidth/2, mapY + mapHeight + 20);
+//     ctx.fillText("W", mapX - 15, mapY + mapHeight/2);
+//     ctx.fillText("E", mapX + mapWidth + 15, mapY + mapHeight/2);
 
-    // Metadata
-    const metadataY = mapY + mapHeight + 30;
-    ctx.font = "14px Arial";
-    ctx.fillStyle = "#333";
-    ctx.textAlign = "center";
-    ctx.fillText(`Generated on: ${new Date().toLocaleString()} | India GIS Viewer`, width / 2, metadataY);
+//     // Metadata
+//     const metadataY = mapY + mapHeight + 30;
+//     ctx.font = "14px Arial";
+//     ctx.fillStyle = "#333";
+//     ctx.textAlign = "center";
+//     ctx.fillText(`Generated on: ${new Date().toLocaleString()} | India GIS Viewer`, width / 2, metadataY);
 
-    // Footer
-    ctx.fillStyle = "#666";
-    ctx.font = "12px Arial";
-    ctx.fillText(`Copyright 2024 India GIS Viewer`, width / 2, height - 20);
+//     // Footer
+//     ctx.fillStyle = "#666";
+//     ctx.font = "12px Arial";
+//     ctx.fillText(`Copyright 2024 India GIS Viewer`, width / 2, height - 20);
 
-    // Generate PDF
-    const imgData = exportCanvas.toDataURL("image/jpeg", 1.0);
-    const pdf = new jsPDF({
-      orientation: layout,
-      unit: "px",
-      format: [width, height],
-      putOnlyUsedFonts: true,
-      floatPrecision: 16
-    });
+//     // Generate PDF
+//     const imgData = exportCanvas.toDataURL("image/jpeg", 1.0);
+//     const pdf = new jsPDF({
+//       orientation: layout,
+//       unit: "px",
+//       format: [width, height],
+//       putOnlyUsedFonts: true,
+//       floatPrecision: 16
+//     });
 
-    pdf.addImage(imgData, "JPEG", 0, 0, width, height, null, "SLOW");
-    pdf.save(`${mapTitle.replace(/\s+/g, "_")}.pdf`);
+//     pdf.addImage(imgData, "JPEG", 0, 0, width, height, null, "SLOW");
+//     pdf.save(`${mapTitle.replace(/\s+/g, "_")}.pdf`);
 
-    showNotification("Export Successful", "Map exported to PDF successfully", "success");
+//     showNotification("Export Successful", "Map exported to PDF successfully", "success");
 
-  } catch (error) {
-    console.error("PDF export error:", error);
-    showNotification("Export Error", error.message, "error");
-  }
-};
+//   } catch (error) {
+//     console.error("PDF export error:", error);
+//     showNotification("Export Error", error.message, "error");
+//   }
+// };
 
   // Main export handler
   const handleExport = () => {

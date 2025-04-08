@@ -78,8 +78,8 @@ export default function UidModal({ isOpen, onOpenChange }) {
     };
 
     const handleUnion = () => {
-        console.log("Performing union with:", { 
-            preserveAttributes, 
+        console.log("Performing union with:", {
+            preserveAttributes,
             outputName,
             selectedLayers: Array.from(selectedLayers)
         });
@@ -115,19 +115,21 @@ export default function UidModal({ isOpen, onOpenChange }) {
                         </ModalHeader>
 
                         <ModalBody>
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 {/* File Upload Section */}
                                 <div>
                                     <label className="block text-sm font-medium text-violet-700 mb-1">
                                         Upload Shapefile
                                     </label>
+                                    
                                     <Input
                                         type="file"
                                         accept=".shp,.dbf"
                                         multiple
                                         onChange={handleFileUpload}
-                                        className="w-full text-sm"
+                                        className="w-full text-sm  overflow-y-auto border border-blue-200 rounded-md  "
                                     />
+                                    
                                     <p className="text-xs text-gray-500 mt-1">
                                         Upload both .shp and .dbf files together
                                     </p>
@@ -138,7 +140,7 @@ export default function UidModal({ isOpen, onOpenChange }) {
                                     <label className="block text-sm font-medium text-violet-700 mb-1">
                                         Layer List
                                     </label>
-                                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-md p-2">
+                                    <div className="w-full text-sm  overflow-y-auto border border-blue-200 rounded-md">
                                         {uploadedLayers.map((layer) => (
                                             <div key={layer.value} className="flex items-center py-1">
                                                 <Checkbox
@@ -164,18 +166,24 @@ export default function UidModal({ isOpen, onOpenChange }) {
                                         Add Existing Data
                                     </label>
                                     <Select
-                                        placeholder="Select existing layer"
+                                        // placeholder="Select existing layer"
                                         onChange={(value) => handleAddExisting(value)}
-                                        className="w-full"
+                                        className="w-full bg-white text-black border border-blue-300 px-0.5"
                                         size="sm"
                                     >
                                         {existingLayerOptions.map((layer) => (
-                                            <SelectItem key={layer.value} value={layer.value}>
+                                            <SelectItem
+                                                key={layer.value}
+                                                value={layer.value}
+                                                className="bg-white text-black hover:bg-gray-100"
+                                            >
                                                 {layer.label}
                                             </SelectItem>
                                         ))}
                                     </Select>
                                 </div>
+
+
 
                                 {/* Output Name */}
                                 <div>
@@ -198,7 +206,7 @@ export default function UidModal({ isOpen, onOpenChange }) {
                                         size="xs"
                                         className="w-4 h-4"
                                     />
-                                    <label className="ml-2 text-sm text-gray-700">
+                                    <label className="ml-4 text-sm text-gray-700">
                                         Preserve attributes from selected layers
                                     </label>
                                 </div>
