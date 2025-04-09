@@ -573,7 +573,7 @@ const SewageCalculationForm: React.FC = () => {
       </div>
 
       <button 
-        className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out"
+        className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 ml-300 mb-2 rounded-md transition duration-300 ease-in-out"
         onClick={handlepdfDownload}
       >
         Download Comprehensive Report

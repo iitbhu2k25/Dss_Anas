@@ -27,6 +27,7 @@ const Basic: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
   const [skippedSteps, setSkippedSteps] = useState<number[]>([]);
+  const [completedSteps, setCompletedSteps] = useState<number[]>([]);
 
   const handleLocationConfirm = (data: SelectedLocationData): void => {
     console.log('Received confirmed location data:', data);
@@ -35,20 +36,23 @@ const Basic: React.FC = () => {
 
   const handleNext = () => {
     if (currentStep < 3) {
+      setCompletedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
+      setSkippedSteps(prev => prev.filter(step => step !== currentStep));
       setTransitionDirection('forward');
       setCurrentStep(prev => prev + 1);
     }
   };
   
+
   const handleSkip = () => {
     if (currentStep > 0 && currentStep < 3) {
-      // Mark the current step as skipped
-      setSkippedSteps(prev => [...prev, currentStep]);
+      setSkippedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
+      setCompletedSteps(prev => prev.filter(step => step !== currentStep));
       setTransitionDirection('forward');
       setCurrentStep(prev => prev + 1);
     }
   };
-  
+
   const handleStepChange = (newStep: number) => {
     if (newStep < currentStep) {
       setTransitionDirection('backward');
@@ -56,37 +60,24 @@ const Basic: React.FC = () => {
     }
   };
 
+  // Add a new handler for location reset
+  const handleLocationReset = (): void => {
+    setCurrentStep(0);
+    setSkippedSteps([]);
+    setCompletedSteps([]);
+    setSelectedLocationData(null);
+  };
+
   useEffect(() => {
     if (selectedLocationData) {
       setCurrentStep(0);
+      setSkippedSteps([]);
+      setCompletedSteps([]);
     }
   }, [selectedLocationData]);
 
-  // Render the appropriate content based on current step
-  const renderStepContent = () => {
-    switch (currentStep) {
-      case 0:
-        return selectedLocationData ? (
-          <Population
-            villages_props={selectedLocationData.villages}
-            subDistricts_props={selectedLocationData.subDistricts}
-            totalPopulation_props={selectedLocationData.totalPopulation}
-          />
-        ) : null;
-      case 1:
-        return <Water_Demand />;
-      case 2:
-        return <Water_Supply />;
-      case 3:
-        return <Sewage />;
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className="flex w-full min-h-0">
-      {/* Left side - Status Bar */}
       <div className="w-64 border-r border-gray-200">
         <StatusBar 
           currentStep={currentStep} 
@@ -95,18 +86,36 @@ const Basic: React.FC = () => {
         />
       </div>
 
-      {/* Right side - Main Content */}
       <div className="flex-1 p-4">
-        {/* Location Selector - always shown */}
-        <LocationSelector onConfirm={handleLocationConfirm} />
+        <LocationSelector 
+          onConfirm={handleLocationConfirm} 
+          onReset={handleLocationReset} 
+        />
+        
 
-        {/* Step Content with animation */}
-        <div className={`transition-all duration-300 transform ${
-          transitionDirection === 'forward' 
-            ? 'translate-x-0 opacity-100' 
-            : '-translate-x-4 opacity-100'
-        }`}>
-          {renderStepContent()}
+        {/* Step Content - keep all mounted */}
+        <div className="transition-all duration-300 transform">
+          <div className={currentStep === 0 ? 'block' : 'hidden'}>
+            {selectedLocationData && (
+              <Population
+                villages_props={selectedLocationData.villages}
+                subDistricts_props={selectedLocationData.subDistricts}
+                totalPopulation_props={selectedLocationData.totalPopulation}
+              />
+            )}
+          </div>
+
+          <div className={currentStep === 1 ? 'block' : 'hidden'}>
+            <Water_Demand />
+          </div>
+
+          <div className={currentStep === 2 ? 'block' : 'hidden'}>
+            <Water_Supply />
+          </div>
+
+          <div className={currentStep === 3 ? 'block' : 'hidden'}>
+            <Sewage />
+          </div>
         </div>
 
         {/* Navigation buttons */}
@@ -120,7 +129,7 @@ const Basic: React.FC = () => {
               Skip
             </button>
             <button
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 mr-20 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
               onClick={handleNext}
               disabled={currentStep === 3}
             >

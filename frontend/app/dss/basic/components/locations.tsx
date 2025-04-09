@@ -29,7 +29,7 @@ interface LocationSelectorProps {
   }) => void;
 }
 
-const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm }) => {
+const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset }) => {
   // States for dropdown data
   const [states, setStates] = useState<LocationItem[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
@@ -230,13 +230,18 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm }) => {
   };
 
   // Handle form reset
-  const handleReset = (): void => {
-    setSelectedState('');
-    setSelectedDistricts([]);
-    setSelectedSubDistricts([]);
-    setSelectedVillages([]);
-    setTotalPopulation(0);
-    setSelectionsLocked(false); // Also unlock selections when resetting
+  const handleReset = (): void => { 
+    setSelectedState(''); 
+    setSelectedDistricts([]); 
+    setSelectedSubDistricts([]); 
+    setSelectedVillages([]); 
+    setTotalPopulation(0); 
+    setSelectionsLocked(false);
+    
+    // Call the onReset prop to notify parent component
+    if (onReset) {
+      onReset();
+    }
   };
 
   // Handle confirm - lock the selections and pass data to parent
