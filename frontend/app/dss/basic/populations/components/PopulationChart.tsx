@@ -1,11 +1,28 @@
 'use client'
 
-import { Line } from "react-chartjs-2";
-import { Chart as ChartJS, LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend } from "chart.js";
+import { Line, Bar } from "react-chartjs-2";
+import { 
+  Chart as ChartJS, 
+  LineElement, 
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  Tooltip, 
+  Legend,
+  BarElement
+} from "chart.js";
 import { useMemo } from "react";
 
 // Register Chart.js components
-ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend);
+ChartJS.register(
+  LineElement, 
+  CategoryScale, 
+  LinearScale, 
+  PointElement, 
+  Tooltip, 
+  Legend,
+  BarElement
+);
 
 const processData = (results: any) => {
     if (!results) return { labels: [], datasets: [] };
@@ -31,8 +48,10 @@ const processData = (results: any) => {
         datasets: models.map((model, index) => ({
             label: model,
             data: yearsArray.map(year => results[model][year] || null),
-            borderColor: ["#8884d8", "#82ca9d", "#ffc658", "#ff7300","410445"][index % 5], // Color cycle
-            backgroundColor: "rgba(0, 0, 0, 0)", // Transparent fill
+            borderColor: ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#410445"][index % 5], // Color cycle
+            backgroundColor: yearsArray.length <= 2 
+                ? ["rgba(136, 132, 216, 0.7)", "rgba(130, 202, 157, 0.7)", "rgba(255, 198, 88, 0.7)", "rgba(255, 115, 0, 0.7)", "rgba(65, 4, 69, 0.7)"][index % 5]
+                : "rgba(0, 0, 0, 0)", // Transparent fill for line chart, color for bar chart
             tension: 0.4, // Smooth curve
         }))
     };
@@ -40,6 +59,9 @@ const processData = (results: any) => {
 
 const PopulationChart = ({ results }: { results: any }) => {
     const chartData = useMemo(() => processData(results), [results]);
+    
+    // Check if we have only two years in the data
+    const hasOnlyTwoYears = chartData.labels.length <= 2;
 
     const options = {
         responsive: true,
@@ -52,9 +74,15 @@ const PopulationChart = ({ results }: { results: any }) => {
 
     return (
         <div className="mt-6">
-            <h2 className="text-lg font-semibold mb-4">Population Projection</h2>
+            <h2 className="text-lg font-semibold mb-4">
+                Population {hasOnlyTwoYears ? "Comparison" : "Projection"}
+            </h2>
             <div style={{ height: "400px" }}>
-                <Line data={chartData} options={options} />
+                {hasOnlyTwoYears ? (
+                    <Bar data={chartData} options={options} />
+                ) : (
+                    <Line data={chartData} options={options} />
+                )}
             </div>
         </div>
     );

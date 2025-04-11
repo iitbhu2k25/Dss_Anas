@@ -62,13 +62,13 @@ export default function StatusBar({ currentStep, onStepChange, skippedSteps = []
                 <div className="flex flex-col items-center">
                   {step.status === 'completed' ? (
                     <div className="relative">
-                      <CheckCircle className="h-6 w-6 text-green-600 transition-all duration-300 group-hover:scale-110" />
-                      <ArrowLeft className="absolute -left-5 opacity-0 group-hover:opacity-100 text-green-600 transition-all duration-300" size={14} />
+                    <CheckCircle className="h-6 w-6 text-green-600 transition-all duration-300 group-hover:scale-110" />
+                    <ArrowLeft className="absolute -left-5 opacity-0 group-hover:opacity-100 text-green-600 transition-all duration-300" size={14} />
                     </div>
                   ) : step.status === 'skipped' ? (
                     <div className="relative">
-                      <CheckCircle className="h-6 w-6 text-yellow-500 transition-all duration-300 group-hover:scale-110" />
-                      <ArrowLeft className="absolute -left-5 opacity-0 group-hover:opacity-100 text-yellow-600 transition-all duration-300" size={14} />
+                    <CheckCircle className="h-6 w-6 text-yellow-500 transition-all duration-300 group-hover:scale-110" />
+                    <ArrowLeft className="absolute -left-5 opacity-0 group-hover:opacity-100 text-yellow-600 transition-all duration-300" size={14} />
                     </div>
                   ) : step.status === 'current' ? (
                     <CircleDot className="h-6 w-6 text-blue-600 animate-pulse" />
@@ -95,7 +95,7 @@ export default function StatusBar({ currentStep, onStepChange, skippedSteps = []
                       )}
                       {step.status === 'current' && (
                         <div className="absolute w-3 h-3 bg-blue-400 rounded-full opacity-0 animate-ping"
-                             style={{ top: '40%' }} />
+                             style={{ top: '80%' }} />
                       )}
                     </div>
                   )}

@@ -1,5 +1,6 @@
 // components/WaterDemandForm.tsx
 'use client';
+
 import React, { useState } from 'react';
 
 interface InstitutionalFields {
