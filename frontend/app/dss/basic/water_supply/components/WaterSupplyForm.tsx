@@ -1,6 +1,7 @@
 // components/WaterSupplyForm.tsx
 'use client';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+
 
 const WaterSupplyForm: React.FC = () => {
   // Surface Water Supply
@@ -22,6 +23,10 @@ const WaterSupplyForm: React.FC = () => {
   // Result and error states
   const [waterSupplyResult, setWaterSupplyResult] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Water Gap calculation - new states
+  const [waterGapResult, setWaterGapResult] = useState<{[year: string]: number} | null>(null);
+  const [waterDemandData, setWaterDemandData] = useState<{[year: string]: number} | null>(null);
 
   // Determine if conflicting groundwater inputs are provided
   const isDirectGroundwaterProvided = directGroundwater !== '';
@@ -73,12 +78,66 @@ const WaterSupplyForm: React.FC = () => {
       }
       const data = await response.json();
       setWaterSupplyResult(data.total_supply);
+      
       // Save globally so that sewage stage can use it
       (window as any).totalWaterSupply = data.total_supply;
+      
+      // Calculate water gap using the total demand data
+      calculateWaterGap(data.total_supply);
     } catch (err) {
       console.error(err);
       setError('Error connecting to backend.');
     }
+  };
+  
+  // Function to calculate water gap
+  const calculateWaterGap = (supplyValue: number) => {
+    // Get the forecast data (needed for years)
+    const forecastData = (window as any).selectedPopulationForecast;
+    if (!forecastData) {
+      // If no forecast data available, use a default year range
+      const defaultYears = ['2020', '2025', '2030', '2035', '2040', '2045', '2050'];
+      const defaultDemands = defaultYears.map(() => 0); // Zero demand for all years
+      
+      // Create water gap with default values
+      const gapResult: {[year: string]: number} = {};
+      defaultYears.forEach(year => {
+        gapResult[year] = supplyValue; // Gap equals supply if demand is zero
+      });
+      
+      setWaterGapResult(gapResult);
+      return;
+    }
+    
+    // Try to get existing total demand data 
+    // Get the total water demand from WaterDemandForm
+    let totalWaterDemand: {[year: string]: number} = {};
+    
+    // Check if totalWaterDemand is already calculated from WaterDemandForm
+    if ((window as any).totalWaterDemand) {
+      totalWaterDemand = (window as any).totalWaterDemand;
+    } else {
+      // Create zero demand for all years
+      Object.keys(forecastData).forEach(year => {
+        totalWaterDemand[year] = 0;
+      });
+    }
+    
+    // Calculate water gap (supply - demand) for each year
+    const years = Object.keys(forecastData).sort();
+    const gapResult: {[year: string]: number} = {};
+    
+    years.forEach(year => {
+      const demand = totalWaterDemand[year] || 0;
+      gapResult[year] = supplyValue - demand;
+    });
+    
+    // Save the total demand data
+    setWaterDemandData(totalWaterDemand);
+    
+    // Save water gap results
+    setWaterGapResult(gapResult);
+    (window as any).waterGapResult = gapResult;
   };
 
   return (
@@ -298,6 +357,39 @@ const WaterSupplyForm: React.FC = () => {
         <div className="mt-4 p-3 border rounded bg-green-50">
           <h4 className="font-bold text-green-700">Total Water Supply for Selected Region:</h4>
           <p>{waterSupplyResult.toFixed(2)} MLD</p>
+        </div>
+      )}
+      
+      {/* Water Gap display - modified section */}
+      {waterGapResult !== null && (
+        <div className="mt-6">
+          <h4 className="font-bold text-blue-700 mb-2">Water Gap Analysis</h4>
+          <div className="overflow-x-auto">
+            <table className="table-auto w-full min-w-[300px] bg-white border border-gray-300">
+              <thead className="bg-gray-200">
+                <tr>
+                  <th className="border px-4 py-2">Year</th>
+                  <th className="border px-4 py-2">Water Supply (MLD)</th>
+                  <th className="border px-4 py-2">Water Demand (MLD)</th>
+                  <th className="border px-4 py-2">Water Gap (MLD)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(waterGapResult).sort().map((year) => {
+                  const waterGap = waterGapResult[year];
+                  
+                  return (
+                    <tr key={year}>
+                      <td className="border px-4 py-2">{year}</td>
+                      <td className="border px-4 py-2">{waterSupplyResult?.toFixed(2)}</td>
+                      <td className="border px-4 py-2">{waterDemandData && waterDemandData[year] ? waterDemandData[year].toFixed(2) : "0.00"}</td>
+                      <td className="border px-4 py-2">{waterGap.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -323,7 +323,7 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset 
           items={villages}
           selectedItems={selectedVillages}
           onSelectionChange={selectionsLocked ? () => {} : setSelectedVillages}
-          label="Village"
+          label="Village/Town (Population 2011)"
           placeholder="--Choose Villages--"
           disabled={selectedSubDistricts.length === 0 || selectionsLocked}
           displayPattern={formatVillageDisplay}

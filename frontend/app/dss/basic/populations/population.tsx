@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react"
 import TimeMethods from "./components/timeseries";
 import DemographicPopulation, { DemographicData } from "./components/demographic";
 import dynamic from "next/dynamic";
+import { Info } from "lucide-react";
 
 const PopulationChart = dynamic(() => import("./components/PopulationChart"), { ssr: false })
 interface Village {
@@ -503,37 +504,38 @@ const Population: React.FC<PopulationProps> = ({
 
             {/* Show Table */}
             {results && (
-                <div className="mt-6">
-                    <h2 className="text-lg font-semibold mb-4">Population Data</h2>
+                <div className="mt-8 max-w-4xl ">
+                    <h2 className="text-3xl font-bold text-blue-800 mb-6 ">Population Data</h2>
 
                     {/* Scrollable Table Container */}
-                    <div className="table-container overflow-x-auto border border-gray-300 rounded-lg shadow-md">
-                        <table className="w-auto min-w-[500px] bg-white border-collapse table-auto">
-                            <thead className="bg-gray-200">
+                    <div className="table-container overflow-x-auto border border-gray-200 rounded-xl shadow-lg bg-white">
+                        <table className="w-full min-w-[600px] border-collapse">
+                            <thead className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700">
                                 <tr>
-                                    <th className="border px-4 py-2 w-24">Year</th>
+                                    <th className="border-b px-6 py-4 text-left font-semibold text-sm w-28">Year</th>
                                     {Object.keys(results).map((method) => (
-                                        <th key={method} className="border px-4 py-2">
-                                            <label className="flex items-center gap-2 justify-center">
-                                                <input
-                                                    type="radio"
-                                                    name="selectedMethod"
-                                                    value={method}
-                                                    checked={selectedMethod === method}
-                                                    onChange={() => setSelectedMethodd(method)}
-                                                />
-                                                {method}
-                                            </label>
+                                        <th
+                                            key={method}
+                                            className="border-b px-6 py-4 text-center font-semibold text-sm"
+                                        >
+                                            {method}
                                         </th>
                                     ))}
                                 </tr>
                             </thead>
                             <tbody>
-                                {getYears(results).map((year) => (
-                                    <tr key={year} className="border-t">
-                                        <td className="border px-4 py-2 font-semibold">{year}</td>
+                                {getYears(results).map((year, index) => (
+                                    <tr
+                                        key={year}
+                                        className={`border-b hover:bg-gray-50 transition-colors ${index % 2 === 0 ? "bg-gray-50/50" : "bg-white"
+                                            }`}
+                                    >
+                                        <td className="border-b px-6 py-4 font-medium text-gray-800">{year}</td>
                                         {Object.keys(results).map((method) => (
-                                            <td key={`${method}-${year}`} className="border px-4 py-2 text-center">
+                                            <td
+                                                key={`${method}-${year}`}
+                                                className="border-b px-6 py-4 text-center text-gray-600"
+                                            >
                                                 {results[method][year] ?? "-"}
                                             </td>
                                         ))}
@@ -542,17 +544,52 @@ const Population: React.FC<PopulationProps> = ({
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Radio Buttons Below Table */}
+                    <div className="mt-6 bg-gray-50 p-6 rounded-xl shadow-sm border border-gray-200">
+                        <div className="flex items-center mb-4 space-x-2">
+                            <h3 className="text-lg font-semibold text-gray-800">Select a Method</h3>
+
+                            {/* Info Icon with Tooltip */}
+                            <div className="relative group">
+                                <Info className="w-5 h-5 text-blue-600 cursor-pointer" />
+
+                                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-max max-w-xs bg-gray-900 text-white text-sm rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out z-10 pointer-events-none">
+                                    This method’s data will be used in further analysis.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-6">
+                            {Object.keys(results).map((method) => (
+                                <label
+                                    key={method}
+                                    className="flex items-center gap-2 cursor-pointer group"
+                                >
+                                    <input
+                                        type="radio"
+                                        name="selectedMethod"
+                                        value={method}
+                                        checked={selectedMethod === method}
+                                        onChange={() => setSelectedMethodd(method)}
+                                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 transition"
+                                    />
+                                    <span className="text-gray-700 font-medium group-hover:text-blue-600 transition">
+                                        {method}
+                                    </span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
                 </div>
-
-
             )}
 
             {/* Show Chart */}
-            
+
             {results && <PopulationChart results={results} />}
-            
+
         </div>
-        
+
     )
 }
 
