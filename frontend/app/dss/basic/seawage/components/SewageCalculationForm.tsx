@@ -12,6 +12,12 @@ export interface PollutionItem {
   perCapita: number;
 }
 
+export interface DrainItem {
+  id: string;
+  name: string;
+  discharge: number | '';
+}
+
 const defaultPollutionItems: PollutionItem[] = [
   { name: "BOD", perCapita: 27.0 },
   { name: "COD", perCapita: 45.9 },
@@ -41,6 +47,11 @@ const SewageCalculationForm: React.FC = () => {
   // --- New state: show raw sewage table only when calculated ---
   const [showRawSewage, setShowRawSewage] = useState(false);
 
+  // --- New state for drain tapping ---
+  const [drainCount, setDrainCount] = useState<number | ''>(0);
+  const [drainItems, setDrainItems] = useState<DrainItem[]>([]);
+  const [totalDrainDischarge, setTotalDrainDischarge] = useState<number>(0);
+
   const computedPopulation: { [year: string]: number } = (window as any).selectedPopulationForecast || {};
 
   // --- Raw Sewage Characteristics State (editable pollution items) ---
@@ -63,6 +74,28 @@ const SewageCalculationForm: React.FC = () => {
     }
   }, [sewageMethod]);
 
+  // Update drain items when drain count changes
+  useEffect(() => {
+    if (typeof drainCount === 'number' && drainCount > 0) {
+      const newDrainItems: DrainItem[] = Array.from({ length: drainCount }, (_, index) => ({
+        id: `D${index + 1}`,
+        name: `Drain ${index + 1}`,
+        discharge: '',
+      }));
+      setDrainItems(newDrainItems);
+    } else {
+      setDrainItems([]);
+    }
+  }, [drainCount]);
+
+  // Calculate total drain discharge whenever drain items change
+  useEffect(() => {
+    const total = drainItems.reduce((sum, item) => {
+      return sum + (typeof item.discharge === 'number' ? item.discharge : 0);
+    }, 0);
+    setTotalDrainDischarge(total);
+  }, [drainItems]);
+
   // --- Handlers for Sewage Calculation ---
   const handleSewageMethodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value as SewageMethod;
@@ -76,6 +109,21 @@ const SewageCalculationForm: React.FC = () => {
 
   const handleDomesticLoadMethodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setDomesticLoadMethod(e.target.value as DomesticLoadMethod);
+  };
+
+  const handleDrainCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value === '' ? '' : Number(e.target.value);
+    setDrainCount(value);
+  };
+
+  const handleDrainItemChange = (index: number, field: keyof DrainItem, value: string | number) => {
+    const newDrainItems = [...drainItems];
+    if (field === 'discharge') {
+      newDrainItems[index].discharge = value === '' ? '' : Number(value);
+    } else {
+      newDrainItems[index][field] = value as string;
+    }
+    setDrainItems(newDrainItems);
   };
 
   const handleCalculateSewage = async () => {
@@ -108,6 +156,14 @@ const SewageCalculationForm: React.FC = () => {
       setError('Please select a sewage method.');
       return;
     }
+
+    // Add drain data to payload
+    payload.drain_items = drainItems.map(item => ({
+      id: item.id,
+      name: item.name,
+      discharge: typeof item.discharge === 'number' ? item.discharge : 0
+    }));
+    payload.total_drain_discharge = totalDrainDischarge;
 
     try {
       const response = await fetch('http://localhost:9000/api/basic/sewage_calculation/', {
@@ -324,6 +380,60 @@ const SewageCalculationForm: React.FC = () => {
     );
   }, [pollutionItemsState, unmeteredSupplyInput, computedPopulation]);
 
+  // Drain items table JSX
+  const drainItemsTableJSX = (
+    <div className="mt-4">
+      <table className="min-w-full border-collapse border border-gray-300">
+        <thead>
+          <tr>
+            <th className="border px-2 py-1">Drain ID</th>
+            <th className="border px-2 py-1">Drain Name</th>
+            <th className="border px-2 py-1">Discharge (MLD)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {drainItems.map((item, index) => (
+            <tr key={index}>
+              <td className="border px-2 py-1">
+                <input
+                  type="text"
+                  value={item.id}
+                  onChange={(e) => handleDrainItemChange(index, 'id', e.target.value)}
+                  className="w-20 border rounded px-1 py-0.5"
+                />
+              </td>
+              <td className="border px-2 py-1">
+                <input
+                  type="text"
+                  value={item.name}
+                  onChange={(e) => handleDrainItemChange(index, 'name', e.target.value)}
+                  className="w-full border rounded px-1 py-0.5"
+                />
+              </td>
+              <td className="border px-2 py-1">
+                <input
+                  type="number"
+                  value={item.discharge}
+                  onChange={(e) => handleDrainItemChange(index, 'discharge', e.target.value)}
+                  className="w-20 border rounded px-1 py-0.5"
+                  min="0"
+                  step="0.01"
+                />
+              </td>
+            </tr>
+          ))}
+          <tr>
+            <td colSpan={2} className="border px-2 py-1 font-bold text-right">
+              Total Discharge:
+            </td>
+            <td className="border px-2 py-1 font-bold">
+              {totalDrainDischarge.toFixed(2)} MLD
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
 
   const handlepdfDownload = () => {
     const doc = new jsPDF();
@@ -335,16 +445,35 @@ const SewageCalculationForm: React.FC = () => {
     doc.text("Total Water Supply: " + totalSupplyInput, 14, 50);
     doc.text("Domestic Water Supply: " + domesticSupplyInput, 14, 60);
     doc.text("Unmetered Water Supply: " + unmeteredSupplyInput, 14, 70);
-    doc.text("Pollution Items:", 14, 80);
+    
+    // Add drain information
+    doc.text("Number of Drains to be Tapped: " + drainCount, 14, 80);
+    doc.text("Total Drain Discharge: " + totalDrainDischarge.toFixed(2) + " MLD", 14, 90);
+    
+    // Add drain items table
+    doc.text("Drain Details:", 14, 100);
+    const drainRows = drainItems.map((item) => [
+      item.id,
+      item.name,
+      typeof item.discharge === 'number' ? item.discharge.toFixed(2) : '0.00'
+    ]);
+    autoTable(doc, {
+      head: [["Drain ID", "Drain Name", "Discharge (MLD)"]],
+      body: drainRows,
+      startY: 110,
+    });
   
     // Prepare pollution rows
+    const yAfterDrains = ((doc as any).lastAutoTable?.finalY || 110) as number;
+    doc.text("Pollution Items:", 14, yAfterDrains + 10);
     const pollutionRows = pollutionItemsState.map((item) => [item.name, item.perCapita]);
     autoTable(doc, {
       head: [["Item", "Per Capita Contribution (g/c/d)"]],
       body: pollutionRows,
-      startY: 90,
+      startY: yAfterDrains + 20,
     });
-    const finalYAfterPollution = ((doc as any).lastAutoTable?.finalY || 90) as number;
+    
+    const finalYAfterPollution = ((doc as any).lastAutoTable?.finalY || yAfterDrains + 20) as number;
     doc.text("Sewage Result:", 14, finalYAfterPollution + 10);
     const sewageRows = Object.entries(sewageResult).map(([year, value]: [string, unknown]) => [year, value as number]);
     autoTable(doc, {
@@ -352,6 +481,7 @@ const SewageCalculationForm: React.FC = () => {
       body: sewageRows,
       startY: finalYAfterPollution + 15,
     });
+    
     const finalYAfterSewage = ((doc as any).lastAutoTable?.finalY || finalYAfterPollution + 15) as number;
     doc.text("Peak Flow Calculation:", 14, finalYAfterSewage + 10);
     // If you have data for peak flow, construct the rows accordingly.
@@ -362,21 +492,20 @@ const SewageCalculationForm: React.FC = () => {
       body: peakRows,
       startY: finalYAfterSewage + 15,
     });
+    
     const finalYAfterPeak = ((doc as any).lastAutoTable?.finalY || finalYAfterSewage + 15) as number;
     doc.text("Raw Sewage Characteristics:", 14, finalYAfterPeak + 10);
     // Similarly, extract raw sewage rows from your rawSewageTable data.
-    const rawRows: (string | number)[][] = []; // Build raw sewage rows here. // Build raw sewage rows here.
+    const rawRows: (string | number)[][] = []; // Build raw sewage rows here.
     autoTable(doc, {
       head: [["Item", "Per Capita Contribution (g/c/d)", "Concentration (mg/l)"]],
       body: rawRows,
       startY: finalYAfterPeak + 15,
     });
+    
     doc.save("Sewage_Calculation_Report.pdf");
   };
   
-  
-  
-
   return (
     <div className="p-4 border rounded bg-white space-y-8">
       <h3 className="text-xl font-semibold mb-3">Sewage Calculation</h3>
@@ -472,6 +601,25 @@ const SewageCalculationForm: React.FC = () => {
         </div>
       )}
 
+      {/* Drain Tapping Input - this is shown regardless of method selected */}
+      <div className="mb-4 p-3 border rounded bg-gray-50">
+        <h4 className="font-bold text-gray-700 mb-2">Drain Tapping Information</h4>
+        <label htmlFor="drain_count" className="block text-sm font-medium">
+          Number of Drains to be Tapped:
+        </label>
+        <input
+          type="number"
+          id="drain_count"
+          value={drainCount}
+          onChange={handleDrainCountChange}
+          className="mt-1 block w-1/3 border rounded px-2 py-1"
+          placeholder="Enter number of drains"
+          min="0"
+        />
+        
+        {drainCount && drainCount > 0 && drainItemsTableJSX}
+      </div>
+
       <button
         className="bg-blue-600 text-white px-4 py-2 rounded"
         onClick={handleCalculateSewage}
@@ -493,20 +641,37 @@ const SewageCalculationForm: React.FC = () => {
                   <th className="border px-2 py-1">Year</th>
                   <th className="border px-4 py-2">Forecasted Population</th>
                   <th className="border px-2 py-1">Sewage Generation (MLD)</th>
+                  {/* Add drains based sewage column only for modeled method */}
+                  {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
+                    <th className="border px-2 py-1">Drains Based Sewage (MLD)</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(sewageResult).map(([year, value]) =>{
+                {Object.entries(sewageResult).map(([year, value]) => {
                   const forecastData = (window as any).selectedPopulationForecast;
                   const domesticPop = forecastData[year] ?? "";
+                  // Calculate drains based sewage
+                  let drainsSewage = 0;
+                  if (domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) {
+                    const pop2025 = forecastData["2025"];
+                    // Only calculate if 2025 population exists, otherwise leave as 0
+                    if (pop2025 && pop2025 > 0) {
+                      drainsSewage = (domesticPop / pop2025) * totalDrainDischarge;
+                    }
+                  }
+                  
                   return (
                     <tr key={year}>
                       <td className="border px-2 py-1">{year}</td>
                       <td className="border px-4 py-2">{domesticPop}</td>
                       <td className="border px-2 py-1">{Number(value).toFixed(2)}</td>
+                      {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
+                        <td className="border px-2 py-1">{drainsSewage > 0 ? drainsSewage.toFixed(6) : "0.000000"}</td>
+                        
+                      )}
                     </tr>
                   );
-                    
                 })}
               </tbody>
             </table>
@@ -579,8 +744,6 @@ const SewageCalculationForm: React.FC = () => {
         Download Comprehensive Report
       </button>
     </div>
-    
-  
   );
 };
 

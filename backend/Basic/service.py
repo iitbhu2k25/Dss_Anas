@@ -82,7 +82,43 @@ def Arithmetic_population_range(base_year, start_year, end_year, villages, subdi
     print(f"Air_last_output {Air_last_output}")
     return Air_last_output
 
+##### this is for special case to include 2025 always but currently it is implement in main site but it is correct 
 
+# def Arithmetic_population_range(base_year, start_year, end_year, villages, subdistrict):
+#     output_year = {}
+#     ans = Arithmetic_d_values(subdistrict)
+#     print("ans", ans)
+
+#     # Force include base_year (2011) and final fixed year (2025) in the year range
+#     fixed_years = {base_year, 2025}
+#     full_years = set(range(start_year, end_year + 1)).union(fixed_years)
+#     full_years = sorted(full_years)
+
+#     for village in villages:
+#         village_id = village['id']
+#         value = village['population']
+#         vill_sub_id = village['subDistrictId']
+#         items = next((item for item in ans if item['subdistrict_code'] == vill_sub_id), None)
+
+#         if items:
+#             output_year[village_id] = {}
+#             for year in full_years:
+#                 if year == base_year:
+#                     output_year[village_id][year] = value
+#                 else:
+#                     projected_value = int(value + ((items['annual_growth_rate'] * (year - base_year)) * (value / items['total_p7'])))
+#                     output_year[village_id][year] = projected_value
+
+#     print(f"Output years Range {output_year}")
+
+#     # Aggregate population for each year
+#     Air_last_output = {}
+#     for year in full_years:
+#         Air_last_output[year] = sum(values.get(year, 0) for values in output_year.values())
+
+#     print(f"Air_last_output {Air_last_output}")
+#     return Air_last_output
+#####
 
     
 
