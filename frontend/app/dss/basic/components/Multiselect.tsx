@@ -1,23 +1,30 @@
 'use client'
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface Item {
   id: number;
   name: string;
-  [key: string]: any; // For other properties
+  [key: string]: any; // Allow for additional properties
 }
 
-interface MultiSelectProps<T extends Item = Item> {
+interface MultiSelectProps<T extends Item> {
   items: T[];
   selectedItems: string[];
   onSelectionChange: (selectedIds: string[]) => void;
   label: string;
   placeholder: string;
   disabled?: boolean;
-  displayPattern?: (item: T) => string;
+  displayPattern?: (item: T) => string; // Custom display function
+  groupBy?: (items: T[]) => { [key: string]: T[] }; // Group items function
+  useNestedGroups?: boolean; // Use nested grouping structure for villages
+  nestedGroupBy?: (items: T[]) => { [key: string]: { [key: string]: T[] } }; // Nested grouping function
+  showGroupHeaders?: boolean; // Whether to show special headers for groups
+  groupHeaderFormat?: string; // Format for group headers
+  districtHeaderFormat?: string; // Format for district headers in nested groups
+  subDistrictHeaderFormat?: string; // Format for sub-district headers in nested groups
 }
 
-export const MultiSelect = <T extends Item = Item>({
+export const MultiSelect = <T extends Item>({
   items,
   selectedItems,
   onSelectionChange,
@@ -25,196 +32,336 @@ export const MultiSelect = <T extends Item = Item>({
   placeholder,
   disabled = false,
   displayPattern = (item) => item.name,
-}: MultiSelectProps<T>): React.ReactElement => {
+  groupBy,
+  useNestedGroups = false,
+  nestedGroupBy,
+  showGroupHeaders = false,
+  groupHeaderFormat = "Group: {groupName}",
+  districtHeaderFormat = "District: {districtName}",
+  subDistrictHeaderFormat = "Sub-District: {subDistrictName}"
+}: MultiSelectProps<T>) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const allItemIds = items.map(item => item.id.toString());
-  const allSelected = items.length > 0 && selectedItems.length === items.length;
-
-  // Filter items based on search query
-  const filteredItems = items.filter(item => 
-    displayPattern(item).toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Close dropdown when clicking outside
+  
+  // Handle outside click to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-
+    
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  // Focus search input when dropdown opens
-  useEffect(() => {
-    if (isOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isOpen]);
-
-  // Reset search when dropdown closes
-  useEffect(() => {
-    if (!isOpen) {
-      setSearchQuery('');
-    }
-  }, [isOpen]);
-
-  // Toggle dropdown
-  const toggleDropdown = () => {
-    if (!disabled) {
-      setIsOpen(!isOpen);
-    }
-  };
-
-  // Handle select all
-  const handleSelectAll = () => {
-    if (allSelected) {
+  
+  // Filter items based on search term
+  const filteredItems = items.filter(item => 
+    displayPattern(item).toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
+  // Group items if groupBy function is provided
+  const groupedItems = groupBy ? groupBy(filteredItems) : null;
+  const nestedGroupedItems = nestedGroupBy && useNestedGroups ? nestedGroupBy(filteredItems) : null;
+  
+  // Toggle all items
+  const handleToggleAll = () => {
+    if (selectedItems.length === items.length) {
       // If all are selected, deselect all
       onSelectionChange([]);
     } else {
-      // Otherwise select all
-      onSelectionChange([...allItemIds]);
+      // Otherwise, select all
+      onSelectionChange(items.map(item => item.id.toString()));
     }
   };
-
-  // Handle item selection
-  const handleItemSelect = (itemId: string) => {
+  
+  // Toggle a single item
+  const handleToggleItem = (itemId: string) => {
     if (selectedItems.includes(itemId)) {
-      // Item is already selected, remove it
       onSelectionChange(selectedItems.filter(id => id !== itemId));
     } else {
-      // Item is not selected, add it
       onSelectionChange([...selectedItems, itemId]);
     }
   };
-
-  // Format the display text
-  const getDisplayText = () => {
-    if (selectedItems.length === 0) {
-      return placeholder;
-    }
+  
+  // Toggle all items in a group
+  const handleToggleGroup = (groupItems: T[]) => {
+    const groupItemIds = groupItems.map(item => item.id.toString());
+    const allSelected = groupItemIds.every(id => selectedItems.includes(id));
     
     if (allSelected) {
-      return `All ${label}s`;
+      // If all in group are selected, deselect them
+      onSelectionChange(selectedItems.filter(id => !groupItemIds.includes(id)));
+    } else {
+      // Otherwise, select all in the group
+      const newSelection = [...selectedItems];
+      groupItemIds.forEach(id => {
+        if (!newSelection.includes(id)) {
+          newSelection.push(id);
+        }
+      });
+      onSelectionChange(newSelection);
     }
-    
-    if (selectedItems.length === 1) {
-      const selected = items.find(item => item.id.toString() === selectedItems[0]);
-      return selected ? displayPattern(selected) : placeholder;
+  };
+  
+  // Determine if all items in a group are selected
+  const isGroupSelected = (groupItems: T[]) => {
+    return groupItems.every(item => selectedItems.includes(item.id.toString()));
+  };
+  
+  // Determine if some (but not all) items in a group are selected
+  const isGroupPartiallySelected = (groupItems: T[]) => {
+    const selected = groupItems.some(item => selectedItems.includes(item.id.toString()));
+    return selected && !isGroupSelected(groupItems);
+  };
+  
+  // Display selected items summary
+  const getSelectedDisplay = () => {
+    if (selectedItems.length === 0) {
+      return placeholder;
+    } else if (selectedItems.length === items.length) {
+      return 'All Items Selected';
+    } else {
+      return `${selectedItems.length} Selected`;
     }
-    
-    return `${selectedItems.length} ${label}s selected`;
   };
 
+  // Format group header based on template
+  const formatGroupHeader = (groupName: string) => {
+    return groupHeaderFormat.replace('{groupName}', groupName);
+  };
+
+  // Format district header based on template
+  const formatDistrictHeader = (districtName: string) => {
+    return districtHeaderFormat.replace('{districtName}', districtName);
+  };
+
+  // Format sub-district header based on template
+  const formatSubDistrictHeader = (subDistrictName: string) => {
+    return subDistrictHeaderFormat.replace('{subDistrictName}', subDistrictName);
+  };
+  
   return (
     <div className="relative" ref={dropdownRef}>
       <label className="block text-sm font-semibold text-gray-700 mb-2">
         {label}:
       </label>
-      <div
-        className={`w-full p-2 text-sm border border-blue-500 rounded-md flex justify-between items-center cursor-pointer ${
-          disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+      <div 
+        className={`p-2 border rounded-md cursor-pointer ${
+          disabled 
+            ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
+            : 'border-blue-500 focus:ring-2 focus:ring-blue-500'
         }`}
-        onClick={toggleDropdown}
+        onClick={() => !disabled && setIsOpen(!isOpen)}
       >
-        <span className={selectedItems.length === 0 ? 'text-gray-400' : ''}>
-          {getDisplayText()}
-        </span>
-        <svg
-          className="w-4 h-4 ml-2"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d={isOpen ? "M5 15l7-7 7 7" : "M19 9l-7 7-7-7"}
-          />
-        </svg>
+        <div className="flex justify-between items-center">
+          <div className="text-sm truncate">
+            {getSelectedDisplay()}
+          </div>
+          <div>
+            <svg 
+              className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
       </div>
       
       {isOpen && !disabled && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-          {/* Search box */}
-          <div className="sticky top-0 p-2 border-b border-gray-200 bg-white">
-            <div className="relative">
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder={`Search ${label}s...`}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full p-2 pr-8 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                onClick={(e) => e.stopPropagation()} // Prevent dropdown from closing
-              />
-              {searchQuery && (
-                <button
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSearchQuery('');
-                  }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-          
-          {/* Select All option */}
-          <div
-            className={`p-2 hover:bg-blue-100 cursor-pointer border-b border-gray-200 font-medium ${
-              allSelected ? 'bg-blue-50' : ''
-            }`}
-            onClick={handleSelectAll}
-          >
+        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+          {/* Search Input */}
+          <div className="sticky top-0 bg-white p-2 border-b border-gray-200">
             <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={handleSelectAll}
-              className="mr-2"
+              type="text"
+              className="w-full p-2 text-sm border border-gray-300 rounded-md"
+              placeholder="Search..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
             />
-            All {label}s
           </div>
           
-          {/* No results message */}
-          {filteredItems.length === 0 && (
-            <div className="p-3 text-center text-gray-500">
-              No {label}s found matching "{searchQuery}"
-            </div>
-          )}
-          
-          {/* Individual items */}
-          {filteredItems.map(item => (
-            <div
-              key={item.id}
-              className={`p-2 hover:bg-blue-100 cursor-pointer ${
-                selectedItems.includes(item.id.toString()) ? 'bg-blue-50' : ''
-              }`}
-              onClick={() => handleItemSelect(item.id.toString())}
-            >
+          {/* Select All Option */}
+          <div 
+            className="p-2 hover:bg-gray-100 border-b border-gray-200 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleAll();
+            }}
+          >
+            <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
-                checked={selectedItems.includes(item.id.toString())}
-                onChange={() => handleItemSelect(item.id.toString())}
-                className="mr-2"
+                checked={selectedItems.length === items.length && items.length > 0}
+                onChange={() => {}}
+                className="form-checkbox h-4 w-4 text-blue-600"
               />
-              {displayPattern(item)}
+              <span className="text-sm font-medium">Select All</span>
+            </label>
+          </div>
+          
+          {/* Nested Grouped Items (for Villages with District > SubDistrict structure) */}
+          {useNestedGroups && nestedGroupedItems ? (
+            Object.entries(nestedGroupedItems).sort(([a], [b]) => a.localeCompare(b)).map(([districtName, subDistrictGroups]) => (
+              <div key={districtName} className="border-b border-gray-200 last:border-b-0">
+                {/* District Group Header */}
+                <div className="p-2 bg-gray-100 font-medium text-sm">
+                  {formatDistrictHeader(districtName)}
+                </div>
+                
+                {/* SubDistrict Groups */}
+                {Object.entries(subDistrictGroups).sort(([a], [b]) => a.localeCompare(b)).map(([subDistrictName, villages]) => (
+                  <div key={`${districtName}-${subDistrictName}`} className="border-t border-gray-100">
+                    {/* SubDistrict Header */}
+                    <div 
+                      className="pl-4 p-2 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleGroup(villages);
+                      }}
+                    >
+                      <label className="flex items-center space-x-2 cursor-pointer w-full">
+                        <input
+                          type="checkbox"
+                          checked={isGroupSelected(villages)}
+                          ref={input => {
+                            if (input) {
+                              input.indeterminate = isGroupPartiallySelected(villages);
+                            }
+                          }}
+                          onChange={() => {}}
+                          className="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <span className="text-sm font-medium">{formatSubDistrictHeader(subDistrictName)}</span>
+                        <span className="text-xs text-gray-500">({villages.length})</span>
+                      </label>
+                    </div>
+                    
+                    {/* Villages within SubDistrict */}
+                    <div className="pl-8">
+                      {villages.map(village => (
+                        <div 
+                          key={village.id}
+                          className="p-2 hover:bg-gray-100 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleItem(village.id.toString());
+                          }}
+                        >
+                          <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedItems.includes(village.id.toString())}
+                              onChange={() => {}}
+                              className="form-checkbox h-4 w-4 text-blue-600"
+                            />
+                            <span className="text-sm">{displayPattern(village as unknown as T)}</span>
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))
+          ) : groupedItems ? (
+            // Standard Grouped items
+            Object.entries(groupedItems).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, groupItems]) => (
+              <div key={groupName} className="border-b border-gray-200 last:border-b-0">
+                {/* Group Header */}
+                {showGroupHeaders && (
+                  <div className="p-2 bg-gray-100 font-medium text-sm">
+                    {formatGroupHeader(groupName)}
+                  </div>
+                )}
+                
+                {/* Group Toggle */}
+                <div 
+                  className={`p-2 ${showGroupHeaders ? 'pl-4' : ''} ${showGroupHeaders ? 'bg-gray-50' : 'bg-gray-50'} hover:bg-gray-100 cursor-pointer`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleGroup(groupItems);
+                  }}
+                >
+                  <label className="flex items-center space-x-2 cursor-pointer w-full">
+                    <input
+                      type="checkbox"
+                      checked={isGroupSelected(groupItems)}
+                      ref={input => {
+                        if (input) {
+                          input.indeterminate = isGroupPartiallySelected(groupItems);
+                        }
+                      }}
+                      onChange={() => {}}
+                      className="form-checkbox h-4 w-4 text-blue-600"
+                    />
+                    <span className="text-sm font-medium">{showGroupHeaders ? 'Select All' : groupName}</span>
+                    <span className="text-xs text-gray-500">({groupItems.length})</span>
+                  </label>
+                </div>
+                
+                {/* Group Items */}
+                <div className={`${showGroupHeaders ? 'pl-8' : 'pl-6'}`}>
+                  {groupItems.map(item => (
+                    <div 
+                      key={item.id}
+                      className="p-2 hover:bg-gray-100 cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleItem(item.id.toString());
+                      }}
+                    >
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedItems.includes(item.id.toString())}
+                          onChange={() => {}}
+                          className="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <span className="text-sm">{displayPattern(item)}</span>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          ) : (
+            // Flat list of items
+            filteredItems.map(item => (
+              <div 
+                key={item.id}
+                className="p-2 hover:bg-gray-100 cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleItem(item.id.toString());
+                }}
+              >
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedItems.includes(item.id.toString())}
+                    onChange={() => {}}
+                    className="form-checkbox h-4 w-4 text-blue-600"
+                  />
+                  <span className="text-sm">{displayPattern(item)}</span>
+                </label>
+              </div>
+            ))
+          )}
+          
+          {filteredItems.length === 0 && (
+            <div className="p-3 text-center text-gray-500 text-sm">
+              No items found
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
