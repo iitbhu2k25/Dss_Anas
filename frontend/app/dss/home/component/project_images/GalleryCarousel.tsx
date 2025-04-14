@@ -7,17 +7,17 @@ export default function GalleryCarousel() {
   const [activeIndex, setActiveIndex] = useState(0);
   // Using the correct image paths
   const images = [
-    '/images/gallery/main_background.jpg',
-    '/images/gallery/g1.jpg',
-    '/images/gallery/g2.webp',
-    '/images/gallery/g3.webp',
-    '/images/gallery/g4.webp',
-    '/images/gallery/g5.webp',
-    '/images/gallery/g6.webp',
-    '/images/gallery/g7.webp',
-    '/images/gallery/g8.webp',
-    '/images/gallery/g9.webp',
-    '/images/gallery/g10.webp'
+    '/Images/gallery/main_background.jpg',
+    '/Images/gallery/g1.jpg',
+    '/Images/gallery/g2.webp',
+    '/Images/gallery/g3.webp',
+    '/Images/gallery/g4.webp',
+    '/Images/gallery/g5.webp',
+    '/Images/gallery/g6.webp',
+    '/Images/gallery/g7.webp',
+    '/Images/gallery/g8.webp',
+    '/Images/gallery/g9.webp',
+    '/Images/gallery/g10.webp'
   ];
 
   // Auto-slide functionality
