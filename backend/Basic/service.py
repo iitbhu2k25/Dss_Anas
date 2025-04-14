@@ -394,8 +394,6 @@ def Exponential_d_values(subdistrict):
     return g_values    
 
 
-
-
 def Exponential_population_single_year(base_year,single_year,villages,subdistrict):
     output_year = {}
     ans = Exponential_d_values(subdistrict)

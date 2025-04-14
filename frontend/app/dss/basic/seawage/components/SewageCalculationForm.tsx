@@ -10,6 +10,7 @@ type DomesticLoadMethod = 'manual' | 'modeled' | '';
 export interface PollutionItem {
   name: string;
   perCapita: number;
+  designCharacteristic?: number;
 }
 
 export interface DrainItem {
@@ -291,7 +292,7 @@ const SewageCalculationForm: React.FC = () => {
     const baseCoefficient = basePop >= 1000000 ? 150 : 135;
     const unmetered = Number(unmeteredSupplyInput) || 0;
     const totalCoefficient = (baseCoefficient + unmetered) * 0.80;
-
+  
     const tableRows = pollutionItemsState.map((item, index) => {
       const concentration = (item.perCapita / totalCoefficient) * 1000;
       return (
@@ -313,10 +314,28 @@ const SewageCalculationForm: React.FC = () => {
             />
           </td>
           <td className="border px-2 py-1">{concentration.toFixed(1)}</td>
+          <td className="border px-2 py-1">
+            <input
+              type="number"
+              value={item.designCharacteristic || concentration.toFixed(1)}
+              onChange={(e) => {
+                const newVal = Number(e.target.value);
+                setPollutionItemsState(prev => {
+                  const newItems = [...prev];
+                  newItems[index] = { 
+                    ...newItems[index], 
+                    designCharacteristic: newVal 
+                  };
+                  return newItems;
+                });
+              }}
+              className="w-20 border rounded px-1 py-0.5"
+            />
+          </td>
         </tr>
       );
     });
-
+  
     const tableJSX = (
       <table className="min-w-full border-collapse border border-gray-300">
         <thead>
@@ -324,17 +343,17 @@ const SewageCalculationForm: React.FC = () => {
             <th className="border px-2 py-1">Item</th>
             <th className="border px-2 py-1">Per Capita Contribution (g/c/d)</th>
             <th className="border px-2 py-1">Concentration (mg/l)</th>
+            <th className="border px-2 py-1">Design Characteristic (mg/l)</th>
           </tr>
         </thead>
         <tbody>{tableRows}</tbody>
       </table>
     );
     setRawSewageTable(tableJSX);
-    // Show the raw sewage table after calculation
     setShowRawSewage(true);
   };
-
-  // Also compute a memoized version of the Raw Sewage table so it updates live
+  
+  // Update the memoized JSX similarly
   const rawSewageJSX = useMemo(() => {
     const basePop = computedPopulation["2011"] || 0;
     const baseCoefficient = basePop >= 1000000 ? 150 : 135;
@@ -347,7 +366,8 @@ const SewageCalculationForm: React.FC = () => {
           <tr>
             <th className="border px-2 py-1">Item</th>
             <th className="border px-2 py-1">Per Capita Contribution (g/c/d)</th>
-            <th className="border px-2 py-1">Concentration (mg/l)</th>
+            <th className="border px-2 py-1">Raw Sewage Characteristics (mg/l)</th>
+            <th className="border px-2 py-1">Design Characteristics (mg/l)</th>
           </tr>
         </thead>
         <tbody>
@@ -372,6 +392,24 @@ const SewageCalculationForm: React.FC = () => {
                   />
                 </td>
                 <td className="border px-2 py-1">{concentration.toFixed(1)}</td>
+                <td className="border px-2 py-1">
+                  <input
+                    type="number"
+                    value={item.designCharacteristic || concentration.toFixed(1)}
+                    onChange={(e) => {
+                      const newVal = Number(e.target.value);
+                      setPollutionItemsState(prev => {
+                        const newItems = [...prev];
+                        newItems[index] = { 
+                          ...newItems[index], 
+                          designCharacteristic: newVal 
+                        };
+                        return newItems;
+                      });
+                    }}
+                    className="w-20 border rounded px-1 py-0.5"
+                  />
+                </td>
               </tr>
             );
           })}
@@ -605,7 +643,7 @@ const SewageCalculationForm: React.FC = () => {
       <div className="mb-4 p-3 border rounded bg-gray-50">
         <h4 className="font-bold text-gray-700 mb-2">Drain Tapping Information</h4>
         <label htmlFor="drain_count" className="block text-sm font-medium">
-          Number of Drains to be Tapped:
+          Number of Drains to be Tapped :
         </label>
         <input
           type="number"
@@ -640,10 +678,10 @@ const SewageCalculationForm: React.FC = () => {
                 <tr>
                   <th className="border px-2 py-1">Year</th>
                   <th className="border px-4 py-2">Forecasted Population</th>
-                  <th className="border px-2 py-1">Sewage Generation (MLD)</th>
+                  <th className="border px-2 py-1">Population Based Sewage Generation (MLD)</th>
                   {/* Add drains based sewage column only for modeled method */}
                   {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
-                    <th className="border px-2 py-1">Drains Based Sewage (MLD)</th>
+                    <th className="border px-2 py-1">Drains Based Sewage Generation (MLD)</th>
                   )}
                 </tr>
               </thead>

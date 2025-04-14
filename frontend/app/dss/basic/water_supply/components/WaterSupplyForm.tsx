@@ -1,4 +1,3 @@
-// components/WaterSupplyForm.tsx
 'use client';
 import React, { useState, useEffect } from 'react';
 
@@ -40,6 +39,12 @@ const WaterSupplyForm: React.FC = () => {
   const areAlternateInputsProvided =
     rooftopTank !== '' || aquiferRecharge !== '' || surfaceRunoff !== '' || reuseWater !== '';
 
+    useEffect(() => {
+      if (waterSupplyResult !== null) {
+        calculateWaterGap();
+      }
+    }, [waterSupplyResult, (window as any).totalWaterDemand]); 
+
   // Function to calculate water gap
   const calculateWaterGap = () => {
     // Get water demand data from the window object
@@ -48,6 +53,12 @@ const WaterSupplyForm: React.FC = () => {
     
     if (!forecastData) {
       console.error("Forecast data not available. Water gap cannot be calculated.");
+      setWaterGapData(null);
+      return;
+    }
+
+    if (waterSupplyResult === null) {
+      setError("Please calculate water supply first.");
       return;
     }
 
@@ -56,11 +67,7 @@ const WaterSupplyForm: React.FC = () => {
     // For each year in the forecast data, calculate the gap
     Object.keys(forecastData).sort().forEach(year => {
       const totalDemand = totalWaterDemand[year] || 0;
-      
-      // Calculate the gap (supply - demand)
-      if (waterSupplyResult !== null) {
-        waterGap[year] = waterSupplyResult - totalDemand;
-      }
+      waterGap[year] = waterSupplyResult - totalDemand;
     });
     
     setWaterGapData(waterGap);
@@ -108,9 +115,6 @@ const WaterSupplyForm: React.FC = () => {
       setWaterSupplyResult(data.total_supply);
       // Save globally so that sewage stage can use it
       (window as any).totalWaterSupply = data.total_supply;
-      
-      // After setting the water supply, calculate the water gap
-      setTimeout(() => calculateWaterGap(), 100);
     } catch (err) {
       console.error(err);
       setError('Error connecting to backend.');
@@ -322,12 +326,20 @@ const WaterSupplyForm: React.FC = () => {
       {/* Error display */}
       {error && <div className="mb-4 text-red-500">{error}</div>}
 
-      <button
-        className="bg-blue-600 text-white px-4 py-2 rounded"
-        onClick={handleCalculateWaterSupply}
-      >
-        Calculate Water Supply
-      </button>
+      <div className="flex space-x-4">
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+          onClick={handleCalculateWaterSupply}
+        >
+          Calculate Water Supply
+        </button>
+        {/* <button
+          className="bg-green-600 text-white px-4 py-2 rounded"
+          onClick={calculateWaterGap}
+        >
+          Calculate Water Gap
+        </button> */}
+      </div>
 
       {/* Result display */}
       {waterSupplyResult !== null && (
