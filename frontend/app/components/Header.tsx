@@ -5,7 +5,7 @@ export default function Header() {
   return (
     <header className="w-full py-3 bg-gradient-to-r from-blue-50 to-blue-100 shadow-lg border-b border-blue-200"
     style={{
-      backgroundImage: "url('/images/header/header_bg.gif')",
+      backgroundImage: "url('/Images/header/header_bg.gif')",
       backgroundSize: "cover",
       backgroundPosition: "center",
       backgroundRepeat: "no-repeat"
@@ -17,7 +17,7 @@ export default function Header() {
             <div className="flex items-center space-x-6">
               <Link href="https://www.india.gov.in/" className="transition-transform hover:scale-105">
                 <img
-                  src="/images/header/left1_ashok.png"
+                  src="/Images/header/left1_ashok.png"
                   alt="Logo 1"
                   title="अशोक स्तंभ"
                   className="w-20 h-auto"
@@ -25,7 +25,7 @@ export default function Header() {
               </Link>
               <Link href="https://iitbhu.ac.in/" className="transition-transform hover:scale-105">
                 <img
-                  src="/images/header/left2_IIt_logo.png"
+                  src="/Images/header/left2_IIt_logo.png"
                   alt="Logo 3"
                   title="iitbhu"
                   className="w-32 h-auto transform scale-150 ml-6 transition-transform duration-300"
@@ -64,7 +64,7 @@ export default function Header() {
             <div className="flex items-center space-x-6">
               <Link href="https://www.slcrvaranasi.com/" className="transition-transform hover:scale-105">
                 <img
-                  src="/images/header/right1_slcr.png"
+                  src="/Images/header/right1_slcr.png"
                   alt="Right Logo"
                   title="Smart Laboratory on Clean River"
                   className="max-w-full h-auto w-40"
@@ -72,7 +72,7 @@ export default function Header() {
               </Link>
               <Link href="https://nmcg.nic.in/" className="transition-transform hover:scale-105">
                 <img
-                  src="/images/header/right2_namami_ganga.gif"
+                  src="/Images/header/right2_namami_ganga.gif"
                   alt="Logo 3"
                   title="Namami Gange"
                   className="w-26 h-auto"

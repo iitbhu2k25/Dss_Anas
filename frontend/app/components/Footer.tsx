@@ -13,7 +13,7 @@ export default function Footer() {
           <div className="flex justify-center items-center flex-wrap gap-5 mb-6">
             <div className="relative w-32 h-12">
               <Image
-                src="/images/footer/logo1.png"
+                src="/Images/footer/logo1.png"
                 alt="Partner Logo"
                 fill
                 sizes="100%"
@@ -24,7 +24,7 @@ export default function Footer() {
 
             <div className="relative w-32 h-16">
               <Image
-                src="/images/footer/logo2.svg"
+                src="/Images/footer/logo2.svg"
                 alt="Trusted Brand"
                 fill
                 sizes="100%"
@@ -34,7 +34,7 @@ export default function Footer() {
             
             <div className="relative w-32 h-16">
               <Image
-                src="/images/footer/logo3.gif"
+                src="/Images/footer/logo3.gif"
                 alt="Company Seal"
                 fill
                 sizes="100%"
@@ -45,7 +45,7 @@ export default function Footer() {
 
             <div className="relative w-32 h-16">
               <Image
-                src="/images/footer/iitbhu.png"
+                src="/Images/footer/iitbhu.png"
                 alt="Certified Mark"
                 fill
                 sizes="100%"
@@ -55,7 +55,7 @@ export default function Footer() {
 
             <div className="relative w-32 h-16">
               <Image
-                src="/images/footer/iitbombay.png"
+                src="/Images/footer/iitbombay.png"
                 alt="Award Logo"
                 fill
                 sizes="100%"
@@ -65,7 +65,7 @@ export default function Footer() {
 
             <div className="relative w-32 h-16">
               <Image
-                src="/images/footer/download.png"
+                src="/Images/footer/download.png"
                 alt="Company Seal"
                 fill
                 sizes="100%"
@@ -75,7 +75,7 @@ export default function Footer() {
 
             <div className="relative w-32 h-16">
               <Image
-                src="/images/footer/IIT_Madras_Logo.svg.png"
+                src="/Images/footer/IIT_Madras_Logo.svg.png"
                 alt="Company Seal"
                 fill
                 sizes="100%"
@@ -85,7 +85,7 @@ export default function Footer() {
 
             <div className="relative w-32 h-16">
               <Image
-                src="/images/footer/50.png"
+                src="/Images/footer/50.png"
                 alt="Company Seal"
                 fill
                 sizes="100%"
