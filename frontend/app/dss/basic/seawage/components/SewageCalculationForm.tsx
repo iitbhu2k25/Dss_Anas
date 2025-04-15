@@ -6,6 +6,8 @@ import autoTable from "jspdf-autotable";
 
 type SewageMethod = 'water_supply' | 'domestic_sewage' | '';
 type DomesticLoadMethod = 'manual' | 'modeled' | '';
+// Add a new type for peak flow calculation method
+type PeakFlowSewageSource = 'population_based' | 'drain_based' | '';
 
 export interface PollutionItem {
   name: string;
@@ -44,6 +46,9 @@ const SewageCalculationForm: React.FC = () => {
   const [sewageResult, setSewageResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPeakFlow, setShowPeakFlow] = useState(false);
+
+  // --- New state to track which sewage generation method to use for peak flow ---
+  const [peakFlowSewageSource, setPeakFlowSewageSource] = useState<PeakFlowSewageSource>('population_based');
 
   // --- New state: show raw sewage table only when calculated ---
   const [showRawSewage, setShowRawSewage] = useState(false);
@@ -200,6 +205,11 @@ const SewageCalculationForm: React.FC = () => {
     });
   };
 
+  // Handlers for peak flow sewage source selection
+  const handlePeakFlowSewageSourceChange = (source: PeakFlowSewageSource) => {
+    setPeakFlowSewageSource(source);
+  };
+
   const getCPHEEOFactor = (pop: number) => {
     if (pop < 20000) return 3.0;
     if (pop <= 50000) return 2.5;
@@ -208,6 +218,28 @@ const SewageCalculationForm: React.FC = () => {
   };
   const getHarmonFactor = (pop: number) => 1 + 14 / (4 + Math.sqrt(pop / 1000));
   const getBabbittFactor = (pop: number) => 5 / (pop/1000)**0.2;
+
+  // Helper function to calculate drain-based sewage flow
+  const calculateDrainBasedSewFlow = (popVal: number) => {
+    if (totalDrainDischarge <= 0) return 0;
+    
+    // Get all population values from computed population
+    const populationValues = Object.values(computedPopulation);
+    
+    // If we have population data but no specific 2025 value, use the first year's population as reference
+    if (populationValues.length > 0) {
+      // Get first year population as reference (or any available population)
+      const referencePopulation = populationValues[0];
+      
+      // Calculate the drain-based sewage flow using population ratio and total drain discharge
+      if (referencePopulation && referencePopulation > 0) {
+        return (popVal / referencePopulation) * totalDrainDischarge;
+      }
+    }
+    
+    // If no reference population is available, just return the total drain discharge
+    return totalDrainDischarge;
+  };
 
   const handleCalculatePeakFlow = () => {
     if (!computedPopulation || !sewageResult) {
@@ -221,14 +253,29 @@ const SewageCalculationForm: React.FC = () => {
       alert('Please select at least one Peak Flow method.');
       return;
     }
+    
+    // Prepare rows based on selected sewage flow source
     const rows = Object.keys(sewageResult).map((year) => {
       const popVal = computedPopulation[year] || 0;
-      const avgSewFlow = sewageResult[year] || 0;
+      const popBasedSewFlow = sewageResult[year] || 0;
+      
+      // Calculate drain-based sewage flow if needed
+      const drainBasedSewFlow = calculateDrainBasedSewFlow(popVal);
+      
+      // Determine which sewage flow to use based on user selection
+      let avgSewFlow: number;
+      if (peakFlowSewageSource === 'drain_based' && domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) {
+        avgSewFlow = drainBasedSewFlow;
+      } else {
+        avgSewFlow = popBasedSewFlow;
+      }
+      
       const row: any = {
         year,
         population: popVal,
-        avgSewFlow: avgSewFlow.toFixed(2),
+        avgSewFlow: avgSewFlow.toFixed(2)
       };
+      
       if (selectedMethods.includes('cpheeo')) {
         row.cpheeo = (avgSewFlow * getCPHEEOFactor(popVal)).toFixed(2);
       }
@@ -689,15 +736,8 @@ const SewageCalculationForm: React.FC = () => {
                 {Object.entries(sewageResult).map(([year, value]) => {
                   const forecastData = (window as any).selectedPopulationForecast;
                   const domesticPop = forecastData[year] ?? "";
-                  // Calculate drains based sewage
-                  let drainsSewage = 0;
-                  if (domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) {
-                    const pop2025 = forecastData["2025"];
-                    // Only calculate if 2025 population exists, otherwise leave as 0
-                    if (pop2025 && pop2025 > 0) {
-                      drainsSewage = (domesticPop / pop2025) * totalDrainDischarge;
-                    }
-                  }
+                  // Calculate drains based sewage using our new helper function
+                  const drainsSewage = calculateDrainBasedSewFlow(domesticPop);
                   
                   return (
                     <tr key={year}>
@@ -706,7 +746,6 @@ const SewageCalculationForm: React.FC = () => {
                       <td className="border px-2 py-1">{Number(value).toFixed(2)}</td>
                       {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
                         <td className="border px-2 py-1">{drainsSewage > 0 ? drainsSewage.toFixed(6) : "0.000000"}</td>
-                        
                       )}
                     </tr>
                   );
@@ -720,6 +759,38 @@ const SewageCalculationForm: React.FC = () => {
       {showPeakFlow && (
         <div className="mt-6 p-4 border rounded bg-blue-50">
           <h5 className="font-bold text-blue-700 mb-3">Peak Sewage Flow Calculation</h5>
+          
+          {/* New section for sewage source selection */}
+          {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                Select Sewage Generation Source for Peak Flow Calculation:
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="peakFlowSewageSource"
+                    checked={peakFlowSewageSource === 'population_based'}
+                    onChange={() => handlePeakFlowSewageSourceChange('population_based')}
+                    className="mr-2"
+                  />
+                  Population Based Sewage Generation
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="peakFlowSewageSource"
+                    checked={peakFlowSewageSource === 'drain_based'}
+                    onChange={() => handlePeakFlowSewageSourceChange('drain_based')}
+                    className="mr-2"
+                  />
+                  Drain Based Sewage Generation
+                </label>
+              </div>
+            </div>
+          )}
+          
           <div className="mb-3">
             <label className="block text-sm font-medium">
               Select Peak Sewage Flow Methods:
@@ -760,7 +831,8 @@ const SewageCalculationForm: React.FC = () => {
           >
             Calculate Peak Sewage Flow
           </button>
-          {peakFlowTable && <div className="mt-4">{peakFlowTable}</div>}
+          
+          {peakFlowTable && <div className="mt-6">{peakFlowTable}</div>}
         </div>
       )}
 

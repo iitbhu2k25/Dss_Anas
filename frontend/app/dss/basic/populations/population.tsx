@@ -166,6 +166,186 @@ const Population: React.FC<PopulationProps> = ({
     }, [selectedMethod, results]);
 
 
+    //////////////////////////
+
+////////////This api call for special case of 2025 population and save window.selectedPopulationMethod and used in sewage drain basis calculation
+    // This function will make a separate API call to always get the 2025 population based on the selected method
+    useEffect(() => {
+        // Only proceed if we have a selected method
+        if (selectedMethod) {
+            console.log("Making API call for method:", selectedMethod);
+
+            // Determine which API endpoint to use based on the selected method
+            let apiEndpoint = '';
+            let requestBody = {};
+
+            // Set up the appropriate API endpoint and request body based on the selected method
+            if (selectedMethod.toLowerCase().includes('demographic')) {
+                apiEndpoint = 'http://localhost:9000/api/basic/time_series/demographic/';
+
+                requestBody = {
+                    "start_year": null,
+                    "end_year": null,
+                    "year": 2025,
+                    "villages_props": villages_props,
+                    "subdistrict_props": subDistricts_props,
+                    "totalPopulation_props": totalPopulation_props,
+                    "demographic": localDemographicData ? {
+                        "birthRate": localDemographicData.annualBirthRate === "" ? null : localDemographicData.annualBirthRate,
+                        "deathRate": localDemographicData.annualDeathRate === "" ? null : localDemographicData.annualDeathRate,
+                        "emigrationRate": localDemographicData.annualEmigrationRate === "" ? null : localDemographicData.annualEmigrationRate,
+                        "immigrationRate": localDemographicData.annualImmigrationRate === "" ? null : localDemographicData.annualImmigrationRate
+                    } : null
+                };
+            } else {
+                // For all non-demographic methods
+                apiEndpoint = 'http://localhost:9000/api/basic/time_series/arthemitic/';
+
+                requestBody = {
+                    "start_year": null,
+                    "end_year": null,
+                    "year": 2025,
+                    "method": selectedMethod.toLowerCase().includes('exponential') ? "exponential" : undefined,
+                    "villages_props": villages_props,
+                    "subdistrict_props": subDistricts_props,
+                    "totalPopulation_props": totalPopulation_props
+                };
+            }
+
+            console.log("Selected API endpoint:", apiEndpoint);
+            console.log("Request body:", requestBody);
+
+            // Make the API call
+            if (apiEndpoint) {
+                fetch(apiEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                    .then(response => {
+                        if (!response.ok) throw new Error(`API error: ${response.status}`);
+                        return response.json();
+                    })
+                    .then(result => {
+                        console.log("API Response for 2025:", result);
+
+                        // Clear previous values
+                        window.population2025 = null;
+                        window.selectedPopulationForecast2025 = null;
+
+                        // Handle demographic response differently
+                        if (selectedMethod.toLowerCase().includes('demographic')) {
+                            // For demographic, we need to navigate the specific structure
+                            // Find the Demographic key in results
+                            if (result.Demographic) {
+                                window.population2025 = result.Demographic['2025'];
+                                window.selectedPopulationForecast2025 = result.Demographic['2025'];
+                                window.selectedMethod = "Demographic";
+                                console.log("2025 Demographic Population:", window.population2025);
+                            }
+                            // If the demographic data is returned directly with the method name
+                            else if (result[selectedMethod] && result[selectedMethod]['2025']) {
+                                window.population2025 = result[selectedMethod]['2025'];
+                                window.selectedPopulationForecast2025 = result[selectedMethod]['2025'];
+                                window.selectedMethod = selectedMethod;
+                                console.log("2025 Population for", selectedMethod, ":", window.population2025);
+                            }
+                            // Search through all keys for demographic data
+                            else {
+                                const demographicKeys = Object.keys(result).filter(key =>
+                                    key.toLowerCase().includes('demographic'));
+
+                                if (demographicKeys.length > 0) {
+                                    const key = demographicKeys[0];
+                                    if (result[key] && result[key]['2025']) {
+                                        window.population2025 = result[key]['2025'];
+                                        window.selectedPopulationForecast2025 = result[key]['2025'];
+                                        window.selectedMethod = selectedMethod;
+                                        console.log("Found 2025 Demographic Population:", window.population2025);
+                                    }
+                                } else {
+                                    // Last resort: search all objects in the result for 2025 data
+                                    for (const key in result) {
+                                        if (typeof result[key] === 'object') {
+                                            if (result[key]['2025']) {
+                                                window.population2025 = result[key]['2025'];
+                                                window.selectedPopulationForecast2025 = result[key]['2025'];
+                                                window.selectedMethod = selectedMethod;
+                                                console.log("Found 2025 Population in", key, ":", window.population2025);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        // For non-demographic methods
+                        else {
+                            // Extract the 2025 population for the specifically selected method
+                            if (result[selectedMethod] && result[selectedMethod]['2025']) {
+                                window.population2025 = result[selectedMethod]['2025'];
+                                window.selectedPopulationForecast2025 = result[selectedMethod]['2025'];
+                                window.selectedMethod = selectedMethod;
+                                console.log("2025 Population for", selectedMethod, ":", window.population2025);
+                            } else {
+                                console.warn("2025 population data not found for method:", selectedMethod);
+                                console.log("Available methods in result:", Object.keys(result));
+
+                                // Try to find the data in any available format in the response
+                                let found = false;
+
+                                // Check if the selected method exists in the results but with a different structure
+                                if (result[selectedMethod] && typeof result[selectedMethod] === 'object') {
+                                    for (const yearKey in result[selectedMethod]) {
+                                        if (yearKey === '2025' || parseInt(yearKey) === 2025) {
+                                            window.population2025 = result[selectedMethod][yearKey];
+                                            window.selectedPopulationForecast2025 = result[selectedMethod][yearKey];
+                                            window.selectedMethod = selectedMethod;
+                                            console.log("Found 2025 Population for", selectedMethod, ":", window.population2025);
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                // If still not found, check for other keys in the result that might match
+                                if (!found) {
+                                    // Look for method-specific keys
+                                    const methodName = selectedMethod.toLowerCase();
+                                    const possibleKeys = Object.keys(result).filter(key =>
+                                        key.toLowerCase().includes(methodName));
+
+                                    if (possibleKeys.length > 0) {
+                                        const key = possibleKeys[0];
+                                        if (result[key] && result[key]['2025']) {
+                                            window.population2025 = result[key]['2025'];
+                                            window.selectedPopulationForecast2025 = result[key]['2025'];
+                                            window.selectedMethod = selectedMethod;
+                                            console.log("Found 2025 Population in matching key:", window.population2025);
+                                            found = true;
+                                        }
+                                    }
+                                }
+
+                                // If we still haven't found it, log the full response for debugging
+                                if (!found) {
+                                    console.log("Full response:", JSON.stringify(result, null, 2));
+                                }
+                            }
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error fetching 2025 population:", error);
+                    });
+            }
+        }
+    }, [selectedMethod, localDemographicData]);
+///end of special case 2025 
+///////////////////////////////////
+
+
     // Handle form submission - in a real app, you would make an API call here
     const handleSubmit = async () => {
         setLoading(true);
@@ -571,7 +751,11 @@ const Population: React.FC<PopulationProps> = ({
                                         name="selectedMethod"
                                         value={method}
                                         checked={selectedMethod === method}
-                                        onChange={() => setSelectedMethodd(method)}
+                                        onChange={() => {
+                                            setSelectedMethodd(method); // Fix typo from setSelectedMethodd
+                                            window.selectedPopulationMethod = method;
+                                        }}
+
                                         className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 transition"
                                     />
                                     <span className="text-gray-700 font-medium group-hover:text-blue-600 transition">

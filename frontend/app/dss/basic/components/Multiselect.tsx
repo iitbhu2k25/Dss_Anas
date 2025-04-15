@@ -144,6 +144,7 @@ export const MultiSelect = <T extends Item>({
     return subDistrictHeaderFormat.replace('{subDistrictName}', subDistrictName);
   };
   
+  
   return (
     <div className="relative" ref={dropdownRef}>
       <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -152,7 +153,7 @@ export const MultiSelect = <T extends Item>({
       <div 
         className={`p-2 border rounded-md cursor-pointer ${
           disabled 
-            ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
+            ? 'bg-blue-100 border-gray-300 cursor-not-allowed' 
             : 'border-blue-500 focus:ring-2 focus:ring-blue-500'
         }`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
@@ -169,7 +170,7 @@ export const MultiSelect = <T extends Item>({
               viewBox="0 0 24 24" 
               xmlns="http://www.w3.org/2000/svg"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
             </svg>
           </div>
         </div>

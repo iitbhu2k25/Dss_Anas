@@ -467,7 +467,7 @@ const groupVillagesByDistrictAndSubDistrict = (villages: Village[]): { [key: str
 };
 
 return (
-  <div className="p-4 bg-white rounded-lg shadow-md">
+  <div className="p-3 bg-gray-100 rounded-lg shadow-md">
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
       {/* State Dropdown */}
       <div>
