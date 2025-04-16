@@ -102,6 +102,9 @@ const SewageCalculationForm: React.FC = () => {
     setTotalDrainDischarge(total);
   }, [drainItems]);
 
+// -------------------------------------------------------------------------------------------------------------------
+
+// -------------------------------------------------------------------------------------------------------------------
   // --- Handlers for Sewage Calculation ---
   const handleSewageMethodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value as SewageMethod;
@@ -547,7 +550,7 @@ const SewageCalculationForm: React.FC = () => {
       body: drainRows,
       startY: 110,
     });
-  
+    
     // Prepare pollution rows
     const yAfterDrains = ((doc as any).lastAutoTable?.finalY || 110) as number;
     doc.text("Pollution Items:", 14, yAfterDrains + 10);
@@ -845,14 +848,16 @@ const SewageCalculationForm: React.FC = () => {
           Calculate Raw Sewage Characteristics
         </button>
         {showRawSewage && <div className="mt-4">{rawSewageJSX}</div>}
+        
       </div>
-
       <button 
         className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 ml-300 mb-2 rounded-md transition duration-300 ease-in-out"
         onClick={handlepdfDownload}
       >
         Download Comprehensive Report
       </button>
+      
+      
     </div>
   );
 };
