@@ -402,6 +402,34 @@ const handleConfirm = (): void => {
       selectedSubDistricts.includes(subDistrict.id.toString())
     );
     
+    const selectedDistrictObjects = districts.filter(district => 
+      selectedDistricts.includes(district.id.toString())
+    );
+    
+    // Get the selected state object
+    const selectedStateObject = states.find(state => 
+      state.id.toString() === selectedState
+    );
+    
+    // Create location data object to store in window
+    const locationData = {
+      state: selectedStateObject?.name || '',
+      districts: selectedDistrictObjects.map(d => d.name),
+      subDistricts: selectedSubDistrictObjects.map(sd => sd.name),
+      villages: selectedVillageObjects.map(v => v.name),
+      allVillages: selectedVillageObjects.map(v => ({
+        name: v.name,
+        population: v.population,
+        subDistrict: v.subDistrictName,
+        district: v.districtName
+      })),
+      totalPopulation: totalPopulation
+    };
+    
+    // Store in window object for access by PDF generator
+    (window as any).selectedLocations = locationData;
+    console.log('Location data stored in window object:', locationData);
+    
     // Pass the data to parent component if callback exists
     if (onConfirm) {
       onConfirm({
@@ -412,6 +440,7 @@ const handleConfirm = (): void => {
     }
   }
 };
+
 
 // Village dropdown display - just show name and population (no district prefix)
 const formatVillageDisplay = (village: Village): string => {
