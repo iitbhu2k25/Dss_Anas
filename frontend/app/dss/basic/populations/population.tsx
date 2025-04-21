@@ -533,12 +533,12 @@ const Population: React.FC<PopulationProps> = ({
 
             {/* Year Input Options - All on a single line */}
             <div className="mb-4 p-4 rounded-md border border-gray-200">
-                <h3 className="font-medium text-gray-700 mb-3">Select Year</h3>
+                <h3 className="font-medium text-gray-700 mb-3">Select Design Year</h3>
                 <div className="flex flex-wrap items-end gap-4">
                     {/* Single Year */}
                     <div className={`${inputMode === 'range' ? 'opacity-60' : ''}`}>
                         <label className="block text-gray-700 font-medium mb-2" htmlFor="single-year">
-                            Single Year
+                            Initial Year
                         </label>
                         <input
                             id="single-year"
@@ -559,7 +559,7 @@ const Population: React.FC<PopulationProps> = ({
                     {/* Range Start Year */}
                     <div className={`${inputMode === 'single' ? 'opacity-60' : ''}`}>
                         <label className="block text-gray-700 mb-2" htmlFor="range-start">
-                            Start Year
+                            Intermediate Year
                         </label>
                         <input
                             id="range-start"
@@ -578,7 +578,7 @@ const Population: React.FC<PopulationProps> = ({
                     {/* Range End Year */}
                     <div className={`${inputMode === 'single' ? 'opacity-60' : ''}`}>
                         <label className="block text-gray-700 mb-2" htmlFor="range-end">
-                            End Year
+                            Ultimate Year
                         </label>
                         <input
                             id="range-end"
@@ -612,6 +612,7 @@ const Population: React.FC<PopulationProps> = ({
                         />
                         <span className="ml-2 text-gray-700">Time Series</span>
                     </label>
+                    
                     <label className="inline-flex items-center">
                         <input
                             type="checkbox"

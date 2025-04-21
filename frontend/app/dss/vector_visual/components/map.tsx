@@ -6,11 +6,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import Draggable from 'react-draggable';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-draw/dist/leaflet.draw.css';
-// import L from 'leaflet'//import leafletjs
-// import 'leaflet-easyprint'//imported leaflet-easy print
-// import "leaflet.locatecontrol"; // Import plugin
-// import "leaflet.locatecontrol/dist/L.Control.Locate.min.css"; // Import styles
-
 
 export default function Map({
   sidebarCollapsed,
@@ -35,9 +30,7 @@ export default function Map({
   const [bufferToolVisible, setBufferToolVisible] = useState(false); // Toggle for buffer tool visibility
   const mapInstanceRef = useRef(null);
   const drawControlRef = useRef(null);
-
   const [exportModalOpen, setExportModalOpen] = useState(false);
-  
   
   // Initialize map when component mounts
   useEffect(() => {
@@ -97,7 +90,7 @@ export default function Map({
           }),
         };
         
-        // Add default basemap
+        // Add default basemap - changed from traffic to streets
         newBaseLayers.traffic.addTo(newMap);
         
         // Scale control
@@ -105,24 +98,8 @@ export default function Map({
           imperial: false,
           position: 'bottomleft',
         }).addTo(newMap);
-
         
-    
-     
-        // L.control.locate().addTo(newMap);
-        
-        // L.easyPrint({
-        //   title: 'Download Map',
-        //   position: 'topright',
-        //   sizeModes: ['Current', 'A4Landscape', 'A4Portrait'],
-        //   exportOnly: true,
-        //   filename: 'MyMap',
-        // }).addTo(newMap);//downloading button added
-        
-        
-
         // Drawing tools - create feature group to store drawn items
-        
         const drawnItems = new L.FeatureGroup();
         newMap.addLayer(drawnItems);
         drawnItemsRef.current = drawnItems;
@@ -462,64 +439,93 @@ export default function Map({
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.loadGeoJSON = async (category, subcategory) => {
-        if (!mapInstanceRef.current) return;
+        if (!mapInstanceRef.current) {
+          console.error("Map not initialized");
+          return;
+        }
         
         try {
           setLoading(true);
           
           // Make API call to backend
-          const response = await fetch(`http://localhost:9000/api/mapplot/get_shapefile_data?category=${category}&subcategory=${subcategory}`);
+          const response = await fetch(
+            `http://localhost:9000/api/mapplot/get_shapefile_data?category=${category}&subcategory=${subcategory}`
+          );
           
           if (!response.ok) {
             throw new Error(`Failed to fetch data: ${response.statusText}`);
           }
           
           const geoJsonData = await response.json();
+          
           if (!geoJsonData.features || geoJsonData.features.length === 0) {
             throw new Error("No feature data received");
           }
+          
           // Clear any existing GeoJSON layers
           if (geoJsonLayer) {
             mapInstanceRef.current.removeLayer(geoJsonLayer);
           }
           
-          // Create new GeoJSON layer
+          // Get style values safely using state or fallback to direct DOM access
+          // with proper null checks and default values
+          const lineColorElement = document.getElementById('lineColor');
+          const weightElement = document.getElementById('weight');
+          const fillColorElement = document.getElementById('fillColor');
+          const opacityElement = document.getElementById('opacity');
+          
+          const lineColor = lineColorElement ? lineColorElement.value : 'red';
+          const weight = weightElement ? parseInt(weightElement.value) : 2;
+          const fillColor = fillColorElement ? fillColorElement.value : '#78b4db';
+          const opacity = opacityElement ? parseFloat(opacityElement.value) : 0.1;
+          
+          // Create new GeoJSON layer with properly sourced style
           const L = require('leaflet');
           const newLayer = L.geoJSON(geoJsonData, {
             style: function() {
               return {
-                color: document.getElementById('lineColor')?.value || 'red',
-                weight: parseInt(document.getElementById('weight')?.value || '2'),
+                color: lineColor,
+                weight: weight,
                 opacity: 1, // Set line opacity to 1 (full)
-                fillColor: document.getElementById('fillColor')?.value || '#78b4db',
-                fillOpacity: parseFloat(document.getElementById('opacity')?.value || '0.1')
+                fillColor: fillColor,
+                fillOpacity: opacity
               };
             },
             onEachFeature: (feature, layer) => {
-              // Bind popup with properties
-              const popupContent = Object.entries(feature.properties || {})
-                .map(([key, value]) => `<strong>${key}:</strong> ${value}`)
-                .join('<br>');
+              // We'll remove the popup binding since feature details will be shown in the right panel
+              // No popups on hover - this data is already shown in the right panel
               
-              // layer.bindPopup(popupContent);
-              
-              // Add click handler
+              // Click handler for features - will show details in right panel
               layer.on({
                 click: (e) => {
                   if (onFeatureClick) {
                     onFeatureClick(feature, layer);
+                    
+                    // Prevent event propagation to avoid multiple handlers
+                    L.DomEvent.stopPropagation(e);
                   }
                 }
               });
             }
-          }).addTo(mapInstanceRef.current);
+          });
+          
+          // Add the layer to map AFTER it's fully configured
+          newLayer.addTo(mapInstanceRef.current);
           
           // Save reference to the new layer
           setGeoJsonLayer(newLayer);
           
-          // Fit map to GeoJSON bounds
-          if (newLayer.getBounds().isValid()) {
-            mapInstanceRef.current.fitBounds(newLayer.getBounds());
+          // Verify bounds are valid before attempting to fit
+          const bounds = newLayer.getBounds();
+          if (bounds && bounds.isValid()) {
+            mapInstanceRef.current.fitBounds(bounds, {
+              padding: [50, 50], // Add some padding for better visibility
+              maxZoom: 14        // Limit max zoom level when fitting bounds
+            });
+          } else {
+            console.warn("GeoJSON layer has invalid bounds");
+            // Default view as fallback
+            mapInstanceRef.current.setView([22.3511, 78.6677], 5);
           }
           
           // Update currentLayer reference
@@ -545,8 +551,7 @@ export default function Map({
         delete window.loadGeoJSON;
       }
     };
-  }, [currentLayer, onFeatureClick, showNotification]);
-
+  }, [geoJsonLayer, onFeatureClick, showNotification]);
 
   const updateLayerStyles = () => {
     if (!geoJsonLayer) return;
@@ -561,17 +566,18 @@ export default function Map({
     
     geoJsonLayer.setStyle(newStyle);
   };
-  useEffect(() => {
-  if (typeof window !== 'undefined') {
-    window.updateMapStyles = updateLayerStyles;
-  }
   
-  return () => {
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      delete window.updateMapStyles;
+      window.updateMapStyles = updateLayerStyles;
     }
-  };
-}, [geoJsonLayer]); // Update dependency
+    
+    return () => {
+      if (typeof window !== 'undefined') {
+        delete window.updateMapStyles;
+      }
+    };
+  }, [geoJsonLayer]);
 
   const handleZoomIn = () => {
     if (mapInstanceRef.current) {
@@ -666,7 +672,6 @@ export default function Map({
   // Function to handle shapefile download
   const handleDownload = () => {
     showNotification(
-      "not implemented asap we do that in the backend",
       "Download Started",
       "Your vector data is being downloaded",
       "success"
@@ -676,6 +681,8 @@ export default function Map({
   // Function to toggle edit mode
   const toggleEditMode = () => {
     if (!mapInstanceRef.current || !drawnItemsRef.current) return;
+    
+    const L = require('leaflet');
     
     const editHandler = new L.EditToolbar.Edit(mapInstanceRef.current, {
       featureGroup: drawnItemsRef.current
@@ -888,10 +895,6 @@ export default function Map({
     }
   };
   
-
-  
-  
-
 
 
   return (

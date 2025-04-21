@@ -6,6 +6,8 @@ import Population from "./populations/population"
 import Water_Demand from "./water_demand/page"
 import Water_Supply from "./water_supply/page"
 import Sewage from "./seawage/page"
+import ExportReport from './populations/components/export';
+
 
 interface SelectedLocationData {
   villages: {
@@ -152,6 +154,7 @@ const Basic: React.FC = () => {
 
           <div className={currentStep === 3 ? 'block' : 'hidden'}>
             <Sewage />
+            <ExportReport projectName="Report Basic Module DSS" />
           </div>
         </div>
 
