@@ -28,6 +28,9 @@ const WaterSupplyForm: React.FC = () => {
   
   // Add state for water gap calculation
   const [waterGapData, setWaterGapData] = useState<{[year: string]: number} | null>(null);
+  
+  // Add state to track if initial calculation has been done
+  const [hasCalculated, setHasCalculated] = useState(false);
 
   // Determine if conflicting groundwater inputs are provided
   const isDirectGroundwaterProvided = directGroundwater !== '';
@@ -39,11 +42,30 @@ const WaterSupplyForm: React.FC = () => {
   const areAlternateInputsProvided =
     rooftopTank !== '' || aquiferRecharge !== '' || surfaceRunoff !== '' || reuseWater !== '';
 
-    useEffect(() => {
-      if (waterSupplyResult !== null) {
-        calculateWaterGap();
-      }
-    }, [waterSupplyResult, (window as any).totalWaterDemand]); 
+  // Auto-update when inputs change (after initial calculation)
+  useEffect(() => {
+    if (hasCalculated) {
+      calculateWaterSupply();
+    }
+  }, [
+    surfaceWater, 
+    directGroundwater, 
+    numTubewells, 
+    dischargeRate, 
+    operatingHours, 
+    directAlternate, 
+    rooftopTank, 
+    aquiferRecharge, 
+    surfaceRunoff, 
+    reuseWater
+  ]);
+
+  // Update water gap when water supply result changes
+  useEffect(() => {
+    if (waterSupplyResult !== null) {
+      calculateWaterGap();
+    }
+  }, [waterSupplyResult, (window as any).totalWaterDemand]); 
 
   // Function to calculate water gap
   const calculateWaterGap = () => {
@@ -74,7 +96,7 @@ const WaterSupplyForm: React.FC = () => {
   };
 
   // Function to call the backend API to perform the calculation
-  const handleCalculateWaterSupply = async () => {
+  const calculateWaterSupply = async () => {
     setError(null);
     // Check for input conflicts
     if (isDirectGroundwaterProvided && areTubeWellInputsProvided) {
@@ -115,10 +137,18 @@ const WaterSupplyForm: React.FC = () => {
       setWaterSupplyResult(data.total_supply);
       // Save globally so that sewage stage can use it
       (window as any).totalWaterSupply = data.total_supply;
+      
+      // Mark that initial calculation has been done
+      setHasCalculated(true);
     } catch (err) {
       console.error(err);
       setError('Error connecting to backend.');
     }
+  };
+
+  // Handle initial calculation button click
+  const handleCalculateWaterSupply = () => {
+    calculateWaterSupply();
   };
 
   return (
@@ -327,18 +357,26 @@ const WaterSupplyForm: React.FC = () => {
       {error && <div className="mb-4 text-red-500">{error}</div>}
 
       <div className="flex space-x-4">
-        <button
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-          onClick={handleCalculateWaterSupply}
-        >
-          Calculate Water Supply
-        </button>
-        {/* <button
-          className="bg-green-600 text-white px-4 py-2 rounded"
-          onClick={calculateWaterGap}
-        >
-          Calculate Water Gap
-        </button> */}
+        {!hasCalculated ? (
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded"
+            onClick={handleCalculateWaterSupply}
+          >
+            Calculate Water Supply
+          </button>
+        ) : (
+          <div className="flex space-x-4">
+            <button
+              className="bg-blue-600 text-white px-4 py-2 rounded"
+              onClick={handleCalculateWaterSupply}
+            >
+              Recalculate Water Supply
+            </button>
+            <span className="text-green-600 flex items-center">
+              Auto-updating results when inputs change
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Result display */}

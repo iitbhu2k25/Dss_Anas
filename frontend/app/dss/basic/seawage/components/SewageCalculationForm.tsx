@@ -46,6 +46,9 @@ const SewageCalculationForm: React.FC = () => {
   const [sewageResult, setSewageResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [showPeakFlow, setShowPeakFlow] = useState(false);
+  
+  // --- New state to track if initial calculation has been done ---
+  const [hasCalculated, setHasCalculated] = useState(false);
 
   // --- New state to track which sewage generation method to use for peak flow ---
   const [peakFlowSewageSource, setPeakFlowSewageSource] = useState<PeakFlowSewageSource>('population_based');
@@ -100,7 +103,33 @@ const SewageCalculationForm: React.FC = () => {
       return sum + (typeof item.discharge === 'number' ? item.discharge : 0);
     }, 0);
     setTotalDrainDischarge(total);
+    
+    // Auto-recalculate if initial calculation was done
+    if (hasCalculated) {
+      calculateSewage();
+    }
   }, [drainItems]);
+
+  // Auto-update when inputs change (after initial calculation)
+  useEffect(() => {
+    if (hasCalculated) {
+      calculateSewage();
+    }
+  }, [totalSupplyInput, domesticSupplyInput, unmeteredSupplyInput]);
+
+  // Auto-update peak flow when methods change (after initial peak flow calculation)
+  useEffect(() => {
+    if (peakFlowTable && sewageResult) {
+      calculatePeakFlow();
+    }
+  }, [peakFlowMethods, peakFlowSewageSource]);
+
+  // Auto-update raw sewage when parameters change (after initial calculation)
+  useEffect(() => {
+    if (showRawSewage) {
+      calculateRawSewage();
+    }
+  }, [unmeteredSupplyInput, pollutionItemsState]);
 
 // -------------------------------------------------------------------------------------------------------------------
 
@@ -114,10 +143,18 @@ const SewageCalculationForm: React.FC = () => {
     setShowPeakFlow(false);
     setShowRawSewage(false);
     setError(null);
+    setHasCalculated(false);
   };
 
   const handleDomesticLoadMethodChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setDomesticLoadMethod(e.target.value as DomesticLoadMethod);
+    if (hasCalculated) {
+      // Reset calculation state when changing methods
+      setHasCalculated(false);
+      setSewageResult(null);
+      setShowPeakFlow(false);
+      setShowRawSewage(false);
+    }
   };
 
   const handleDrainCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,7 +172,7 @@ const SewageCalculationForm: React.FC = () => {
     setDrainItems(newDrainItems);
   };
 
-  const handleCalculateSewage = async () => {
+  const calculateSewage = async () => {
     setError(null);
     let payload: any = { method: sewageMethod };
 
@@ -193,11 +230,16 @@ const SewageCalculationForm: React.FC = () => {
       }
       setShowPeakFlow(true);
       // When sewage is calculated, hide raw sewage table until user clicks its button.
-      setShowRawSewage(false);
+      // Mark that initial calculation has been done
+      setHasCalculated(true);
     } catch (error) {
       console.error(error);
       setError('Error connecting to backend.');
     }
+  };
+
+  const handleCalculateSewage = () => {
+    calculateSewage();
   };
 
   // --- Handlers for Peak Sewage Flow ---
@@ -244,16 +286,14 @@ const SewageCalculationForm: React.FC = () => {
     return totalDrainDischarge;
   };
 
-  const handleCalculatePeakFlow = () => {
+  const calculatePeakFlow = () => {
     if (!computedPopulation || !sewageResult) {
-      alert('Population or sewage data not available.');
       return;
     }
     const selectedMethods = Object.entries(peakFlowMethods)
       .filter(([_, selected]) => selected)
       .map(([method]) => method);
     if (selectedMethods.length === 0) {
-      alert('Please select at least one Peak Flow method.');
       return;
     }
     
@@ -332,12 +372,16 @@ const SewageCalculationForm: React.FC = () => {
     setPeakFlowTable(tableJSX);
   };
 
+  const handleCalculatePeakFlow = () => {
+    calculatePeakFlow();
+  };
+
   // --- Raw Sewage Characteristics Handler ---
   // Calculation:
   //   baseCoefficient = 150 if computedPopulation["2011"] >= 1,000,000 else 135.
   //   totalCoefficient = (baseCoefficient + unmeteredSupplyInput) * 0.80.
   //   For each pollution item, concentration = (perCapita / totalCoefficient) * 1000.
-  const handleCalculateRawSewage = () => {
+  const calculateRawSewage = () => {
     const basePop = computedPopulation["2011"] || 0;
     const baseCoefficient = basePop >= 1000000 ? 150 : 135;
     const unmetered = Number(unmeteredSupplyInput) || 0;
@@ -401,6 +445,10 @@ const SewageCalculationForm: React.FC = () => {
     );
     setRawSewageTable(tableJSX);
     setShowRawSewage(true);
+  };
+
+  const handleCalculateRawSewage = () => {
+    calculateRawSewage();
   };
   
   // Update the memoized JSX similarly
@@ -710,12 +758,26 @@ const SewageCalculationForm: React.FC = () => {
         {drainCount && drainCount > 0 && drainItemsTableJSX}
       </div>
 
-      <button
-        className="bg-blue-600 text-white px-4 py-2 rounded"
-        onClick={handleCalculateSewage}
-      >
-        Calculate Sewage
-      </button>
+      {!hasCalculated ? (
+        <button
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+          onClick={handleCalculateSewage}
+        >
+          Calculate Sewage
+        </button>
+      ) : (
+        <div className="flex space-x-4">
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded"
+            onClick={handleCalculateSewage}
+          >
+            Recalculate Sewage
+          </button>
+          <span className="text-green-600 flex items-center">
+            Auto-updating results when inputs change
+          </span>
+        </div>
+      )}
 
       {error && <div className="mt-4 text-red-500">{error}</div>}
 
@@ -830,12 +892,27 @@ const SewageCalculationForm: React.FC = () => {
               </label>
             </div>
           </div>
-          <button
-            className="bg-blue-600 text-white px-4 py-2 rounded"
-            onClick={handleCalculatePeakFlow}
-          >
-            Calculate Peak Sewage Flow
-          </button>
+          
+          {!peakFlowTable ? (
+            <button
+              className="bg-blue-600 text-white px-4 py-2 rounded"
+              onClick={handleCalculatePeakFlow}
+            >
+              Calculate Peak Sewage Flow
+            </button>
+          ) : (
+            <div className="flex space-x-4">
+              <button
+                className="bg-blue-600 text-white px-4 py-2 rounded"
+                onClick={handleCalculatePeakFlow}
+              >
+                Recalculate Peak Flow
+              </button>
+              <span className="text-green-600 flex items-center">
+                Auto-updating when methods change
+              </span>
+            </div>
+          )}
           
           {peakFlowTable && <div className="mt-6">{peakFlowTable}</div>}
         </div>
@@ -843,22 +920,40 @@ const SewageCalculationForm: React.FC = () => {
 
       <div className="mt-6 p-4 border rounded bg-blue-50">
         <h5 className="font-bold text-blue-700 mb-3">Raw Sewage Characteristics</h5>
-        <button
-          className="bg-indigo-600 text-white px-4 py-2 rounded"
-          onClick={handleCalculateRawSewage}
-        >
-          Calculate Raw Sewage Characteristics
-        </button>
+        
+        {!showRawSewage ? (
+          <button
+            className="bg-indigo-600 text-white px-4 py-2 rounded"
+            onClick={handleCalculateRawSewage}
+          >
+            Calculate Raw Sewage Characteristics
+          </button>
+        ) : (
+          <div className="flex space-x-4 mb-4">
+            <button
+              className="bg-indigo-600 text-white px-4 py-2 rounded"
+              onClick={handleCalculateRawSewage}
+            >
+              Recalculate Raw Sewage
+            </button>
+            <span className="text-green-600 flex items-center">
+              Auto-updating when parameters change
+            </span>
+          </div>
+        )}
+        
         {showRawSewage && <div className="mt-4">{rawSewageJSX}</div>}
         
       </div>
-      {/* <button 
-        className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 ml-300 mb-2 rounded-md transition duration-300 ease-in-out"
-        onClick={handlepdfDownload}
-      >
-        Download Comprehensive Report
-      </button> */}
       
+      {/* {hasCalculated && (
+        <button 
+          className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 ml-300 mb-2 rounded-md transition duration-300 ease-in-out"
+          onClick={handlepdfDownload}
+        >
+          Download Comprehensive Report
+        </button>
+      )} */}
       
     </div>
   );

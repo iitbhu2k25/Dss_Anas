@@ -1,7 +1,7 @@
 // components/WaterDemandForm.tsx
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface InstitutionalFields {
     hospitals100Units: string;
@@ -122,30 +122,61 @@ const WaterDemandForm: React.FC = () => {
   const [firefightingDemand, setFirefightingDemand] = useState<{ [method: string]: { [year: string]: number } } | null>(null);
   const [selectedFirefightingMethod, setSelectedFirefightingMethod] = useState<string>("");
 
-  const forecastData = (window as any).selectedPopulationForecast;
+  // Add a loading state to prevent multiple concurrent API calls
+  const [isCalculating, setIsCalculating] = useState(false);
 
+  // Add states to track when inputs have changed
+  const [domesticInputChanged, setDomesticInputChanged] = useState(false);
+  const [floatingInputChanged, setFloatingInputChanged] = useState(false);
+  const [institutionalInputChanged, setInstitutionalInputChanged] = useState(false);
+  const [firefightingInputChanged, setFirefightingInputChanged] = useState(false);
+  
+  // Add a state to track if initial calculation has been performed
+  const [initialCalculationDone, setInitialCalculationDone] = useState(false);
+
+  const forecastData = (window as any).selectedPopulationForecast;
 
   // Handlers for checkboxes and inputs
   const handleDomesticChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDomesticChecked(e.target.checked);
+    setDomesticInputChanged(true);
   };
 
   const handlePerCapitaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPerCapitaConsumption(Number(e.target.value));
+    setDomesticInputChanged(true);
+  };
+
+  const handleFloatingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFloatingChecked(e.target.checked);
+    setFloatingInputChanged(true);
   };
 
   const handleFloatingPopulationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFloatingPopulation2011(Number(e.target.value));
+    setFloatingInputChanged(true);
+  };
+
+  const handleFacilityTypeChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setFacilityType(e.target.value);
+    setFloatingInputChanged(true);
+  };
+
+  const handleInstitutionalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInstitutionalChecked(e.target.checked);
+    setInstitutionalInputChanged(true);
   };
 
   // Handler for institutional input mode
   const handleInstitutionalInputModeChange = (mode: 'manual' | 'total') => {
     setInstitutionalInputMode(mode);
+    setInstitutionalInputChanged(true);
   };
 
   // Handler for total institutional demand value
   const handleTotalInstitutionalDemandChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTotalInstitutionalDemand(e.target.value);
+    setInstitutionalInputChanged(true);
   };
 
   const handleInstitutionalFieldChange = (field: keyof InstitutionalFields, value: string) => {
@@ -153,6 +184,12 @@ const WaterDemandForm: React.FC = () => {
       ...institutionalFields,
       [field]: value,
     });
+    setInstitutionalInputChanged(true);
+  };
+
+  const handleFirefightingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFirefightingChecked(e.target.checked);
+    setFirefightingInputChanged(true);
   };
 
   const handleFirefightingMethodChange = (method: keyof FirefightingMethods, checked: boolean) => {
@@ -160,14 +197,166 @@ const WaterDemandForm: React.FC = () => {
       ...firefightingMethods,
       [method]: checked,
     });
+    setFirefightingInputChanged(true);
   };
 
-  // This function calculates only the firefighting water demand when the "Calculate Firefighting Water Demand" button is clicked
-  const handleCalculateFirefighting = async () => {
-    if (!forecastData) {
-      console.error("Forecast data not available.");
-      return;
+  // Setup useEffect to auto-calculate when relevant inputs change
+  // These will only run if initialCalculationDone is true
+  useEffect(() => {
+    if (initialCalculationDone && domesticInputChanged && domesticChecked) {
+      calculateDomesticDemand();
+      setDomesticInputChanged(false);
     }
+  }, [domesticChecked, perCapitaConsumption, domesticInputChanged, initialCalculationDone]);
+
+  useEffect(() => {
+    if (initialCalculationDone && floatingInputChanged && floatingChecked) {
+      calculateFloatingDemand();
+      setFloatingInputChanged(false);
+    }
+  }, [floatingChecked, floatingPopulation2011, facilityType, floatingInputChanged, initialCalculationDone]);
+
+  useEffect(() => {
+    if (initialCalculationDone && institutionalInputChanged && institutionalChecked) {
+      calculateInstitutionalDemand();
+      setInstitutionalInputChanged(false);
+    }
+  }, [
+    institutionalChecked,
+    institutionalInputMode,
+    totalInstitutionalDemand,
+    institutionalFields,
+    institutionalInputChanged,
+    initialCalculationDone
+  ]);
+
+  useEffect(() => {
+    if (initialCalculationDone && firefightingInputChanged && firefightingChecked) {
+      calculateFirefightingDemand();
+      setFirefightingInputChanged(false);
+    }
+  }, [firefightingChecked, firefightingMethods, firefightingInputChanged, initialCalculationDone]);
+
+  // Effect to update the total demand whenever any component demand changes
+  useEffect(() => {
+    updateTotalDemand();
+  }, [domesticDemand, floatingDemand, institutionalDemand, firefightingDemand, selectedFirefightingMethod]);
+
+  // Function to calculate domestic water demand
+  const calculateDomesticDemand = async () => {
+    if (!forecastData || isCalculating || !domesticChecked) return;
+    
+    setIsCalculating(true);
+    try {
+      const response = await fetch('http://localhost:9000/api/basic/domestic_water_demand/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          forecast_data: forecastData,
+          per_capita_consumption: perCapitaConsumption,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Domestic HTTP error! Status: ${response.status}`);
+      }
+      const domesticDemandResult = await response.json();
+      console.log("Domestic Water Demand (from backend):", domesticDemandResult);
+      setDomesticDemand(domesticDemandResult);
+    } catch (error) {
+      console.error("Error calculating domestic water demand:", error);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  // Function to calculate floating water demand
+  const calculateFloatingDemand = async () => {
+    if (!forecastData || isCalculating || !floatingChecked || floatingPopulation2011 === null) return;
+    
+    setIsCalculating(true);
+    try {
+      const floatingResponse = await fetch('http://localhost:9000/api/basic/floating_water_demand/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          floating_population: floatingPopulation2011,
+          facility_type: facilityType,
+          domestic_forecast: forecastData,
+        }),
+      });
+      
+      if (!floatingResponse.ok) {
+        throw new Error(`Floating HTTP error! Status: ${floatingResponse.status}`);
+      }
+      
+      const floatingDemandResult = await floatingResponse.json();
+      console.log("Floating Water Demand (from backend):", floatingDemandResult);
+      setFloatingDemand(floatingDemandResult);
+    } catch (error) {
+      console.error("Error calculating floating water demand:", error);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  // Function to calculate institutional water demand
+  const calculateInstitutionalDemand = async () => {
+    if (!forecastData || isCalculating || !institutionalChecked) return;
+    
+    setIsCalculating(true);
+    try {
+      if (institutionalInputMode === 'manual') {
+        const institutionalResponse = await fetch('http://localhost:9000/api/basic/institutional_water_demand/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            institutional_fields: institutionalFields,
+            domestic_forecast: forecastData,
+          }),
+        });
+    
+        if (!institutionalResponse.ok) {
+          throw new Error(`Institutional HTTP error! Status: ${institutionalResponse.status}`);
+        }
+        
+        const institutionalResult = await institutionalResponse.json();
+        console.log("Institutional Water Demand (from backend):", institutionalResult);
+        setInstitutionalDemand(institutionalResult);
+      } else {
+        // For 'total' mode, create a demand object based on the single value provided
+        const baseYear = Object.keys(forecastData).sort()[0];
+        const totalDemand = parseFloat(totalInstitutionalDemand);
+        
+        if (isNaN(totalDemand)) {
+          console.error("Invalid total institutional demand value");
+          return;
+        }
+        
+        // Create a demand object with the same growth pattern as the population
+        const result: { [year: string]: number } = {};
+        
+        // Assuming we want to grow the institutional demand proportionally with population
+        Object.keys(forecastData).forEach(year => {
+          const populationRatio = forecastData[year] / forecastData[baseYear];
+          result[year] = totalDemand * populationRatio;
+        });
+        
+        console.log("Total Institutional Water Demand (calculated):", result);
+        setInstitutionalDemand(result);
+      }
+    } catch (error) {
+      console.error("Error calculating institutional water demand:", error);
+    } finally {
+      setIsCalculating(false);
+    }
+  };
+
+  // Function to calculate firefighting water demand
+  const calculateFirefightingDemand = async () => {
+    if (!forecastData || isCalculating || !firefightingChecked) return;
+    
+    setIsCalculating(true);
     try {
       const response = await fetch('http://localhost:9000/api/basic/firefighting_water_demand/', {
         method: 'POST',
@@ -177,138 +366,69 @@ const WaterDemandForm: React.FC = () => {
           domestic_forecast: forecastData,
         }),
       });
+      
       if (!response.ok) {
         throw new Error(`Firefighting HTTP error! Status: ${response.status}`);
       }
+      
       const result = await response.json();
       console.log("Firefighting Water Demand (from backend):", result);
       setFirefightingDemand(result);
+      
+      // If no firefighting method is selected yet but we have results, select the first one
+      if (!selectedFirefightingMethod && result && Object.keys(result).length > 0) {
+        setSelectedFirefightingMethod(Object.keys(result)[0]);
+      }
     } catch (error) {
       console.error("Error calculating firefighting water demand:", error);
+    } finally {
+      setIsCalculating(false);
     }
   };
-// Store the total demand for each year in the window object
-  const totalDemand = {};
-  Object.keys(forecastData || {}).sort().forEach(year => {
-    const domesticVal = domesticChecked && domesticDemand?.[year] ? domesticDemand[year] : 0;
-    const floatingVal = floatingChecked && floatingDemand?.[year] ? floatingDemand[year] : 0;
-    const institutionalVal = institutionalChecked && institutionalDemand?.[year] ? institutionalDemand[year] : 0;
-    const firefightingVal =
-      firefightingChecked && selectedFirefightingMethod && firefightingDemand?.[selectedFirefightingMethod]?.[year]
-        ? firefightingDemand[selectedFirefightingMethod][year]
-        : 0;
-    totalDemand[year] = domesticVal + floatingVal + institutionalVal + firefightingVal;
-  });
-  (window as any).totalWaterDemand = totalDemand;
 
-  // Example calculation handler – replace with your own calculation logic
-  const handleCalculate = async () => {
-    // Retrieve global forecast data and selected population method
-    const selectedPopulationMethod = (window as any).selectedPopulationMethod;
-    const forecastData = (window as any).selectedPopulationForecast;
-    console.log("Selected Population Method:", selectedPopulationMethod);
-    console.log("Forecast Data:", forecastData);
-  
-    if (!forecastData) {
-      console.error("Forecast data not available.");
-      return;
+  // Function to update the total demand
+  const updateTotalDemand = () => {
+    if (!forecastData) return;
+    
+    const totalDemand: { [year: string]: number } = {};
+    
+    Object.keys(forecastData).sort().forEach(year => {
+      const domesticVal = domesticChecked && domesticDemand?.[year] ? domesticDemand[year] : 0;
+      const floatingVal = floatingChecked && floatingDemand?.[year] ? floatingDemand[year] : 0;
+      const institutionalVal = institutionalChecked && institutionalDemand?.[year] ? institutionalDemand[year] : 0;
+      const firefightingVal = 
+        firefightingChecked && selectedFirefightingMethod && firefightingDemand?.[selectedFirefightingMethod]?.[year]
+          ? firefightingDemand[selectedFirefightingMethod][year]
+          : 0;
+          
+      totalDemand[year] = domesticVal + floatingVal + institutionalVal + firefightingVal;
+    });
+    
+    // Store in window object for other components to access
+    (window as any).totalWaterDemand = totalDemand;
+  };
+
+  // Manual calculation handler for button
+  const handleCalculate = () => {
+    // Set the initialCalculationDone flag to true
+    setInitialCalculationDone(true);
+    
+    if (domesticChecked) {
+      calculateDomesticDemand();
     }
-  
-    try {
-      // --- Domestic Water Demand Calculation ---
-      if (domesticChecked) {
-        const domesticResponse = await fetch('http://localhost:9000/api/basic/domestic_water_demand/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            forecast_data: forecastData,
-            per_capita_consumption: perCapitaConsumption, // effective = 135 + user input
-          }),
-        });
-  
-        if (!domesticResponse.ok) {
-          throw new Error(`Domestic HTTP error! Status: ${domesticResponse.status}`);
-        }
-        const domesticDemandResult = await domesticResponse.json();
-        console.log("Domestic Water Demand (from backend):", domesticDemandResult);
-        setDomesticDemand(domesticDemandResult);
-      }
-  
-      // --- Floating Water Demand Calculation ---
-      if (floatingChecked) {
-        if (floatingPopulation2011 === null) {
-          console.error("Floating population not provided.");
-        } else {
-          // The backend uses facility_type to determine the multiplier:
-          // "provided" => 45, "notprovided" => 25, "onlypublic" => 15.
-          const floatingResponse = await fetch('http://localhost:9000/api/basic/floating_water_demand/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              floating_population: floatingPopulation2011,
-              facility_type: facilityType,
-              domestic_forecast: forecastData, // used to compute growth ratio for subsequent years
-            }),
-          });
-          if (!floatingResponse.ok) {
-            throw new Error(`Floating HTTP error! Status: ${floatingResponse.status}`);
-          }
-          const floatingDemandResult = await floatingResponse.json();
-          console.log("Floating Water Demand (from backend):", floatingDemandResult);
-          setFloatingDemand(floatingDemandResult);
-        }
-      }
-      
-      // --- Institutional Water Demand Calculation ---
-      if (institutionalChecked) {
-        if (institutionalInputMode === 'manual') {
-          // Use existing API for detailed institutional fields
-          const institutionalResponse = await fetch('http://localhost:9000/api/basic/institutional_water_demand/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              institutional_fields: institutionalFields,
-              domestic_forecast: forecastData,
-            }),
-          });
-      
-          if (!institutionalResponse.ok) {
-            throw new Error(`Institutional HTTP error! Status: ${institutionalResponse.status}`);
-          }
-          const institutionalResult = await institutionalResponse.json();
-          console.log("Institutional Water Demand (from backend):", institutionalResult);
-          setInstitutionalDemand(institutionalResult);
-        } else {
-          // For 'total' mode, create a demand object based on the single value provided
-          // We'll assume the total provided is for the base year (first year in forecast)
-          const baseYear = Object.keys(forecastData).sort()[0];
-          const totalDemand = parseFloat(totalInstitutionalDemand);
-          
-          if (isNaN(totalDemand)) {
-            console.error("Invalid total institutional demand value");
-            return;
-          }
-          
-          // Create a demand object with the same growth pattern as the population
-          const result: { [year: string]: number } = {};
-          
-          // Assuming we want to grow the institutional demand proportionally with population
-          Object.keys(forecastData).forEach(year => {
-            const populationRatio = forecastData[year] / forecastData[baseYear];
-            result[year] = totalDemand * populationRatio;
-          });
-          
-          console.log("Total Institutional Water Demand (calculated):", result);
-          setInstitutionalDemand(result);
-        }
-      }
-      
-    } catch (error) {
-      console.error("Error calculating water demand:", error);
+    
+    if (floatingChecked) {
+      calculateFloatingDemand();
+    }
+    
+    if (institutionalChecked) {
+      calculateInstitutionalDemand();
+    }
+    
+    if (firefightingChecked) {
+      calculateFirefightingDemand();
     }
   };
-  
-  
 
   return (
     <div className="p-4 border rounded bg-white">
@@ -320,13 +440,13 @@ const WaterDemandForm: React.FC = () => {
           <input type="checkbox" checked={domesticChecked} onChange={handleDomesticChange} /> Domestic
         </label>
         <label>
-          <input type="checkbox" checked={floatingChecked} onChange={(e) => setFloatingChecked(e.target.checked)} /> Floating
+          <input type="checkbox" checked={floatingChecked} onChange={handleFloatingChange} /> Floating
         </label>
         <label>
-          <input type="checkbox" checked={institutionalChecked} onChange={(e) => setInstitutionalChecked(e.target.checked)} /> Institutional
+          <input type="checkbox" checked={institutionalChecked} onChange={handleInstitutionalChange} /> Institutional
         </label>
         <label>
-          <input type="checkbox" checked={firefightingChecked} onChange={(e) => setFirefightingChecked(e.target.checked)} /> Firefighting
+          <input type="checkbox" checked={firefightingChecked} onChange={handleFirefightingChange} /> Firefighting
         </label>
       </div>
       
@@ -369,7 +489,7 @@ const WaterDemandForm: React.FC = () => {
             <label className="block text-sm font-medium">Facility Type:</label>
             <select 
               value={facilityType}
-              onChange={(e) => setFacilityType(e.target.value)}
+              onChange={handleFacilityTypeChange}
               className="border rounded w-xs px-2 py-1 mt-1"
             >
               <option value="provided">Bathing facilities provided</option>
@@ -876,8 +996,6 @@ const WaterDemandForm: React.FC = () => {
                   placeholder="Enter number"
                 />
               </div>
-              
-              {/* Add more institutional fields here if needed */}
             </div>
           )}
         </div>
@@ -934,14 +1052,7 @@ const WaterDemandForm: React.FC = () => {
               Ministry Urban
             </label>
           </div>
-          {/* Button to calculate firefighting demand */}
-          <button 
-            type="button" 
-            className="mt-3 bg-green-600 text-white px-3 py-2 rounded"
-            onClick={handleCalculateFirefighting}
-          >
-            Calculate Firefighting Water Demand
-          </button>
+          
           {/* If firefighting demand has been calculated, display output table and radio buttons */}
           {firefightingDemand && (
             <div className="mt-3">
@@ -993,7 +1104,7 @@ const WaterDemandForm: React.FC = () => {
         </div>
       )}
 
-      {/* Main Calculate Water Demand Button */}
+      {/* Main Calculate Water Demand Button - kept for manual calculation if needed */}
       <button 
         className="bg-blue-600 text-white px-4 py-2 rounded"
         onClick={handleCalculate}
@@ -1001,9 +1112,18 @@ const WaterDemandForm: React.FC = () => {
         Calculate Water Demand
       </button>
 
+      {/* Loading Indicator */}
+      {isCalculating && (
+        <div className="ml-4 inline-flex items-center">
+          <div className="animate-spin h-5 w-5 border-t-2 border-blue-600 border-solid rounded-full"></div>
+          <span className="ml-2">Calculating...</span>
+        </div>
+      )}
+
+      {/* Results Table */}
       {(domesticDemand || floatingDemand || institutionalDemand || firefightingDemand) && forecastData && (
         <div className="mt-6">
-            <h2 className="text-lg font-semibold mb-4">Water Demand</h2>
+            <h2 className="text-lg font-semibold mb-4">Water Demand Results</h2>
             <div className="overflow-x-auto">
             <table className="table-auto w-full min-w-[300px] bg-white border border-gray-300">
                 <thead className="bg-gray-200">
@@ -1086,8 +1206,6 @@ const WaterDemandForm: React.FC = () => {
             </div>
         </div>
         )}
-
-
     </div>
   );
 };
