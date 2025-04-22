@@ -598,6 +598,8 @@ const SewageCalculationForm: React.FC = () => {
     <div className="p-4 border rounded bg-white space-y-8">
       <h3 className="text-xl font-semibold mb-3">Sewage Calculation</h3>
       
+      
+      
       {/* Sewage Method Selection */}
       <div className="mb-4">
         <label htmlFor="sewage_method" className="block text-sm font-medium">

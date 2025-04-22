@@ -299,7 +299,7 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
 
       // Add the text about Table 1 and Figure 6 with proper formatting
       yPos = applyTextSettings(
-        textSettings.italicText,
+        textSettings.normalText,
         `Table is showing the population from initial year to target year for the selected regions based on the ${selectedMethod}. The population growth trend for the selected regions is shown in the Figure below.`,
         20,
         yPos,
@@ -471,7 +471,7 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
       // Final demand statement with consistent formatting
       yPos = applyTextSettings(
         textSettings.normalText,
-        "For the selected region, the estimated water demand under (***selected water demand category***) is … ***MLD*** (***Million Liters per Day***). The calculation is based on population projections, per capita water consumption standards, and other influencing parameters, ensuring an accurate assessment of water demand.",
+        "For the selected region, the estimated water demand under the selected category is __MLD__ (Million Liters per Day), as indicated in the table below. This estimate is derived from projected population figures, per capita water consumption standards, and other relevant influencing factors, ensuring a comprehensive and accurate assessment of water demand.",
         20,
         yPos,
         { maxWidth: 170 }
@@ -556,7 +556,7 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
       yPos = applyTextSettings(
         textSettings.normalText,
         "Water obtained from rivers, lakes, reservoirs, or canals.",
-        110,
+        70,
         yPos - textSettings.normalText.spacing, // Adjust to align
         { maxWidth: 80 }
       );
@@ -572,7 +572,7 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
       yPos = applyTextSettings(
         textSettings.normalText,
         "Water sourced from wells, tube wells, and borewells.",
-        112,
+        70,
         yPos - textSettings.normalText.spacing, // Adjust to align
         { maxWidth: 80 }
       );
@@ -588,33 +588,18 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
       yPos = applyTextSettings(
         textSettings.normalText,
         "Includes desalination plants, rainwater harvesting, and wastewater recycling.",
-        120,
+        70,
         yPos - textSettings.normalText.spacing, // Adjust to align
         { maxWidth: 80 }
       );
 
-      // Total water supply statement with mixed formatting
-      yPos = applyTextSettings(
-        textSettings.normalText,
-        "The estimated total water supply is",
-        20,
-        yPos + 2 // Extra spacing
-      );
       
-      // Bold part of the line
-      yPos = applyTextSettings(
-        textSettings.boldText,
-        "… MLD (Million Liters per Day).",
-        127,
-        yPos - textSettings.boldText.spacing, // Adjust to align
-        { maxWidth: 80 }
-      );
 
       // Continue with existing water supply information
       if (waterSupply > 0) {
         yPos = applyTextSettings(
           textSettings.normalText,
-          `Total Water Supply: ${waterSupply.toFixed(2)} MLD`,
+          `The estimated total water supply is: ${waterSupply.toFixed(2)} MLD (Million Liters per Day)`,
           20,
           yPos
         );
@@ -693,14 +678,7 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
         { maxWidth: 170 }
       );
       
-      // Add "Chapter 4" at the end of the line
-      yPos = applyTextSettings(
-        textSettings.boldText,
-        "Chapter 4",
-        170,
-        yPos - textSettings.boldText.spacing, // Adjust to align
-        { align: 'right' }
-      );
+      
 
       // Format the complex paragraph with mixed styles more consistently
       // First part - normal text
@@ -712,42 +690,7 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
         { maxWidth: 170 }
       );
       
-      // Second part - bold
-      doc.setFont(textSettings.boldText.font, textSettings.boldText.style);
-      doc.setFontSize(textSettings.boldText.size);
-      doc.text("…. MLD (", 241, yPos - textSettings.normalText.spacing + 4);
-      
-      // Third part - italic
-      doc.setFont(textSettings.italicText.font, textSettings.italicText.style);
-      doc.setFontSize(textSettings.italicText.size);
-      doc.text("In case of single selected year", 269, yPos - textSettings.normalText.spacing + 4);
-      
-      // Fourth part - bold
-      doc.setFont(textSettings.boldText.font, textSettings.boldText.style);
-      doc.setFontSize(textSettings.boldText.size);
-      doc.text("). ", 382, yPos - textSettings.normalText.spacing + 4);
-      doc.text("NRW generated for the selected region is ….", 390, yPos - textSettings.normalText.spacing + 4);
-      yPos += textSettings.normalText.spacing;
-
-      // Continue with the next line
-      doc.setFont(textSettings.boldText.font, textSettings.boldText.style);
-      doc.setFontSize(textSettings.boldText.size);
-      doc.text("LPCD. ", 20, yPos);
-      doc.text("Raw sewerage characteristics is provided in ", 42, yPos);
-      doc.text("Table 2. ", 210, yPos);
-      doc.text("Furthermore, report highlighted that sewage generated for the selected region during period ", 247, yPos);
-      yPos += textSettings.normalText.spacing;
-
-      // Final line of this section
-      doc.setFont(textSettings.boldText.font, textSettings.boldText.style);
-      doc.setFontSize(textSettings.boldText.size);
-      doc.text("….. ", 20, yPos);
-      doc.text("to ", 34, yPos);
-      doc.text("….. ", 45, yPos);
-      doc.text("is given in the ", 60, yPos);
-      doc.text("Table 3.", 120, yPos);
-      yPos += textSettings.normalText.spacing + 2; // Extra spacing after this section
-
+     
       // Get sewage data if available
       const sewageData = (window as any).selectedPopulationForecast2025 || null;
 
