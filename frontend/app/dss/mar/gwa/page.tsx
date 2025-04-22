@@ -1,17 +1,23 @@
 'use client';
-// app/components/Dashboard.tsx
+// app/dss/mar/gwa/page.tsx
 import React, { useState, useEffect } from 'react';
-import MapPreview from './components/map';
+import DataSelection from './components/DataSelection';
 import GroundwaterSustainability from './components/GroundwaterSustainability';
 import TimeSeriesAnalysis from './components/TimeSeriesAnalysis';
 import GroundwaterTrend from './components/GroundwaterTrend';
 import GroundwaterContour from './components/GroundwaterContour';
-import DataSelection from './components/DataSelection';
 import DataSelectionOutput from './components/DataSelectionOutput';
 import GroundwaterContourOutput from './components/GroundwaterContourOutput';
 import GroundwaterTrendOutput from './components/GroundwaterTrendOutput';
 import TimeSeriesOutput from './components/TimeSeriesOutput';
 import GroundwaterRechargeOutput from './components/GroundwaterRechargeOutput';
+
+// Import our new map components
+import DataSelectionMap from './components/DataSelectionMap';
+import GroundwaterContourMap from './components/GroundwaterContourMap';
+import GroundwaterTrendMap from './components/GroundwaterTrendMap';
+import TimeSeriesMap from './components/TimeSeriesMap';
+import GroundwaterSustainabilityMap from './components/GroundwaterSustainabilityMap';
 
 type TabType = 'data-selection' | 'groundwater-contour' | 'groundwater-trend' | 'time-series-analysis' | 'groundwater-recharge';
 
@@ -33,8 +39,13 @@ const Dashboard: React.FC = () => {
   // Initialize state
   const [activeTab, setActiveTab] = useState<TabType>('data-selection');
   const [completedSteps, setCompletedSteps] = useState<TabType[]>([]);
+  
+  // Data states for map components
   const [geoJsonData, setGeoJsonData] = useState<any>(null);
-  const [contourData, setContourData] = useState<any>(null); // New state for contour data
+  const [contourData, setContourData] = useState<any>(null);
+  const [trendData, setTrendData] = useState<any>(null);
+  const [timeSeriesData, setTimeSeriesData] = useState<any>(null);
+  const [rechargeData, setRechargeData] = useState<any>(null);
   
   // Track initial data for each tab to enable reset functionality
   const [tabInitialStates, setTabInitialStates] = useState<Record<TabType, any>>({
@@ -83,7 +94,25 @@ const Dashboard: React.FC = () => {
   // Function to handle contour data from GroundwaterContour component
   const handleContourData = (data: any) => {
     console.log('Contour data received in Dashboard:', data);
-    setContourData(data); // Store contour data to pass to MapPreview
+    setContourData(data);
+  };
+
+  // Function to handle trend data
+  const handleTrendData = (data: any) => {
+    console.log('Trend data received in Dashboard:', data);
+    setTrendData(data);
+  };
+
+  // Function to handle time series data
+  const handleTimeSeriesData = (data: any) => {
+    console.log('Time series data received in Dashboard:', data);
+    setTimeSeriesData(data);
+  };
+
+  // Function to handle recharge data
+  const handleRechargeData = (data: any) => {
+    console.log('Recharge data received in Dashboard:', data);
+    setRechargeData(data);
   };
 
   // Function to render the appropriate component based on active tab
@@ -92,31 +121,70 @@ const Dashboard: React.FC = () => {
       case 'data-selection':
         return <DataSelection 
                  activeTab={activeTab} 
-                 onGeoJsonData={setGeoJsonData} // Pass the callback for well data
+                 onGeoJsonData={setGeoJsonData} 
                  initialData={tabInitialStates['data-selection']}
                />;
       case 'groundwater-contour':
         return <GroundwaterContour 
                  activeTab={activeTab}
-                 onGeoJsonData={handleContourData} // Pass callback for contour data
+                 onGeoJsonData={handleContourData} 
                  initialData={tabInitialStates['groundwater-contour']} />;
       case 'groundwater-trend':
         return <GroundwaterTrend 
                  activeTab={activeTab}
+                 onGeoJsonData={handleTrendData}
                  initialData={tabInitialStates['groundwater-trend']} />;
       case 'time-series-analysis':
         return <TimeSeriesAnalysis 
                  activeTab={activeTab}
+                 onGeoJsonData={handleTimeSeriesData}
                  initialData={tabInitialStates['time-series-analysis']} />;
       case 'groundwater-recharge':
         return <GroundwaterSustainability 
                  activeTab={activeTab}
+                 onGeoJsonData={handleRechargeData}
                  initialData={tabInitialStates['groundwater-recharge']} />;
       default:
         return <DataSelection 
                  activeTab={activeTab} 
-                 onGeoJsonData={setGeoJsonData} // Pass the callback
+                 onGeoJsonData={setGeoJsonData}
                  initialData={tabInitialStates['data-selection']}
+               />;
+    }
+  };
+
+  // Function to render the appropriate map component based on active tab
+  const renderMapComponent = () => {
+    switch (activeTab) {
+      case 'data-selection':
+        return <DataSelectionMap 
+                 geoJsonData={geoJsonData} 
+                 showNotification={showNotification} 
+               />;
+      case 'groundwater-contour':
+        return <GroundwaterContourMap 
+                 contourData={contourData} 
+                 showNotification={showNotification} 
+               />;
+      case 'groundwater-trend':
+        return <GroundwaterTrendMap 
+                 trendData={trendData} 
+                 showNotification={showNotification} 
+               />;
+      case 'time-series-analysis':
+        return <TimeSeriesMap 
+                 timeSeriesData={timeSeriesData} 
+                 showNotification={showNotification} 
+               />;
+      case 'groundwater-recharge':
+        return <GroundwaterSustainabilityMap 
+                 rechargeData={rechargeData} 
+                 showNotification={showNotification} 
+               />;
+      default:
+        return <DataSelectionMap 
+                 geoJsonData={geoJsonData} 
+                 showNotification={showNotification} 
                />;
     }
   };
@@ -143,7 +211,10 @@ const Dashboard: React.FC = () => {
     setActiveTab('data-selection');
     setCompletedSteps([]);
     setGeoJsonData(null);
-    setContourData(null); // Also reset contour data
+    setContourData(null);
+    setTrendData(null);
+    setTimeSeriesData(null);
+    setRechargeData(null);
     // Reset all tab initial states
     setTabInitialStates({
       'data-selection': null,
@@ -300,12 +371,7 @@ const Dashboard: React.FC = () => {
               {/* Middle Column - Map Preview */}
               <div className="col-span-6 border border-gray-100 rounded-md p-4 h-full">
                 <h3 className="text-sm font-medium mb-2">Map Preview</h3>
-                <MapPreview 
-                  activeTab={activeTab} 
-                  geoJsonData={geoJsonData} // Pass GeoJSON data to map
-                  contourData={contourData} // Pass contour data to map
-                  showNotification={showNotification} 
-                />
+                {renderMapComponent()}
               </div>
 
               {/* Right Column - Visualization & Output */}

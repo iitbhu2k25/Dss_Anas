@@ -335,7 +335,7 @@ const DataSelection: React.FC<DataSelectionProps> = ({
                 {uploadSuccess && (
                   <button 
                     className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded-md flex items-center justify-center"
-                    // onClick={handlePlot}
+                    onClick={handlePlot}
                     disabled={isLoading}
                   >
                     <span>Plot</span>

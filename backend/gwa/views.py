@@ -19,6 +19,71 @@ import matplotlib.path
 from pykrige.ok import OrdinaryKriging
 
 
+
+class BasinBoundaryAPIView(APIView):
+    def get(self, request, format=None):
+        try:
+            # Path to the basin shapefile
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'gwa_data', 'basin', 'basin.shp')
+            
+            # Log path information for debugging
+            print(f"Looking for basin boundary shapefile")
+            print(f"Full path to shapefile: {shapefile_path}")
+            print(f"File exists: {os.path.exists(shapefile_path)}")
+            
+            if not os.path.exists(shapefile_path):
+                return Response(
+                    {'error': f'Basin shapefile does not exist at path: {shapefile_path}'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Read the shapefile using GeoPandas
+            gdf = gpd.read_file(shapefile_path)
+            
+            if gdf.empty:
+                return Response(
+                    {'error': 'Basin shapefile is empty or contains no valid geometries'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Check for invalid geometries
+            if not gdf.geometry.is_valid.all():
+                print("Invalid geometries found, attempting to fix...")
+                gdf.geometry = gdf.geometry.buffer(0)  # Attempt to fix invalid geometries
+            
+            # Ensure CRS is EPSG:4326 (standard for GeoJSON)
+            if gdf.crs and gdf.crs != "EPSG:4326":
+                gdf = gdf.to_crs("EPSG:4326")
+            
+            # Convert to GeoJSON
+            geojson = gdf.to_json()
+            
+            # Parse and validate GeoJSON to catch issues
+            try:
+                parsed_geojson = json.loads(geojson)
+                if parsed_geojson.get("type") != "FeatureCollection":
+                    raise ValueError("Generated GeoJSON is not a FeatureCollection")
+            except json.JSONDecodeError as e:
+                return Response(
+                    {'error': 'Failed to generate valid GeoJSON', 'detail': str(e)},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            return Response(parsed_geojson, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            import traceback
+            print("Basin shapefile read error:", e)
+            print(traceback.format_exc())
+            return Response(
+                {
+                    'error': str(e),
+                    'type': str(type(e).__name__),
+                    'detail': traceback.format_exc()
+                }, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 class WellGeoJSONAPIView(APIView):
     def get(self, request, format=None):
         try:

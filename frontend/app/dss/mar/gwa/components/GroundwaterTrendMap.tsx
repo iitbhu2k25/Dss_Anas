@@ -1,34 +1,26 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 
-interface MapPreviewProps {
-  activeTab: string;
-  geoJsonData?: any; // For well data points
-  contourData?: any; // For contour data
+interface GroundwaterTrendMapProps {
+  trendData?: any;
   showNotification?: (title: string, message: string, type?: string) => void;
 }
 
-const LeafletMapPreview: React.FC<MapPreviewProps> = ({
-  activeTab,
-  geoJsonData,
-  contourData,
+const GroundwaterTrendMap: React.FC<GroundwaterTrendMapProps> = ({
+  trendData,
   showNotification = (title, message) => console.log(`${title}: ${message}`),
-  }) => {
+}) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const drawnItemsRef = useRef<any>(null);
-  const compassRef = useRef<any>(null);
-  const geoJsonLayerRef = useRef<any>(null); // For well points data
-  const contourLayerRef = useRef<any>(null); // For contour lines
-  const boundaryLayerRef = useRef<any>(null); // For boundary data
-  const legendControlRef = useRef<any>(null); // For contour legend
+  
+  const trendLayerRef = useRef<any>(null);
+  const basinBoundaryLayerRef = useRef<any>(null);
+  const legendControlRef = useRef<any>(null);
   const [coordinates, setCoordinates] = useState<string>('');
-  const [showCompass, setShowCompass] = useState<boolean>(true);
   const [selectedFeature, setSelectedFeature] = useState<any>(null);
   const [baseLayers, setBaseLayers] = useState<any>({});
-  
+  const compassRef = useRef<HTMLDivElement>(null);
 
   // Load Leaflet dependencies
   useEffect(() => {
@@ -91,276 +83,157 @@ const LeafletMapPreview: React.FC<MapPreviewProps> = ({
     // Cleanup function
     return () => {
       if (mapInstanceRef.current) {
-        // Just remove event listeners, not the map itself
         mapInstanceRef.current.off();
       }
     };
   }, []);
 
-  // Effect to handle well data GeoJSON changes
+  // Effect to handle trend data changes
   useEffect(() => {
-    if (!geoJsonData || !mapInstanceRef.current) return;
+    if (!trendData || !mapInstanceRef.current) return;
 
     try {
-      const geoJsonLayer = window.L.geoJSON(geoJsonData, {
-        pointToLayer: (feature, latlng) =>
-          window.L.circleMarker(latlng, {
-            radius: 8,
-            fillColor: '#ff7800',
-            color: '#000',
-            weight: 1,
-            opacity: 1,
-            fillOpacity: 0.8,
-          }),
-        onEachFeature: (feature, layer) => {
-          if (feature.properties) {
-            let popupContent = '<div class="feature-popup">';
-            for (const key in feature.properties) {
-              if (Object.prototype.hasOwnProperty.call(feature.properties, key)) {
-                popupContent += `<strong>${key}:</strong> ${feature.properties[key]}<br>`;
-              }
-            }
-            popupContent += '</div>';
-            layer.bindPopup(popupContent);
-          }
-        },
-      });
-
-      // Clear previous GeoJSON layer if needed
-      if (geoJsonLayerRef.current) {
-        geoJsonLayerRef.current.remove();
-      }
-
-      geoJsonLayer.addTo(mapInstanceRef.current);
-      geoJsonLayerRef.current = geoJsonLayer;
-
-      // Fit map to bounds
-      const bounds = geoJsonLayer.getBounds();
-      if (bounds.isValid()) {
-        mapInstanceRef.current.fitBounds(bounds, {
-          padding: [50, 50],
-          maxZoom: 15,
-        });
-      }
-
-      showNotification('Data Loaded', 'Well data has been plotted on the map', 'success');
-    } catch (error) {
-      console.error('Error adding well GeoJSON to map:', error);
-      showNotification('Error', 'Failed to render well data on map', 'error');
-    }
-  }, [geoJsonData, showNotification]);
-
-  // Effect to handle contour data changes
-  useEffect(() => {
-    if (!contourData || !mapInstanceRef.current) return;
-
-    console.log('Processing contour data for map display', contourData);
-    console.log('Colormap URL:', contourData.colormap_url); // Log colormap URL for reference
-
-    try {
-      // Log GeoJSON structure
-      console.log('Contour GeoJSON:', JSON.stringify(contourData.geojson, null, 2));
-      console.log('Contour features count:', contourData.geojson?.features?.length || 'No features');
-
-      // Validate GeoJSON
-      if (!contourData.geojson || !contourData.geojson.features || !Array.isArray(contourData.geojson.features)) {
-        console.error('Invalid GeoJSON structure:', contourData.geojson);
-        showNotification('Error', 'Invalid contour data structure', 'error');
-        return;
-      }
-
-      // Check for valid geometries
-      const invalidFeatures = contourData.geojson.features.filter(
-        (feature) => !feature.geometry || !feature.geometry.type || !feature.geometry.coordinates
-      );
-      if (invalidFeatures.length > 0) {
-        console.error('Invalid features found:', invalidFeatures);
-        showNotification('Error', 'Contour data contains invalid geometries', 'error');
-        return;
-      }
-
       // Clear previous layers
-      if (contourLayerRef.current) {
-        mapInstanceRef.current.removeLayer(contourLayerRef.current);
-        contourLayerRef.current = null;
-      }
-      if (boundaryLayerRef.current) {
-        mapInstanceRef.current.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
+      if (trendLayerRef.current) {
+        mapInstanceRef.current.removeLayer(trendLayerRef.current);
+        trendLayerRef.current = null;
       }
       if (legendControlRef.current) {
         mapInstanceRef.current.removeControl(legendControlRef.current);
         legendControlRef.current = null;
       }
 
-      // Add contour layer
-      const contours = window.L.geoJSON(contourData.geojson, {
-        style: function (feature) {
-          // Use the color directly from the feature if available
-          if (feature.properties && feature.properties.color) {
-            return {
-              color: feature.properties.color,
-              weight: 3,
-              opacity: 0.8
-            };
-          }
-
-          // Fallback to using a generic color
+      // Add trend layer - we'll simulate trend data as it's not included in your code examples
+      // In a real application, you would use the actual trend data structure
+      
+      // Example of how you might display trend data
+      const trendLayer = window.L.geoJSON(trendData, {
+        style: function(feature) {
+          // Apply different styles based on trend value
+          // For example, red for declining, green for increasing
+          const trendValue = feature.properties.trend;
+          const color = trendValue < 0 ? 
+                       '#ff0000' : // Red for declining
+                       trendValue > 0 ? 
+                       '#00ff00' : // Green for increasing
+                       '#ffff00';  // Yellow for stable
+          
           return {
-            color: '#ff0000', // Bright red as fallback
-            weight: 3,
-            opacity: 0.8
+            fillColor: color,
+            weight: 2,
+            opacity: 0.7,
+            color: 'white',
+            fillOpacity: 0.7
           };
         },
         onEachFeature: (feature, layer) => {
-          if (feature.properties && feature.properties.value !== undefined) {
-            const value = parseFloat(feature.properties.value).toFixed(2);
-            layer.bindTooltip(`${contourData.parameter}: ${value}`, { sticky: true });
+          if (feature.properties) {
+            let popupContent = '<div class="trend-popup">';
+            popupContent += `<strong>Trend:</strong> ${feature.properties.trend.toFixed(2)} ft/year<br>`;
+            popupContent += `<strong>Significance:</strong> ${feature.properties.significance || 'N/A'}<br>`;
+            
+            if (feature.properties.well_id) {
+              popupContent += `<strong>Well ID:</strong> ${feature.properties.well_id}<br>`;
+            }
+            
+            popupContent += '</div>';
+            layer.bindPopup(popupContent);
           }
         }
       });
 
-      // Don't use getLayers() which might be returning incorrect information
-      console.log('Adding contour with features:', contourData.geojson.features.length);
+      trendLayer.addTo(mapInstanceRef.current);
+      trendLayerRef.current = trendLayer;
 
-      // Force add to map and store reference
-      contours.addTo(mapInstanceRef.current);
-      contourLayerRef.current = contours;
-
-      // Zoom to contour bounds
-      let combinedBounds;
+      // Add a legend
+      const legend = window.L.control({ position: 'bottomright' });
+      legend.onAdd = function() {
+        const div = window.L.DomUtil.create('div', 'info legend');
+        div.innerHTML = `
+          <div style="background: white; padding: 10px; border-radius: 5px; box-shadow: 0 0 5px rgba(0,0,0,0.3);">
+            <h4 style="margin: 0 0 5px 0; font-size: 14px;">Groundwater Trend</h4>
+            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+              <div style="width: 20px; height: 20px; background: #ff0000; margin-right: 5px;"></div>
+              <span>Declining</span>
+            </div>
+            <div style="display: flex; align-items: center; margin-bottom: 5px;">
+              <div style="width: 20px; height: 20px; background: #ffff00; margin-right: 5px;"></div>
+              <span>Stable</span>
+            </div>
+            <div style="display: flex; align-items: center;">
+              <div style="width: 20px; height: 20px; background: #00ff00; margin-right: 5px;"></div>
+              <span>Rising</span>
+            </div>
+          </div>
+        `;
+        return div;
+      };
+      
+      legend.addTo(mapInstanceRef.current);
+      legendControlRef.current = legend;
+      
+      // Try to zoom to trend layer bounds
       try {
-        const contourBounds = contours.getBounds();
-        if (contourBounds.isValid()) {
-          console.log('Zooming to contour bounds');
-          combinedBounds = contourBounds;
+        const bounds = trendLayer.getBounds();
+        if (bounds.isValid()) {
+          mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50] });
         }
       } catch (e) {
-        console.error('Error zooming to contour bounds:', e);
+        console.error('Error zooming to trend layer bounds:', e);
       }
 
-      // Force map redraw
-      mapInstanceRef.current.invalidateSize();
-
-      showNotification(
-        'Contour Added',
-        `Added contour lines for ${contourData.parameter} (${contourData.data_type} ${contourData.year})`,
-        'success'
-      );
-
-      // Add boundary layer
-      if (contourData.boundary_geojson) {
-        const boundary = window.L.geoJSON(contourData.boundary_geojson, {
-          style: {
-            color: 'red',
-            weight: 2,
-            opacity: 0.5,
-            fillColor: '#eee',
-            fillOpacity: 0.1,
-          },
-        });
-
-        boundary.addTo(mapInstanceRef.current);
-        boundaryLayerRef.current = boundary;
-
-        // Include boundary in combined bounds
-        try {
-          const boundaryBounds = boundary.getBounds();
-          if (boundaryBounds.isValid()) {
-            console.log('Boundary bounds valid');
-            if (combinedBounds) {
-              combinedBounds.extend(boundaryBounds);
-            } else {
-              combinedBounds = boundaryBounds;
-            }
-          }
-        } catch (e) {
-          console.error('Error processing boundary bounds:', e);
-        }
-      }
-
-      // Zoom to combined bounds
-      if (combinedBounds && combinedBounds.isValid()) {
-        mapInstanceRef.current.fitBounds(combinedBounds, { padding: [50, 50] });
-      }
-
-      // Add legend for contour values
-      if (contourData.min_value !== undefined && contourData.max_value !== undefined) {
-        const legend = window.L.control({ position: 'bottomleft' });
-        legend.onAdd = function () {
-          const div = window.L.DomUtil.create('div', 'info legend');
-          const grades = Array.from(
-            { length: 5 },
-            (_, i) =>
-              contourData.min_value +
-              (i * (contourData.max_value - contourData.min_value)) / 4
-          );
-          div.innerHTML = `<strong>${contourData.parameter} (${contourData.data_type} ${contourData.year})</strong><br>`;
-          grades.forEach((grade, i) => {
-            const normalized = i / (grades.length - 1);
-            const r = Math.round(255 * (1 - normalized));
-            const b = Math.round(255 * normalized);
-            const color = `rgb(${r}, 0, ${b})`;
-            div.innerHTML += `
-              <i style="background:${color}; width: 18px; height: 18px; float: left; margin-right: 8px;"></i>
-              ${grade.toFixed(2)}<br>
-            `;
-          });
-          return div;
-        };
-        legend.addTo(mapInstanceRef.current);
-        legendControlRef.current = legend;
-      }
+      showNotification('Trend Data Loaded', 'Groundwater trend data has been plotted on the map', 'success');
     } catch (error) {
-      console.error('Error adding contour to map:', error);
-      showNotification('Error', `Failed to render contour data on map: ${error.message}`, 'error');
+      console.error('Error adding trend data to map:', error);
+      showNotification('Error', 'Failed to render trend data on map', 'error');
     }
-  }, [contourData, showNotification]);
+  }, [trendData, showNotification]);
 
-  // Effect to clean up layers when active tab changes
+  // Load basin boundary
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
-    console.log('Active tab changed:', activeTab);
-
-    // When tab is not groundwater, remove contour layers
-    if (activeTab !== 'groundwater') {
-      if (contourLayerRef.current) {
-        console.log('Removing contour layer due to tab change');
-        mapInstanceRef.current.removeLayer(contourLayerRef.current);
-        contourLayerRef.current = null;
-      }
-
-      if (legendControlRef.current) {
-        console.log('Removing legend control due to tab change');
-        mapInstanceRef.current.removeControl(legendControlRef.current);
-        legendControlRef.current = null;
-      }
-    }
-
-    // When tab is not dataSelection, remove well data layers
-    if (activeTab !== 'dataSelection') {
-      if (geoJsonLayerRef.current) {
-        console.log('Removing geoJson layer due to tab change');
-        mapInstanceRef.current.removeLayer(geoJsonLayerRef.current);
-        geoJsonLayerRef.current = null;
-      }
-    }
-
-    // Keep boundary layer until all other layers are removed
-    if (activeTab !== 'groundwater' && activeTab !== 'dataSelection') {
-      if (boundaryLayerRef.current) {
-        console.log('Removing boundary layer due to tab change');
-        mapInstanceRef.current.removeLayer(boundaryLayerRef.current);
-        boundaryLayerRef.current = null;
-      }
-    }
-
-    // Force map to recalculate its size when tab changes
-    setTimeout(() => {
-      mapInstanceRef.current.invalidateSize(true);
-    }, 100);
-  }, [activeTab]);
+    // Load GeoJSON basin boundary from API endpoint
+    fetch('http://localhost:9000/api/gwa/basin-boundary/')
+      .then(res => res.json())
+      .then(data => {
+        // Create GeoJSON layer with custom styling
+        const basinLayer = window.L.geoJSON(data, {
+          style: {
+            color: '#2196F3',
+            weight: 2,
+            fillOpacity: 0.1,
+            fillColor: '#2196F3'
+          },
+          onEachFeature: function(feature, layer) {
+            // Add popups if the feature has properties
+            if (feature.properties) {
+              let popupContent = '<div class="basin-popup">';
+              
+              // Loop through properties to build popup content
+              for (const [key, value] of Object.entries(feature.properties)) {
+                if (value && key !== 'shape_leng' && key !== 'shape_area') {
+                  popupContent += `<strong>${key}:</strong> ${value}<br>`;
+                }
+              }
+              
+              popupContent += '</div>';
+              layer.bindPopup(popupContent);
+            }
+          }
+        });
+        
+        // Add the basin layer to the map
+        basinLayer.addTo(mapInstanceRef.current);
+        basinBoundaryLayerRef.current = basinLayer;
+        
+        showNotification('Data Loaded', 'Basin boundaries loaded successfully', 'success');
+      })
+      .catch(error => {
+        console.error("Error loading basin boundary data:", error);
+        showNotification('Error', 'Failed to load basin boundaries', 'error');
+      });
+  }, [showNotification]);
 
   const initializeMap = () => {
     if (!mapContainerRef.current || !window.L || mapInstanceRef.current) return;
@@ -680,56 +553,31 @@ const LeafletMapPreview: React.FC<MapPreviewProps> = ({
         </button>
       `;
       div.onclick = function () {
-        // Toggle well data visibility
-        if (geoJsonLayerRef.current) {
-          if (mapInstanceRef.current.hasLayer(geoJsonLayerRef.current)) {
-            geoJsonLayerRef.current.remove();
-            showNotification('Layers', 'Well data hidden', 'info');
+        // Toggle trend visibility
+        if (trendLayerRef.current) {
+          if (map.hasLayer(trendLayerRef.current)) {
+            trendLayerRef.current.remove();
+            showNotification('Layers', 'Trend data hidden', 'info');
           } else {
-            geoJsonLayerRef.current.addTo(mapInstanceRef.current);
-            showNotification('Layers', 'Well data shown', 'info');
+            trendLayerRef.current.addTo(map);
+            showNotification('Layers', 'Trend data shown', 'info');
           }
         }
 
-        // Toggle contour visibility
-        if (contourLayerRef.current) {
-          if (mapInstanceRef.current.hasLayer(contourLayerRef.current)) {
-            contourLayerRef.current.remove();
-            showNotification('Layers', 'Contour data hidden', 'info');
+        // Toggle basin boundary visibility
+        if (basinBoundaryLayerRef.current) {
+          if (map.hasLayer(basinBoundaryLayerRef.current)) {
+            basinBoundaryLayerRef.current.remove();
+            showNotification('Layers', 'Basin boundaries hidden', 'info');
           } else {
-            contourLayerRef.current.addTo(mapInstanceRef.current);
-            showNotification('Layers', 'Contour data shown', 'info');
+            basinBoundaryLayerRef.current.addTo(map);
+            showNotification('Layers', 'Basin boundaries shown', 'info');
           }
         }
       };
       return div;
     };
     toggleDataControl.addTo(map);
-
-    // Toggle compass button
-    const toggleCompassControl = window.L.control({ position: 'bottomright' });
-    toggleCompassControl.onAdd = function () {
-      const div = window.L.DomUtil.create('div', 'toggle-compass-control');
-      div.innerHTML = `
-        <button style="background-color: white; padding: 5px 10px; border-radius: 5px; box-shadow: 0 0 5px rgba(0,0,0,0.3); cursor: pointer; margin-bottom: 10px;">
-          Toggle Compass
-        </button>
-      `;
-      div.onclick = function () {
-        const newShowCompass = !showCompass;
-        setShowCompass(newShowCompass);
-        if (compassRef.current) {
-          compassRef.current.style.display = newShowCompass ? 'block' : 'none';
-        }
-        showNotification(
-          'Compass',
-          newShowCompass ? 'Compass is now visible' : 'Compass is now hidden',
-          'info'
-        );
-      };
-      return div;
-    };
-    toggleCompassControl.addTo(map);
 
     // Add zoom controls
     const zoomControl = window.L.control.zoom({
@@ -768,47 +616,10 @@ const LeafletMapPreview: React.FC<MapPreviewProps> = ({
         fillOpacity: 0.4,
       });
     }
-
-    // If it's a marker, we can't set style but we can update its icon
-    if (layer instanceof window.L.Marker) {
-      // You could use a different icon for selected markers here
-    }
-  };
-
-  // Handle compass visibility changes
-  useEffect(() => {
-    if (compassRef.current) {
-      compassRef.current.style.display = showCompass ? 'block' : 'none';
-    }
-  }, [showCompass]);
-
-  // Function to change basemap
-  const changeBasemap = (basemapId: string) => {
-    if (!mapInstanceRef.current || !baseLayers) return;
-
-    // Remove all current base layers
-    Object.values(baseLayers).forEach((layer: any) => {
-      if (mapInstanceRef.current.hasLayer(layer)) {
-        mapInstanceRef.current.removeLayer(layer);
-      }
-    });
-
-    // Add selected layer
-    if (basemapId !== 'none' && baseLayers[basemapId]) {
-      mapInstanceRef.current.addLayer(baseLayers[basemapId]);
-    }
-
-    // Show notification
-    const basemapName = basemapId.charAt(0).toUpperCase() + basemapId.slice(1);
-    showNotification('Basemap Changed', `Switched to ${basemapName} basemap`, 'info');
   };
 
   return (
     <div className="flex flex-col h-full">
-      <div className="mb-3 flex space-x-2">
-        {/* Basemap buttons can go here if needed */}
-      </div>
-
       <div
         ref={mapContainerRef}
         className="w-full h-[700px] border rounded-md overflow-hidden shadow-md"
@@ -830,12 +641,11 @@ const LeafletMapPreview: React.FC<MapPreviewProps> = ({
                     : selectedFeature instanceof window.L.Rectangle
                       ? 'Rectangle'
                       : 'Unknown'}
-
           </p>
         )}
-        {contourData && (
+        {trendData && (
           <p className="text-sm font-medium mt-1 text-green-600">
-            Contour: {contourData.parameter} {contourData.data_type} {contourData.year}
+            Showing groundwater trend analysis results
           </p>
         )}
       </div>
@@ -843,4 +653,4 @@ const LeafletMapPreview: React.FC<MapPreviewProps> = ({
   );
 };
 
-export default LeafletMapPreview;
+export default GroundwaterTrendMap;

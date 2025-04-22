@@ -295,10 +295,16 @@ const handleReset = (): void => {
   setTotalPopulation(0); 
   setSelectionsLocked(false);
   
+  
   // Call the onReset prop to notify parent component
   if (onReset) {
     onReset();
   }
+
+  // Add a slight delay before refreshing the page
+  setTimeout(() => {
+    window.location.reload();
+  }, 100);
 };
 
 // Selected items display - show without district repetition

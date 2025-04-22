@@ -3,6 +3,10 @@ import React, { useState } from 'react';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from 'date-fns';
+import Population from '../population';
+import SewageCalculationForm from '../../seawage/components/SewageCalculationForm';
+import WaterDemandForm from '../../water_demand/components/WaterDemandForm';
+import WaterSupplyForm from '../../water_supply/components/WaterSupplyForm';  
 
 // Define interfaces for all the data types we need to access
 interface ExportProps {
