@@ -80,11 +80,11 @@ const Basic: React.FC = () => {
   const handleFinish = () => {
     setCompletedSteps(prev => [...prev.filter(step => step !== 3), 3]);
     setShowSuccess(true);
-    
+
     // Hide success message after 3 seconds
     setTimeout(() => {
       setShowSuccess(false);
-    }, 3000);
+    }, 2000);
   };
 
   useEffect(() => {
@@ -99,8 +99,8 @@ const Basic: React.FC = () => {
   return (
     <div className="flex w-full min-h-0">
       <div className="w-64 border-r border-gray-200">
-        <StatusBar 
-          currentStep={currentStep} 
+        <StatusBar
+          currentStep={currentStep}
           onStepChange={handleStepChange}
           skippedSteps={skippedSteps}
           completedSteps={completedSteps}
@@ -109,20 +109,31 @@ const Basic: React.FC = () => {
 
       <div className="flex-1 p-4 relative">
         <div className="absolute top-4 right-4">
-          
+
         </div>
 
-        <LocationSelector 
-          onConfirm={handleLocationConfirm} 
-          onReset={handleLocationReset} 
+        <LocationSelector
+          onConfirm={handleLocationConfirm}
+          onReset={handleLocationReset}
         />
 
-        {/* Success Message */}
         {showSuccess && (
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in-out">
-            Successfully done
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 animate-fade-in-out">
+            <div className="bg-green-100 text-green-800 px-6 py-4 rounded-2xl shadow-xl border border-green-300 flex items-center space-x-3 max-w-sm w-full mx-4">
+              <svg
+                className="w-6 h-6 text-green-600 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-sm font-medium">All Calculation has been completed now you can download the report</span>
+            </div>
           </div>
         )}
+
 
         {/* Step Content - keep all mounted */}
         <div className="transition-all duration-300 transform">
