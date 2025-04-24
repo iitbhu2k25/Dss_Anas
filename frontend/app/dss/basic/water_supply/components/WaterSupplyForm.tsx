@@ -32,15 +32,20 @@ const WaterSupplyForm: React.FC = () => {
   // Add state to track if initial calculation has been done
   const [hasCalculated, setHasCalculated] = useState(false);
 
-  // Determine if conflicting groundwater inputs are provided
-  const isDirectGroundwaterProvided = directGroundwater !== '';
+  // Determine if conflicting groundwater inputs are provided - FIXED LOGIC
+  const isDirectGroundwaterProvided = directGroundwater !== '' && Number(directGroundwater) > 0;
   const areTubeWellInputsProvided =
-    numTubewells !== '' || dischargeRate !== '' || operatingHours !== '';
+    (numTubewells !== '' && Number(numTubewells) > 0) || 
+    (dischargeRate !== '' && Number(dischargeRate) > 0) || 
+    (operatingHours !== '' && Number(operatingHours) > 0);
 
-  // Similarly, for alternate supply
-  const isDirectAlternateProvided = directAlternate !== '';
+  // Similarly, for alternate supply - FIXED LOGIC
+  const isDirectAlternateProvided = directAlternate !== '' && Number(directAlternate) > 0;
   const areAlternateInputsProvided =
-    rooftopTank !== '' || aquiferRecharge !== '' || surfaceRunoff !== '' || reuseWater !== '';
+    (rooftopTank !== '' && Number(rooftopTank) > 0) || 
+    (aquiferRecharge !== '' && Number(aquiferRecharge) > 0) || 
+    (surfaceRunoff !== '' && Number(surfaceRunoff) > 0) || 
+    (reuseWater !== '' && Number(reuseWater) > 0);
 
   // Auto-update when inputs change (after initial calculation)
   useEffect(() => {
@@ -100,7 +105,7 @@ const WaterSupplyForm: React.FC = () => {
     setError(null);
     // Check for input conflicts
     if (isDirectGroundwaterProvided && areTubeWellInputsProvided) {
-      setError('Error: Provide either direct groundwater supply or tube well inputs, not both.');
+      setError('Error: Provide either direct Groundwater supply or tube well inputs, not both.');
       return;
     }
     if (isDirectAlternateProvided && areAlternateInputsProvided) {
@@ -148,7 +153,7 @@ const WaterSupplyForm: React.FC = () => {
 
   // Handle initial calculation button click
   const handleCalculateWaterSupply = () => {
-    calculateWaterSupply();
+        calculateWaterSupply();
   };
 
   return (
@@ -199,8 +204,14 @@ const WaterSupplyForm: React.FC = () => {
         <div className="mt-2 text-center text-sm font-medium">OR</div>
         <div className="mt-2 grid grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium">
+          <label className="block text-sm font-medium flex items-center">
               Number of Tube-wells:
+              <div className="relative ml-1 group">
+                <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
+                <div className="absolute z-10 hidden group-hover:block w-64  text-red text-xs rounded p-0 -mt-12 ml-6">
+                  All three tube-well fields (Number, Discharge Rate, and Operating Hours) must be filled for the calculation to work properly.
+                </div>
+              </div>
             </label>
             <input
               type="number"
@@ -279,8 +290,14 @@ const WaterSupplyForm: React.FC = () => {
         <div className="mt-2 text-center text-sm font-medium">OR</div>
         <div className="mt-2 grid grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium">
+          <label className="block text-sm font-medium flex items-center">
               Roof-top Harvesting (Rain-tank Storage) (MLD):
+              <div className="relative ml-1 group">
+                <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
+                <div className="absolute z-10 hidden group-hover:block w-64 text-red text-xs rounded p-0 -mt-12 ml-6">
+                  At least one of the four alternate water supply component fields must be filled for the calculation to reflect in the table.
+                </div>
+              </div>
             </label>
             <input
               type="number"
@@ -372,9 +389,15 @@ const WaterSupplyForm: React.FC = () => {
             >
               Recalculate Water Supply
             </button>
-            <span className="text-green-600 flex items-center">
-              Auto-updating results when inputs change
-            </span>
+            <label className="block text-sm font-medium flex items-center">
+              
+              <div className="relative ml-1 group">
+                <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
+                <div className="absolute z-10 hidden group-hover:block w-64 bg- text-red text-xs rounded p-2 -mt-2 ml-6">
+                  Auto Update when input change
+                </div>
+              </div>
+            </label>
           </div>
         )}
       </div>
@@ -425,6 +448,7 @@ const WaterSupplyForm: React.FC = () => {
           {/* Add a message below the table */}
           <div className="mt-3 p-3 border rounded bg-blue-50">
             <h5 className="font-semibold mb-1">Water Gap Summary:</h5>
+            
             <p className="text-sm">
               The water gap represents the difference between available water supply and calculated water demand.
               A positive gap indicates sufficient water resources, while a negative gap 
@@ -438,3 +462,4 @@ const WaterSupplyForm: React.FC = () => {
 };
 
 export default WaterSupplyForm;
+

@@ -126,7 +126,6 @@ class Time_series(APIView):
         print("output",main_output)
         return Response(main_output, status=status.HTTP_200_OK)
 
-
 class SewageCalculation(APIView):
     """
     Calculate sewage generation using either the water supply approach
@@ -186,7 +185,7 @@ class WaterSupplyCalculationAPI(APIView):
             if direct_groundwater not in [None, ""]:
                 direct_groundwater = float(direct_groundwater)
             else:
-                direct_groundwater = None
+                direct_groundwater = 0 # set to 0 if not provided  and before it is None
 
             num_tubewells = data.get("num_tubewells")
             num_tubewells = float(num_tubewells) if num_tubewells not in [None, ""] else 0
@@ -201,7 +200,7 @@ class WaterSupplyCalculationAPI(APIView):
             if direct_alternate not in [None, ""]:
                 direct_alternate = float(direct_alternate)
             else:
-                direct_alternate = None
+                direct_alternate = 0 # set to 0 if not provided and before it is None
 
             rooftop_tank = data.get("rooftop_tank")
             rooftop_tank = float(rooftop_tank) if rooftop_tank not in [None, ""] else 0
@@ -215,24 +214,24 @@ class WaterSupplyCalculationAPI(APIView):
             reuse_water = data.get("reuse_water")
             reuse_water = float(reuse_water) if reuse_water not in [None, ""] else 0
 
-            if direct_groundwater is not None and (num_tubewells > 0 or discharge_rate > 0 or operating_hours > 0):
+            if direct_groundwater > 0 and (num_tubewells > 0 or discharge_rate > 0 or operating_hours > 0):     # changes made here  before 'is not None' 
                 return Response(
                     {"error": "Provide either direct groundwater supply or tube well inputs, not both."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            if direct_alternate is not None and (rooftop_tank > 0 or aquifer_recharge > 0 or surface_runoff > 0 or reuse_water > 0):
+            if direct_alternate > 0 and (rooftop_tank > 0 or aquifer_recharge > 0 or surface_runoff > 0 or reuse_water > 0):    # changes made here  before 'is not None' 
                 return Response(
                     {"error": "Provide either direct alternate supply or alternate component inputs, not both."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            if direct_groundwater is not None:
+            if direct_groundwater > 0:  # changes made here before 'is not None' 
                 groundwater_supply = direct_groundwater
             else:
                 groundwater_supply = num_tubewells * discharge_rate * operating_hours
 
-            if direct_alternate is not None:
+            if direct_alternate > 0: # changes made here before 'is not None' 
                 alternate_supply = direct_alternate
             else:
                 alternate_supply = rooftop_tank + aquifer_recharge + surface_runoff + reuse_water
@@ -242,7 +241,7 @@ class WaterSupplyCalculationAPI(APIView):
             return Response({"total_supply": total_supply}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
+ 
 class DomesticWaterDemandCalculationAPIView(APIView):
     """
     API endpoint that calculates domestic water demand.

@@ -7,7 +7,9 @@ import Population from '../population';
 import SewageCalculationForm from '../../seawage/components/SewageCalculationForm';
 import WaterDemandForm from '../../water_demand/components/WaterDemandForm';
 import WaterSupplyForm from '../../water_supply/components/WaterSupplyForm';  
-import PopulationChart from './PopulationChart';    
+import PopulationChart from './PopulationChart'; 
+
+ 
 
 // Define interfaces for all the data types we need to access
 interface ExportProps {
@@ -876,7 +878,7 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
       // Add references section - check if we need a new page
       if (yPos > 230) {
         doc.addPage();
-        yPos = 20;
+        yPos = 50;
       }
 
       // 5. REFERENCES SECTION
@@ -1009,10 +1011,8 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
   };
 
   return (
-    <div className="p-4 border border-blue-600 rounded-lg bg-white mt-4 mr-20 shadow-md">
-
+    <div className="p-4 border border-blue-600 rounded-lg bg-white mt-4 mr-24 ml-4 shadow-md">
       <h2 className="text-xl font-semibold mb-4 ">Generate Comprehensive Report</h2>
-
       <div className="mb-6">
         <p className="text-gray-600 mb-3">
           Generate a comprehensive PDF report that includes all analysis from:
@@ -1026,7 +1026,6 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
           <li>References</li>
         </ul>
       </div>
-
       <div className="flex items-center space-x-4">
         <button
           onClick={generatePDF}
@@ -1048,7 +1047,10 @@ const ExportReport: React.FC<ExportProps> = ({ projectName = "Comprehensive Repo
             </>
           )}
         </button>
+        
       </div>
+
+      
 
       {error && (
         <div className="mt-4 p-3 bg-red-100 text-red-700 rounded-md">
