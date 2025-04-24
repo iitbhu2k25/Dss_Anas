@@ -520,6 +520,8 @@ const calculateDrainBasedSewFlow = (popVal: number) => {
 
   const handle1pdfDownload = () => {
     const doc = new jsPDF();
+    
+    // Document title and metadata
     doc.setFontSize(16);
     doc.text("Sewage Calculation Report", 14, 20);
     
@@ -680,7 +682,7 @@ const calculateDrainBasedSewFlow = (popVal: number) => {
         const drainBasedSewFlow = calculateDrainBasedSewFlow(popVal);
         
         // Determine which sewage flow to use based on user selection
-        let avgSewFlow: number;
+        let avgSewFlow;
         if (peakFlowSewageSource === 'drain_based' && 
             domesticLoadMethod === 'modeled' && 
             totalDrainDischarge > 0) {
@@ -689,7 +691,7 @@ const calculateDrainBasedSewFlow = (popVal: number) => {
           avgSewFlow = popBasedSewFlow;
         }
         
-        const row: any[] = [
+        const row = [
           year,
           popVal.toLocaleString(),
           avgSewFlow.toFixed(2)
@@ -766,7 +768,235 @@ const calculateDrainBasedSewFlow = (popVal: number) => {
         styles: { fontSize: 10 },
         headStyles: { fillColor: [66, 139, 202] },
       });
+      
+      yPos = (doc as any).lastAutoTable.finalY + 10;
     }
+  
+    // Add Geographic Location section if available
+    try {
+      const locationData = (window as any).selectedLocations || {
+        state: '',
+        districts: [],
+        subDistricts: [],
+        villages: [],
+        totalPopulation: 0
+      };
+  
+      if (locationData && (locationData.state || locationData.districts.length > 0)) {
+        // Check if we need a new page
+        if (yPos > 230) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFontSize(13);
+        doc.setFont(undefined, 'bold');
+        doc.text("Geographic Location:", 14, yPos);
+        yPos += 8;
+        
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        
+        if (locationData.state) {
+          doc.text(`State: ${locationData.state}`, 14, yPos);
+          yPos += 5;
+        }
+        
+        if (locationData.districts && locationData.districts.length > 0) {
+          const districtsText = Array.isArray(locationData.districts)
+            ? `Districts: ${locationData.districts.join(', ')}`
+            : `Districts: ${locationData.districts.toString()}`;
+          
+          const districtLines = doc.splitTextToSize(districtsText, 180);
+          doc.text(districtLines, 14, yPos);
+          yPos += (districtLines.length * 5);
+        }
+        
+        if (locationData.subDistricts && locationData.subDistricts.length > 0) {
+          const subDistrictsText = Array.isArray(locationData.subDistricts)
+            ? `Sub-Districts: ${locationData.subDistricts.join(', ')}`
+            : `Sub-Districts: ${locationData.subDistricts.toString()}`;
+          
+          const subDistrictLines = doc.splitTextToSize(subDistrictsText, 180);
+          doc.text(subDistrictLines, 14, yPos);
+          yPos += (subDistrictLines.length * 5);
+        }
+        
+        if (locationData.villages && locationData.villages.length > 0) {
+          const villagesText = Array.isArray(locationData.villages)
+            ? `Villages: ${locationData.villages.join(', ')}`
+            : `Villages: ${locationData.villages.toString()}`;
+          
+          const villageLines = doc.splitTextToSize(villagesText, 180);
+          doc.text(villageLines, 14, yPos);
+          yPos += (villageLines.length * 5) + 3;
+        }
+        
+        if (locationData.totalPopulation) {
+          doc.setFont(undefined, 'bold');
+          doc.text(`Total Population (2011): ${locationData.totalPopulation.toLocaleString()}`, 14, yPos);
+          yPos += 8;
+        }
+        
+        // Add village details if available
+        if (locationData.allVillages && locationData.allVillages.length > 0) {
+          doc.setFont(undefined, 'bold');
+          doc.text("Selected Villages with Population:", 14, yPos);
+          yPos += 5;
+          
+          const villageRows = locationData.allVillages.map(village => [
+            village.name,
+            village.subDistrict,
+            village.district,
+            village.population.toLocaleString()
+          ]);
+          
+          autoTable(doc, {
+            head: [['Village Name', 'Sub-District', 'District', 'Population (2011)']],
+            body: villageRows,
+            startY: yPos,
+            styles: { fontSize: 9 },
+            headStyles: { fillColor: [66, 139, 202] },
+          });
+          
+          yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+      }
+    } catch (error) {
+      console.error("Error adding location data:", error);
+    }
+    
+    // Add Water Demand section if available
+    try {
+      const waterDemandData = (window as any).totalWaterDemand || {};
+      const populationData = (window as any).selectedPopulationForecast || {};
+      
+      if (Object.keys(waterDemandData).length > 0) {
+        // Check if we need a new page
+        if (yPos > 230) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFontSize(13);
+        doc.setFont(undefined, 'bold');
+        doc.text("Water Demand Analysis:", 14, yPos);
+        yPos += 8;
+        
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text("Water demand is estimated based on various contributing factors including domestic, floating,", 14, yPos);
+        yPos += 5;
+        doc.text("and firefighting demands as per CPHEEO manual guidelines.", 14, yPos);
+        yPos += 10;
+        
+        const waterDemandYears = Object.keys(waterDemandData).sort();
+        if (waterDemandYears.length > 0) {
+          const waterDemandRows = waterDemandYears.map(year => [
+            year,
+            Math.round(populationData[year] || 0).toLocaleString(),
+            waterDemandData[year].toFixed(2)
+          ]);
+          
+          autoTable(doc, {
+            head: [['Year', 'Population', 'Water Demand (MLD)']],
+            body: waterDemandRows,
+            startY: yPos,
+            styles: { fontSize: 10 },
+            headStyles: { fillColor: [66, 139, 202] },
+          });
+          
+          yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+      }
+    } catch (error) {
+      console.error("Error adding water demand data:", error);
+    }
+    
+    // Add Water Supply section if available
+    try {
+      const waterSupply = (window as any).totalWaterSupply || 0;
+      const waterDemandData = (window as any).totalWaterDemand || {};
+      
+      if (waterSupply > 0) {
+        // Check if we need a new page
+        if (yPos > 230) {
+          doc.addPage();
+          yPos = 20;
+        }
+        
+        doc.setFontSize(13);
+        doc.setFont(undefined, 'bold');
+        doc.text("Water Supply Analysis:", 14, yPos);
+        yPos += 8;
+        
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text("Water supply plays a critical role in determining sewage generation within a region.", 14, yPos);
+        yPos += 5;
+        doc.text(`The estimated total water supply is: ${waterSupply.toFixed(2)} MLD (Million Liters per Day)`, 14, yPos);
+        yPos += 10;
+        
+        // Water Gap Analysis
+        const waterDemandYears = Object.keys(waterDemandData).sort();
+        if (waterDemandYears.length > 0) {
+          doc.setFontSize(12);
+          doc.setFont(undefined, 'bold');
+          doc.text("Water Gap Analysis:", 14, yPos);
+          yPos += 8;
+          
+          const waterGapRows = waterDemandYears.map(year => {
+            const demand = waterDemandData[year];
+            const gap = waterSupply - demand;
+            const status = gap >= 0 ? 'Sufficient' : 'Deficit';
+            
+            return [
+              year,
+              waterSupply.toFixed(2),
+              demand.toFixed(2),
+              gap.toFixed(2),
+              status
+            ];
+          });
+          
+          autoTable(doc, {
+            head: [['Year', 'Supply (MLD)', 'Demand (MLD)', 'Gap (MLD)', 'Status']],
+            body: waterGapRows,
+            startY: yPos,
+            styles: { fontSize: 9 },
+            headStyles: { fillColor: [66, 139, 202] },
+          });
+          
+          yPos = (doc as any).lastAutoTable.finalY + 10;
+        }
+      }
+    } catch (error) {
+      console.error("Error adding water supply data:", error);
+    }
+    
+    // Add References section on a new page
+    doc.addPage();
+    doc.setFontSize(13);
+    doc.setFont(undefined, 'bold');
+    doc.text("References:", 14, 20);
+    yPos = 30;
+    
+    doc.setFontSize(9);
+    doc.setFont(undefined, 'normal');
+    
+    const references = [
+      "1. CPHEEO Manual on Water Supply and Treatment, Ministry of Urban Development, Government of India",
+      "2. CPHEEO Manual on Sewerage and Sewage Treatment Systems, Ministry of Urban Development, Government of India",
+      "3. Census of India, 2011",
+      "4. Guidelines for Decentralized Wastewater Management, Ministry of Environment, Forest and Climate Change",
+      "5. IS 1172:1993 - Code of Basic Requirements for Water Supply, Drainage and Sanitation",
+      "6. Metcalf & Eddy, Wastewater Engineering: Treatment and Reuse, 4th Edition"
+    ];
+    
+    references.forEach(ref => {
+      doc.text(ref, 14, yPos);
+      yPos += 6;
+    });
     
     // Add notes and footer
     const pageCount = doc.internal.getNumberOfPages();
@@ -775,9 +1005,39 @@ const calculateDrainBasedSewFlow = (popVal: number) => {
       doc.setFontSize(8);
       doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 30, doc.internal.pageSize.height - 10);
       doc.text("Sewage Calculation Report", 14, doc.internal.pageSize.height - 10);
+      
+      // Add date to each page footer
+      doc.text(today, doc.internal.pageSize.width / 2, doc.internal.pageSize.height - 10, { align: 'center' });
     }
     
-    doc.save("Sewage_Calculation_Report.pdf");
+    // Add logos to first page if available
+    try {
+      doc.setPage(1);
+      
+      // Try to load IIT BHU logo
+      const addLogo = async () => {
+        try {
+          const iitLogo = new Image();
+          iitLogo.crossOrigin = "Anonymous";
+          await new Promise((resolve, reject) => {
+            iitLogo.onload = resolve;
+            iitLogo.onerror = reject;
+            iitLogo.src = "/images/export/logo_iitbhu.png"; // Path in public folder
+          });
+          doc.addImage(iitLogo, 'PNG', 170, 5, 25, 25);
+        } catch (err) {
+          console.error("Failed to load logo:", err);
+        }
+        
+        // Save after logo attempt
+        doc.save("Sewage_Calculation_Report.pdf");
+      };
+      
+      addLogo();
+    } catch (error) {
+      // Save without logo if there's an error
+      doc.save("Sewage_Calculation_Report.pdf");
+    }
   };
   
   return (
@@ -1036,12 +1296,12 @@ const calculateDrainBasedSewFlow = (popVal: number) => {
       </div>
 
 
-      {/* <button 
+      <button 
         className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 ml-300 mb-2 rounded-md transition duration-300 ease-in-out"
         onClick={handle1pdfDownload}
       >
         Download Comprehensive Report
-      </button> */}
+      </button>
       
       
     </div>
