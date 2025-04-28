@@ -171,7 +171,17 @@ const Basic: React.FC = () => {
                 onClick={handleSkip}
               >
                 Skip
+                
               </button>
+              <label className="block text-sm font-medium flex items-center">
+              
+              <div className="relative ml-1 group">
+                <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
+                <div className="absolute z-10 hidden group-hover:block w-64 bg- text-red font-bold text-xs rounded p-2  -mt-19 ml-1">
+                  If you skip then it will not add that part in generated report 
+                </div>
+              </div>
+            </label>
               {currentStep > 0 && (
                 <button
                   className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"

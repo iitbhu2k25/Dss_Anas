@@ -735,7 +735,7 @@ const Population: React.FC<PopulationProps> = ({
                             <div className="relative group">
                                 <Info className="w-5 h-5 text-blue-600 cursor-pointer" />
 
-                                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-max max-w-xs bg-gray-900 text-white text-sm rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out z-10 pointer-events-none">
+                                <div className="absolute left-1/2 -translate-x-1/2 top-full mb-10 -mt-11 ml-50 w-max max-w-xs  text-black text-sm rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out z-10 pointer-events-none">
                                     This method’s data will be used in further analysis.
                                 </div>
                             </div>

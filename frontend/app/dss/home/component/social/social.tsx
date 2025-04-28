@@ -102,7 +102,7 @@ export default function SocialGridSection() {
   }, []);
 
   return (
-    <section className="py-10 flex justify-center items-center max-w-[80%] mx-auto">
+    <section className="py-8 flex justify-center items-center max-w-[80%] mx-auto">
       <div className="w-full">
         <h2 className="text-3xl font-bold text-center mb-8">Connect With Us</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5 w-full">
@@ -116,7 +116,7 @@ export default function SocialGridSection() {
             >
               {/* Twitter Post */}
               {item.type === "twitter-post" && (
-                <div className="w-full h-[300px] overflow-auto">
+                <div className="w-full h-[350px] overflow-auto">
                   <blockquote className="twitter-tweet" data-media-max-width="560">
                     <p lang="en" dir="ltr">
                       Team SLCR (IIT-BHU) participated in Ganga Utsav 2024 showcasing the joint vision of clean rivers. 

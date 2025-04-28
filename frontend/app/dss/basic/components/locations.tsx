@@ -448,6 +448,7 @@ const handleConfirm = (): void => {
 };
 
 
+
 // Village dropdown display - just show name and population (no district prefix)
 const formatVillageDisplay = (village: Village): string => {
   return `${village.name} (Pop: ${village.population.toLocaleString()})`;
