@@ -7,6 +7,12 @@ from rest_framework import status
 import math
 from .service import *
 
+
+
+from django.db.models import Sum, Q
+from .models import PopulationCohort
+
+
 class Locations_stateAPI(APIView):
     def get(self, request, format=None):
         states = Basic_state.objects.all()
@@ -82,6 +88,7 @@ class Demographic(APIView):
             main_output['demographic'] = Demographic_population_range(base_year, start_year, end_year, villages, subdistrict, annual_birth_rate, annual_death_rate, annual_emigration_rate, annual_immigration_rate) 
         print("output",main_output)
         return Response(main_output, status=status.HTTP_200_OK)    
+
 class Time_series(APIView):
     def post(self, request, format=None):
         base_year = 2011
@@ -580,3 +587,125 @@ class FirefightingWaterDemandCalculationAPIView(APIView):
                 result[method] = method_result
         
         return Response(result, status=status.HTTP_200_OK)
+
+
+#for cohort 
+class CohortView(APIView):
+    def post(self, request, format=None):
+        """
+        Handles requests for population cohort data filtered by location and year
+        """
+        # Get data from request
+        print('request_data is ', request.data)
+        
+        # Extract parameters from request (using direct dictionary access with fallbacks)
+        single_year = request.data.get('year')
+        start_year = request.data.get('start_year')
+        end_year = request.data.get('end_year')
+        villages = request.data.get('villages_props', [])
+        subdistrict = request.data.get('subdistrict_props', {})
+        district = request.data.get('district_props', {})
+        state = request.data.get('state_props', {})
+        
+        # Correcting the subdistrict_id of the villages coming from frontend 
+        # Fetch all villages from the database
+        village_data = Basic_village.objects.values('village_code', 'subdistrict_code')
+        
+        # Create a mapping of village_code to subdistrict_code
+        village_mapping = {v['village_code']: v['subdistrict_code'] for v in village_data}
+        
+        # Update the villages list with the correct subDistrictId
+        for village in villages:
+            village_code = village['id']
+            if village_code in village_mapping:
+                village['subDistrictId'] = village_mapping[village_code]
+        
+        # Initialize filters for the query
+        filters = Q()
+        
+        # Add location filters based on priority: villages > subdistrict > district > state
+        if villages:
+            village_codes = [village['id'] for village in villages]
+            filters &= Q(village_code__in=village_codes)
+        elif subdistrict and subdistrict.get('id'):
+            filters &= Q(subdistrict_code=subdistrict['id'])
+        elif district and district.get('id'):
+            filters &= Q(district_code=district['id'])
+        elif state and state.get('id'):
+            filters &= Q(state_code=state['id'])
+        
+        # Initialize result
+        main_output = {}
+        
+        if single_year:
+            # Add year filter for single year
+            year_filter = filters & Q(year=single_year)
+            
+            # Query the database
+            cohort_data = PopulationCohort.objects.filter(year_filter)
+            
+            # Process and organize the data
+            result = self.organize_cohort_data(cohort_data)
+            
+            main_output['cohort'] = {
+                'year': single_year,
+                'data': result
+            }
+            
+        elif start_year and end_year:
+            years_data = []
+            
+            # Process each year in the range
+            for year in range(int(start_year), int(end_year) + 1):
+                # Add year filter for current year
+                year_filter = filters & Q(year=year)
+                
+                # Query the database
+                cohort_data = PopulationCohort.objects.filter(year_filter)
+                
+                # Process and organize the data
+                result = self.organize_cohort_data(cohort_data)
+                
+                years_data.append({
+                    'year': year,
+                    'data': result
+                })
+            
+            main_output['cohort'] = years_data
+        
+        print("output", main_output)
+        return Response(main_output, status=status.HTTP_200_OK)
+    
+    def organize_cohort_data(self, queryset):
+        """
+        Organizes cohort data by age group and gender
+        """
+        result = {}
+        
+        # Aggregate by age group and gender
+        for record in queryset:
+            age_group = record.age_group
+            gender = record.gender.lower()
+            
+            if age_group not in result:
+                result[age_group] = {'male': 0, 'female': 0, 'total': 0}
+            
+            if gender == 'male':
+                result[age_group]['male'] += record.population
+            elif gender == 'female':
+                result[age_group]['female'] += record.population
+            
+            # Update total for this age group
+            result[age_group]['total'] += record.population
+        
+        # Add a "total" category with sums across all age groups
+        if result:
+            total_male = sum(data['male'] for data in result.values())
+            total_female = sum(data['female'] for data in result.values())
+            result['total'] = {
+                'male': total_male,
+                'female': total_female,
+                'total': total_male + total_female
+            }
+        
+        return result

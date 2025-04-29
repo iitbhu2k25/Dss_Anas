@@ -48,3 +48,18 @@ class Population_2011(models.Model):
            return f"{self.region_name},{self.subdistrict_code},{self.population_1951},{self.population_1961},{self.population_1971},{self.population_1981},{self.population_1991},{self.population_2001},{self.population_2011}"
 
 
+
+class PopulationCohort(models.Model):
+    state_code = models.BigIntegerField()
+    district_code = models.BigIntegerField()
+    subdistrict_code = models.BigIntegerField()
+    village_code = models.BigIntegerField()
+
+    region_name = models.CharField(max_length=100)
+    year = models.IntegerField()
+    age_group = models.CharField(max_length=20)
+    gender = models.CharField(max_length=10)
+    population = models.BigIntegerField()
+
+    def __str__(self):
+        return f"{self.region_name}, {self.year}, {self.age_group}, {self.gender}: {self.population}"
