@@ -503,7 +503,7 @@ const groupVillagesByDistrictAndSubDistrict = (villages: Village[]): { [key: str
 };
 
 return (
-  <div className="p-3 bg-gray-100 rounded-lg shadow-md">
+  <div className="p-4 border-2  bg-gray-100 rounded-lg shadow-md">
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
       {/* State Dropdown */}
       <div>
@@ -567,7 +567,7 @@ return (
     </div>
 
     {/* Display selected values for demonstration */}
-    <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+    <div className="mt-6 p-10 px-5 bg-gray-50 rounded-lg border border-gray-200">
       <h3 className="text-md font-medium text-gray-800 mb-2">Selected Locations</h3>
       <div className="space-y-2 text-sm text-gray-700">
         <p><span className="font-medium">State:</span> {states.find(s => s.id.toString() === selectedState)?.name || 'None'}</p>

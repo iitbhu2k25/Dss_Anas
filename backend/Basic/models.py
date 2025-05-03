@@ -63,3 +63,9 @@ class PopulationCohort(models.Model):
 
     def __str__(self):
         return f"{self.region_name}, {self.year}, {self.age_group}, {self.gender}: {self.population}"
+
+
+
+
+#Below model for boundary of state , district, subdistrict, villages
+

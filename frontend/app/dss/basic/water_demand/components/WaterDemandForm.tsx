@@ -134,6 +134,7 @@ const WaterDemandForm: React.FC = () => {
   // Add a state to track if initial calculation has been performed
   const [initialCalculationDone, setInitialCalculationDone] = useState(false);
 
+  
   const forecastData = (window as any).selectedPopulationForecast;
 
   // Handlers for checkboxes and inputs

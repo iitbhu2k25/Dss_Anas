@@ -6,11 +6,13 @@ from rest_framework.response import Response
 from rest_framework import status
 import math
 from .service import *
-
-
-
 from django.db.models import Sum, Q
 from .models import PopulationCohort
+from django.http import JsonResponse
+import os
+import json
+import geopandas as gpd
+from django.conf import settings
 
 
 class Locations_stateAPI(APIView):
@@ -590,15 +592,18 @@ class FirefightingWaterDemandCalculationAPIView(APIView):
 
 
 #for cohort 
+
 class CohortView(APIView):
     def post(self, request, format=None):
         """
         Handles requests for population cohort data filtered by location and year
+        Accepts flexible location parameters - can filter by any combination of state, district, subdistrict, village
+        Requires either single_year or both start_year and end_year
         """
         # Get data from request
-        print('request_data is ', request.data)
+        print('request_data is cohort by anas ', request.data)
         
-        # Extract parameters from request (using direct dictionary access with fallbacks)
+        # Extract parameters from request
         single_year = request.data.get('year')
         start_year = request.data.get('start_year')
         end_year = request.data.get('end_year')
@@ -607,105 +612,236 @@ class CohortView(APIView):
         district = request.data.get('district_props', {})
         state = request.data.get('state_props', {})
         
-        # Correcting the subdistrict_id of the villages coming from frontend 
-        # Fetch all villages from the database
-        village_data = Basic_village.objects.values('village_code', 'subdistrict_code')
+        # Check if required year parameters are provided
+        if not (single_year or (start_year and end_year)):
+            error_msg = "Either 'year' or both 'start_year' and 'end_year' must be provided"
+            print(error_msg)
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Create a mapping of village_code to subdistrict_code
-        village_mapping = {v['village_code']: v['subdistrict_code'] for v in village_data}
+        # Debug the input parameters
+        print(f"Filtering parameters: single_year={single_year}, start_year={start_year}, end_year={end_year}")
+        print(f"Location filters: villages={villages}, subdistrict={subdistrict}, district={district}, state={state}")
         
-        # Update the villages list with the correct subDistrictId
-        for village in villages:
-            village_code = village['id']
-            if village_code in village_mapping:
-                village['subDistrictId'] = village_mapping[village_code]
+        # Build location filter - apply available filters
+        location_filter = Q()
         
-        # Initialize filters for the query
-        filters = Q()
+        # Apply state filter if provided
+        if state and state.get('id'):
+            state_id = int(state['id'])
+            print(f"Adding state filter: {state_id}")
+            location_filter &= Q(state_code=state_id)
         
-        # Add location filters based on priority: villages > subdistrict > district > state
-        if villages:
-            village_codes = [village['id'] for village in villages]
-            filters &= Q(village_code__in=village_codes)
-        elif subdistrict and subdistrict.get('id'):
-            filters &= Q(subdistrict_code=subdistrict['id'])
-        elif district and district.get('id'):
-            filters &= Q(district_code=district['id'])
-        elif state and state.get('id'):
-            filters &= Q(state_code=state['id'])
+        # Apply district filter if provided
+        if district and district.get('id'):
+            district_id = int(district['id'])
+            print(f"Adding district filter: {district_id}")
+            location_filter &= Q(district_code=district_id)
+        
+        # Apply subdistrict filter if provided
+        if subdistrict and subdistrict.get('id'):
+            subdistrict_id = int(subdistrict['id'])
+            print(f"Adding subdistrict filter: {subdistrict_id}")
+            location_filter &= Q(subdistrict_code=subdistrict_id)
+        
+        # Apply villages filter if provided
+        if villages and len(villages) > 0:
+            village_ids = [int(village['id']) for village in villages if village.get('id')]
+            if village_ids:
+                print(f"Adding villages filter: {village_ids}")
+                location_filter &= Q(village_code__in=village_ids)
+        
+        # Ensure at least one location filter is applied
+        if location_filter == Q():
+            error_msg = "At least one location parameter (state, district, subdistrict, or village) is required"
+            print(error_msg)
+            return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
         
         # Initialize result
         main_output = {}
         
         if single_year:
-            # Add year filter for single year
-            year_filter = filters & Q(year=single_year)
-            
-            # Query the database
-            cohort_data = PopulationCohort.objects.filter(year_filter)
-            
-            # Process and organize the data
-            result = self.organize_cohort_data(cohort_data)
-            
-            main_output['cohort'] = {
-                'year': single_year,
-                'data': result
-            }
-            
+            # Handle single year query
+            try:
+                year_value = int(single_year)
+                print(f"Querying for year: {year_value}")
+                
+                # Add year filter
+                query_filter = location_filter & Q(year=year_value)
+                
+                # Get cohort data for the specified year and location
+                cohort_data = PopulationCohort.objects.filter(query_filter)
+                count = cohort_data.count()
+                print(f"Found {count} records for year {year_value}")
+                
+                if count > 0:
+                    # Process the data
+                    result = self.organize_cohort_data(cohort_data)
+                    
+                    main_output['cohort'] = {
+                        'year': year_value,
+                        'data': result
+                    }
+                else:
+                    main_output['cohort'] = {
+                        'year': year_value,
+                        'data': {}
+                    }
+            except ValueError:
+                error_msg = f"Invalid year format: {single_year}"
+                print(error_msg)
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+                
         elif start_year and end_year:
-            years_data = []
-            
-            # Process each year in the range
-            for year in range(int(start_year), int(end_year) + 1):
-                # Add year filter for current year
-                year_filter = filters & Q(year=year)
+            # Handle year range query
+            try:
+                start = int(start_year)
+                end = int(end_year)
                 
-                # Query the database
-                cohort_data = PopulationCohort.objects.filter(year_filter)
+                if start > end:
+                    error_msg = f"start_year ({start}) cannot be greater than end_year ({end})"
+                    print(error_msg)
+                    return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                print(f"Querying for years from {start} to {end}")
                 
-                # Process and organize the data
-                result = self.organize_cohort_data(cohort_data)
+                years_data = []
                 
-                years_data.append({
-                    'year': year,
-                    'data': result
-                })
-            
-            main_output['cohort'] = years_data
+                for year in range(start, end + 1):
+                    # Add year filter
+                    query_filter = location_filter & Q(year=year)
+                    
+                    # Get cohort data for the current year and location
+                    cohort_data = PopulationCohort.objects.filter(query_filter)
+                    count = cohort_data.count()
+                    print(f"Found {count} records for year {year}")
+                    
+                    if count > 0:  # Only add years with data
+                        # Process the data
+                        result = self.organize_cohort_data(cohort_data)
+                        
+                        years_data.append({
+                            'year': year,
+                            'data': result
+                        })
+                
+                main_output['cohort'] = years_data
+            except ValueError:
+                error_msg = f"Invalid year format: start_year={start_year}, end_year={end_year}"
+                print(error_msg)
+                return Response({"error": error_msg}, status=status.HTTP_400_BAD_REQUEST)
         
-        print("output", main_output)
+        print("Final output:", main_output)   
         return Response(main_output, status=status.HTTP_200_OK)
     
     def organize_cohort_data(self, queryset):
         """
         Organizes cohort data by age group and gender
+        Input: queryset of PopulationCohort objects
+        Output: Structured data by age group and gender
         """
+        # Initialize the result dictionary
         result = {}
         
-        # Aggregate by age group and gender
+        # Track totals
+        total_male = 0
+        total_female = 0
+        total_overall = 0
+        
+        # Process each record
         for record in queryset:
             age_group = record.age_group
-            gender = record.gender.lower()
+            gender = record.gender.lower()  # Normalize gender to lowercase
+            population = record.population
             
+            # Initialize age group data if not present
             if age_group not in result:
                 result[age_group] = {'male': 0, 'female': 0, 'total': 0}
             
+            # Update gender-specific count
             if gender == 'male':
-                result[age_group]['male'] += record.population
+                result[age_group]['male'] += population
+                total_male += population
             elif gender == 'female':
-                result[age_group]['female'] += record.population
+                result[age_group]['female'] += population
+                total_female += population
             
             # Update total for this age group
-            result[age_group]['total'] += record.population
+            result[age_group]['total'] = result[age_group]['male'] + result[age_group]['female']
+            total_overall += population
         
         # Add a "total" category with sums across all age groups
         if result:
-            total_male = sum(data['male'] for data in result.values())
-            total_female = sum(data['female'] for data in result.values())
             result['total'] = {
                 'male': total_male,
                 'female': total_female,
-                'total': total_male + total_female
+                'total': total_overall
             }
         
+        print(f"Organized data: {result}")
         return result
+#end cohort logic here 
+
+
+
+
+class StateShapefileAPI(APIView):
+    """
+    API endpoint to retrieve GeoJSON data for a specific state based on state code.
+    
+    Expected JSON payload:
+    {
+        "state_code": <number>  # The code of the state to retrieve GeoJSON for
+    }
+    
+    Returns GeoJSON data for the requested state that can be used to add as a 
+    layer to mapping applications.
+    """
+    def post(self, request, format=None):
+        state_code = request.data.get('state_code')
+        
+        if state_code is None:
+            return Response(
+                {"error": "state_code is required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            state_code = int(state_code)
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "Invalid state_code value. Must be a number."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Path to the state shapefile
+        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_state')
+        
+        if not os.path.exists(shapefile_path):
+            return Response(
+                {"error": f"Shapefile directory not found at {shapefile_path}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        try:
+            # Read the shapefile using geopandas
+            gdf = gpd.read_file(os.path.join(shapefile_path, 'B_state.shp'))
+            
+            # Filter for the requested state code
+            state_data = gdf[gdf['state_code'] == state_code]
+            
+            if state_data.empty:
+                return Response(
+                    {"error": f"No data found for state_code {state_code}"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Convert to GeoJSON format
+            geojson_data = json.loads(state_data.to_json())
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {"error": f"Error processing shapefile: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

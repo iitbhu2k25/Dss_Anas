@@ -7,6 +7,7 @@ import Water_Demand from "./water_demand/page"
 import Water_Supply from "./water_supply/page"
 import Sewage from "./seawage/page"
 import ExportReport from './populations/components/export';
+import Map from "./components/map"
 
 
 interface SelectedLocationData {
@@ -107,15 +108,26 @@ const Basic: React.FC = () => {
         />
       </div>
 
-      <div className="flex-1 p-4 relative">
-        <div className="absolute top-4 right-4">
-
+      <div className="w-full relative">
+        <div className="w-full justify-end absolute top-4 right-4">
+          
         </div>
 
-        <LocationSelector
-          onConfirm={handleLocationConfirm}
-          onReset={handleLocationReset}
-        />
+        {/* Modified layout for LocationSelector and Map side by side */}
+        <div className="flex w-full">
+          {/* Left side - Location Selector (half width) */}
+          <div className="w-2/3">
+            <LocationSelector
+              onConfirm={handleLocationConfirm}
+              onReset={handleLocationReset}
+            />
+          </div>
+          
+          {/* Right side - Map (half width) */}
+          <div className="w-1/2 ">
+            <Map />
+          </div>
+        </div>
 
         {showSuccess && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 animate-fade-in-out">
@@ -133,7 +145,6 @@ const Basic: React.FC = () => {
             </div>
           </div>
         )}
-
 
         {/* Step Content - keep all mounted */}
         <div className="transition-all duration-300 transform">

@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import CohortView, Locations_stateAPI,Locations_districtAPI,Locations_subdistrictAPI,Locations_villageAPI,Time_series,Demographic,SewageCalculation,WaterSupplyCalculationAPI,DomesticWaterDemandCalculationAPIView,FloatingWaterDemandCalculationAPIView,InstitutionalWaterDemandCalculationAPIView,FirefightingWaterDemandCalculationAPIView
+from .views import CohortView, StateShapefileAPI, Locations_stateAPI,Locations_districtAPI,Locations_subdistrictAPI,Locations_villageAPI,Time_series,Demographic,SewageCalculation,WaterSupplyCalculationAPI,DomesticWaterDemandCalculationAPIView,FloatingWaterDemandCalculationAPIView,InstitutionalWaterDemandCalculationAPIView,FirefightingWaterDemandCalculationAPIView
 urlpatterns = [
     path("",Locations_stateAPI.as_view(),name="states"),
     path("district/",Locations_districtAPI.as_view(),name="districts"),
@@ -15,4 +15,5 @@ urlpatterns = [
     path('institutional_water_demand/', InstitutionalWaterDemandCalculationAPIView.as_view(), name='institutional_water_demand'),
     path('firefighting_water_demand/', FirefightingWaterDemandCalculationAPIView.as_view(), name='firefighting_water_demand'),
     path('cohort/', CohortView.as_view(), name='cohort'),
+    path('state-shapefile/', StateShapefileAPI.as_view(), name='state-shapefile'),
 ]
