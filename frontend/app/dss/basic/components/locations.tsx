@@ -31,9 +31,10 @@ onConfirm?: (selectedData: {
   totalPopulation: number;
 }) => void;
 onReset?: () => void;
+onStateChange?: (stateCode: string) => void; 
 }
 
-const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset }) => {
+const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset, onStateChange  }) => {
 // States for dropdown data
 const [states, setStates] = useState<LocationItem[]>([]);
 const [districts, setDistricts] = useState<District[]>([]);
@@ -51,7 +52,7 @@ const [selectedVillages, setSelectedVillages] = useState<string[]>([]);
 const [selectionsLocked, setSelectionsLocked] = useState<boolean>(false);
 
 // Fetch states on component mount
-useEffect(() => {
+ useEffect(() => {
   const fetchStates = async (): Promise<void> => {
     try {
       const response = await fetch('http://localhost:9000/api/basic/');
@@ -75,6 +76,7 @@ useEffect(() => {
 }, []);
 
 // Fetch districts when state changes
+
 useEffect(() => {
   if (selectedState) {
     const fetchDistricts = async (): Promise<void> => {
@@ -282,7 +284,13 @@ useEffect(() => {
 // Handle state selection
 const handleStateChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
   if (!selectionsLocked) {
-    setSelectedState(e.target.value);
+    const stateCode = e.target.value;
+    setSelectedState(stateCode);
+    
+    // Notify parent component about the state change
+    if (onStateChange) {
+      onStateChange(stateCode);
+    }
   }
 };
 
@@ -304,7 +312,7 @@ const handleReset = (): void => {
   // Add a slight delay before refreshing the page
   setTimeout(() => {
     window.location.reload();
-  }, 100);
+  }, 1000);
 };
 
 // Selected items display - show without district repetition

@@ -12,6 +12,7 @@ from django.http import JsonResponse
 import os
 import json
 import geopandas as gpd
+import pandas as pd 
 from django.conf import settings
 
 
@@ -783,21 +784,36 @@ class CohortView(APIView):
 
 
 
+#Below logic for to get shapefile of selected state in basic module 
+#these api used only in basic module 
+
+class DefaultBaseMapAPI(APIView):
+    def get(self, request, *args, **kwargs):
+        try:
+            # Construct path to india.shp
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'india')
+            shapefile_full_path = os.path.join(shapefile_path, 'india.shp')
+
+            if not os.path.exists(shapefile_full_path):
+                return Response({'error': 'Shapefile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Read shapefile using GeoPandas
+            gdf = gpd.read_file(shapefile_full_path)
+
+            # Convert to GeoJSON
+            geojson_data = json.loads(gdf.to_json())
+
+            return Response(geojson_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class StateShapefileAPI(APIView):
-    """
-    API endpoint to retrieve GeoJSON data for a specific state based on state code.
-    
-    Expected JSON payload:
-    {
-        "state_code": <number>  # The code of the state to retrieve GeoJSON for
-    }
-    
-    Returns GeoJSON data for the requested state that can be used to add as a 
-    layer to mapping applications.
-    """
     def post(self, request, format=None):
         state_code = request.data.get('state_code')
+        
+        print(f"Received request with state_code: {state_code}")
         
         if state_code is None:
             return Response(
@@ -805,18 +821,16 @@ class StateShapefileAPI(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        try:
-            state_code = int(state_code)
-        except (TypeError, ValueError):
-            return Response(
-                {"error": "Invalid state_code value. Must be a number."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        # Convert to string if it's not already
+        original_state_code = str(state_code)
         
         # Path to the state shapefile
-        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_state')
+        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_State')
+        
+        print(f"Looking for shapefile at: {shapefile_path}")
         
         if not os.path.exists(shapefile_path):
+            print(f"Directory not found: {shapefile_path}")
             return Response(
                 {"error": f"Shapefile directory not found at {shapefile_path}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -824,24 +838,320 @@ class StateShapefileAPI(APIView):
         
         try:
             # Read the shapefile using geopandas
-            gdf = gpd.read_file(os.path.join(shapefile_path, 'B_state.shp'))
+            shapefile_full_path = os.path.join(shapefile_path, 'B_State.shp')
+            print(f"Attempting to read shapefile from: {shapefile_full_path}")
             
-            # Filter for the requested state code
-            state_data = gdf[gdf['state_code'] == state_code]
+            gdf = gpd.read_file(shapefile_full_path)
+            print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
+            
+            # Try different formats of state code
+            # First, try the original input
+            state_data = gdf[gdf['state_code'] == original_state_code]
+            
+            # If not found, try with zero padding (if it's a number)
+            if state_data.empty and original_state_code.isdigit():
+                padded_state_code = original_state_code.zfill(2)  # Pad with leading zero if needed
+                print(f"No results for '{original_state_code}', trying padded code: '{padded_state_code}'")
+                state_data = gdf[gdf['state_code'] == padded_state_code]
+            
+            # If still not found, try without padding (if it has leading zeros)
+            if state_data.empty and original_state_code.startswith('0'):
+                unpadded_state_code = original_state_code.lstrip('0')
+                if unpadded_state_code == '':  # Edge case: input was just '0'
+                    unpadded_state_code = '0'
+                print(f"No results for '{original_state_code}', trying unpadded code: '{unpadded_state_code}'")
+                state_data = gdf[gdf['state_code'] == unpadded_state_code]
+            
+            print(f"Filtered data for state_code. Found {len(state_data)} records.")
             
             if state_data.empty:
+                print(f"No data found for any format of state_code: {original_state_code}")
                 return Response(
-                    {"error": f"No data found for state_code {state_code}"},
+                    {"error": f"No data found for state_code {original_state_code}"},
                     status=status.HTTP_404_NOT_FOUND
                 )
             
             # Convert to GeoJSON format
             geojson_data = json.loads(state_data.to_json())
             
-            return Response(geojson_data, status=status.HTTP_200_OK)
+            # Print information about the found state
+            print(f"State boundary found for: {state_data['State'].values[0]}")
+            print(f"GeoJSON type: {geojson_data['type']}")
+            print(f"Number of features: {len(geojson_data['features'])}")
             
+            return Response(geojson_data, status=status.HTTP_200_OK)
+        
         except Exception as e:
+            import traceback
+            print(f"Error processing shapefile: {str(e)}")
+            print(traceback.format_exc())
             return Response(
                 {"error": f"Error processing shapefile: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+
+        #below code for multiple district json response 
+
+class MultipleDistrictsAPI(APIView):
+    def post(self, request, format=None):
+        districts_data = request.data.get('districts')
+        
+        print(f"Received request with districts data: {districts_data}")
+        
+        if not districts_data or not isinstance(districts_data, list):
+            return Response(
+                {"error": "districts must be provided as a list of objects containing state_code and district_c."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Path to the district shapefile
+        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_district')
+        
+        print(f"Looking for shapefile at: {shapefile_path}")
+        
+        if not os.path.exists(shapefile_path):
+            print(f"Directory not found: {shapefile_path}")
+            return Response(
+                {"error": f"Shapefile directory not found at {shapefile_path}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        try:
+            # Read the shapefile using geopandas
+            shapefile_full_path = os.path.join(shapefile_path, 'B_district.shp')
+            print(f"Attempting to read shapefile from: {shapefile_full_path}")
+            
+            gdf = gpd.read_file(shapefile_full_path)
+            print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
+            
+            # Ensure all code columns are strings for consistent comparison
+            gdf['state_code'] = gdf['state_code'].astype(str)
+            gdf['district_c'] = gdf['district_c'].astype(str)
+            
+            # Initialize a list to store matching rows instead of an empty GeoDataFrame
+            matched_rows = []
+            
+            for district_entry in districts_data:
+                state_code = str(district_entry.get('state_code', ''))
+                district_c = str(district_entry.get('district_c', ''))
+                
+                if not state_code or not district_c:
+                    print(f"Skipping entry missing state_code or district_c: {district_entry}")
+                    continue
+                
+                # Try with original codes
+                district_match = gdf[(gdf['state_code'] == state_code) & 
+                                    (gdf['district_c'] == district_c)]
+                
+                # Try with padded codes if needed
+                if district_match.empty:
+                    if state_code.isdigit():
+                        padded_state = state_code.zfill(2)
+                        district_match = gdf[(gdf['state_code'] == padded_state) & 
+                                           (gdf['district_c'] == district_c)]
+                    
+                    if district_match.empty and district_c.isdigit():
+                        padded_district = district_c.zfill(2)
+                        district_match = gdf[(gdf['state_code'] == state_code) & 
+                                           (gdf['district_c'] == padded_district)]
+                    
+                    if district_match.empty and state_code.isdigit() and district_c.isdigit():
+                        padded_state = state_code.zfill(2)
+                        padded_district = district_c.zfill(2)
+                        district_match = gdf[(gdf['state_code'] == padded_state) & 
+                                           (gdf['district_c'] == padded_district)]
+                
+                # Try with unpadded codes if needed
+                if district_match.empty:
+                    if state_code.startswith('0'):
+                        unpadded_state = state_code.lstrip('0') or '0'
+                        district_match = gdf[(gdf['state_code'] == unpadded_state) & 
+                                           (gdf['district_c'] == district_c)]
+                    
+                    if district_match.empty and district_c.startswith('0'):
+                        unpadded_district = district_c.lstrip('0') or '0'
+                        district_match = gdf[(gdf['state_code'] == state_code) & 
+                                           (gdf['district_c'] == unpadded_district)]
+                    
+                    if district_match.empty and state_code.startswith('0') and district_c.startswith('0'):
+                        unpadded_state = state_code.lstrip('0') or '0'
+                        unpadded_district = district_c.lstrip('0') or '0'
+                        district_match = gdf[(gdf['state_code'] == unpadded_state) & 
+                                           (gdf['district_c'] == unpadded_district)]
+                
+                if not district_match.empty:
+                    # Append the matched rows to our list
+                    matched_rows.append(district_match)
+                    print(f"Found match for state_code: {state_code}, district_c: {district_c}")
+                else:
+                    print(f"No match found for state_code: {state_code}, district_c: {district_c}")
+            
+            if not matched_rows:
+                print("No matching districts found.")
+                return Response(
+                    {"error": "No matching districts found for the provided criteria."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Concatenate all matched rows into a single GeoDataFrame
+            matched_districts = pd.concat(matched_rows, ignore_index=True)
+            
+            # Convert to GeoJSON format
+            geojson_data = json.loads(matched_districts.to_json())
+            
+            print(f"Total districts found: {len(matched_districts)}")
+            print(f"GeoJSON features: {len(geojson_data['features'])}")
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            import traceback
+            print(f"Error processing districts: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {"error": f"Error processing districts: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        #end of multiple distcrit logic
+
+class MultipleSubdistrictsAPI(APIView):
+    def post(self, request, format=None):
+        subdistricts_data = request.data.get('subdistricts')
+        
+        print(f"Received request with subdistricts data: {subdistricts_data}")
+        
+        if not subdistricts_data or not isinstance(subdistricts_data, list):
+            return Response(
+                {"error": "subdistricts must be provided as a list of objects containing state_code, district_c, and subdis_cod."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Path to the subdistrict shapefile
+        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_subdistrict')
+        
+        print(f"Looking for shapefile at: {shapefile_path}")
+        
+        if not os.path.exists(shapefile_path):
+            print(f"Directory not found: {shapefile_path}")
+            return Response(
+                {"error": f"Shapefile directory not found at {shapefile_path}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        try:
+            # Read the shapefile using geopandas
+            shapefile_full_path = os.path.join(shapefile_path, 'B_subdistrict.shp')
+            print(f"Attempting to read shapefile from: {shapefile_full_path}")
+            
+            gdf = gpd.read_file(shapefile_full_path)
+            print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
+            
+            # Ensure all code columns are strings for consistent comparison
+            gdf['state_code'] = gdf['state_code'].astype(str)
+            gdf['district_c'] = gdf['district_c'].astype(str)
+            gdf['subdis_cod'] = gdf['subdis_cod'].astype(str)
+            
+            # Initialize a list to store matching rows
+            matched_rows = []
+            
+            for subdistrict_entry in subdistricts_data:
+                state_code = str(subdistrict_entry.get('state_code', ''))
+                district_c = str(subdistrict_entry.get('district_c', ''))
+                subdis_cod = str(subdistrict_entry.get('subdis_cod', ''))
+                
+                if not state_code or not district_c or not subdis_cod:
+                    print(f"Skipping entry missing required codes: {subdistrict_entry}")
+                    continue
+                
+                # Try with original codes
+                subdistrict_match = gdf[(gdf['state_code'] == state_code) & 
+                                      (gdf['district_c'] == district_c) &
+                                      (gdf['subdis_cod'] == subdis_cod)]
+                
+                # Try with padded codes if needed
+                if subdistrict_match.empty:
+                    padded_state = state_code
+                    padded_district = district_c
+                    padded_subdis = subdis_cod
+                    
+                    if state_code.isdigit():
+                        padded_state = state_code.zfill(2)
+                    
+                    if district_c.isdigit():
+                        padded_district = district_c.zfill(2)
+                        
+                    if subdis_cod.isdigit():
+                        padded_subdis = subdis_cod.zfill(4)
+                    
+                    # Try with all combinations of padded codes
+                    subdistrict_match = gdf[(gdf['state_code'] == padded_state) & 
+                                          (gdf['district_c'] == padded_district) &
+                                          (gdf['subdis_cod'] == padded_subdis)]
+                    
+                    # If still not found, try other combinations (padded state + original district/subdis, etc.)
+                    if subdistrict_match.empty:
+                        for s_code in [state_code, padded_state]:
+                            for d_code in [district_c, padded_district]:
+                                for sd_code in [subdis_cod, padded_subdis]:
+                                    potential_match = gdf[(gdf['state_code'] == s_code) & 
+                                                       (gdf['district_c'] == d_code) &
+                                                       (gdf['subdis_cod'] == sd_code)]
+                                    if not potential_match.empty:
+                                        subdistrict_match = potential_match
+                                        break
+                
+                # Try with unpadded codes if needed
+                if subdistrict_match.empty:
+                    unpadded_state = state_code.lstrip('0') or '0' if state_code.startswith('0') else state_code
+                    unpadded_district = district_c.lstrip('0') or '0' if district_c.startswith('0') else district_c
+                    unpadded_subdis = subdis_cod.lstrip('0') or '0' if subdis_cod.startswith('0') else subdis_cod
+                    
+                    # Try with all combinations of unpadded codes
+                    for s_code in [state_code, unpadded_state]:
+                        for d_code in [district_c, unpadded_district]:
+                            for sd_code in [subdis_cod, unpadded_subdis]:
+                                potential_match = gdf[(gdf['state_code'] == s_code) & 
+                                                   (gdf['district_c'] == d_code) &
+                                                   (gdf['subdis_cod'] == sd_code)]
+                                if not potential_match.empty:
+                                    subdistrict_match = potential_match
+                                    break
+                
+                if not subdistrict_match.empty:
+                    # Append the matched rows to our list
+                    matched_rows.append(subdistrict_match)
+                    print(f"Found match for state_code: {state_code}, district_c: {district_c}, subdis_cod: {subdis_cod}")
+                else:
+                    print(f"No match found for state_code: {state_code}, district_c: {district_c}, subdis_cod: {subdis_cod}")
+            
+            if not matched_rows:
+                print("No matching subdistricts found.")
+                return Response(
+                    {"error": "No matching subdistricts found for the provided criteria."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Import pandas explicitly to avoid the 'pd is not defined' error
+            import pandas as pd
+            
+            # Concatenate all matched rows into a single GeoDataFrame
+            matched_subdistricts = gpd.GeoDataFrame(pd.concat(matched_rows, ignore_index=True))
+            
+            # Convert to GeoJSON format
+            geojson_data = json.loads(matched_subdistricts.to_json())
+            
+            print(f"Total subdistricts found: {len(matched_subdistricts)}")
+            print(f"GeoJSON features: {len(geojson_data['features'])}")
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            import traceback
+            print(f"Error processing subdistricts: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {"error": f"Error processing subdistricts: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

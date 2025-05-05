@@ -32,10 +32,19 @@ const Basic: React.FC = () => {
   const [skippedSteps, setSkippedSteps] = useState<number[]>([]);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
+  // Add new state for selected state code
+  const [selectedStateCode, setSelectedStateCode] = useState<string>('');
+
 
   const handleLocationConfirm = (data: SelectedLocationData): void => {
     console.log('Received confirmed location data:', data);
     setSelectedLocationData(data);
+  };
+
+  // Add new handler for state changes
+  const handleStateChange = (stateCode: string): void => {
+    console.log('State changed to:', stateCode);
+    setSelectedStateCode(stateCode);
   };
 
   const handleNext = () => {
@@ -76,6 +85,8 @@ const Basic: React.FC = () => {
     setCompletedSteps([]);
     setSelectedLocationData(null);
     setShowSuccess(false);
+    // Reset selected state code
+    setSelectedStateCode('');
   };
 
   const handleFinish = () => {
@@ -120,12 +131,13 @@ const Basic: React.FC = () => {
             <LocationSelector
               onConfirm={handleLocationConfirm}
               onReset={handleLocationReset}
+              onStateChange={handleStateChange} // Add the new prop
             />
           </div>
           
           {/* Right side - Map (half width) */}
           <div className="w-1/2 ">
-            <Map />
+          <Map selectedState={selectedStateCode} /> {/* Pass selectedState to Map */}
           </div>
         </div>
 
