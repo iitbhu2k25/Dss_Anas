@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "raster_visual",
     "mapplot",
     "gwa",
+    "stp_suitability",
 ]
 
 MIDDLEWARE = [
