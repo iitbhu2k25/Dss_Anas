@@ -34,6 +34,14 @@ const Basic: React.FC = () => {
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
   // Add new state for selected state code
   const [selectedStateCode, setSelectedStateCode] = useState<string>('');
+  const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
+
+  // Add a handler for district selection
+  const handleDistrictsChange = (districts: string[]): void => {
+    console.log('Districts changed to:', districts);
+    setSelectedDistricts(districts);
+  };
+
 
 
   const handleLocationConfirm = (data: SelectedLocationData): void => {
@@ -87,6 +95,7 @@ const Basic: React.FC = () => {
     setShowSuccess(false);
     // Reset selected state code
     setSelectedStateCode('');
+    setSelectedDistricts([]); // Add this line
   };
 
   const handleFinish = () => {
@@ -121,7 +130,7 @@ const Basic: React.FC = () => {
 
       <div className="w-full relative">
         <div className="w-full justify-end absolute top-4 right-4">
-          
+
         </div>
 
         {/* Modified layout for LocationSelector and Map side by side */}
@@ -132,12 +141,16 @@ const Basic: React.FC = () => {
               onConfirm={handleLocationConfirm}
               onReset={handleLocationReset}
               onStateChange={handleStateChange} // Add the new prop
+              onDistrictsChange={handleDistrictsChange} // Add this prop
             />
           </div>
-          
+
           {/* Right side - Map (half width) */}
           <div className="w-1/2 ">
-          <Map selectedState={selectedStateCode} /> {/* Pass selectedState to Map */}
+            <Map
+              selectedState={selectedStateCode}
+              selectedDistricts={selectedDistricts} // Add this prop
+            />
           </div>
         </div>
 
@@ -194,9 +207,9 @@ const Basic: React.FC = () => {
                 onClick={handleSkip}
               >
                 Skip
-                
+
               </button>
-              
+
               {currentStep > 0 && (
                 <button
                   className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"

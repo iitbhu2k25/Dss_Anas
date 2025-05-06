@@ -8,18 +8,21 @@ import 'leaflet/dist/leaflet.css';
 // Define props interface
 interface MapProps {
   selectedState?: string;
+  selectedDistricts?: string[]; // Now this is properly added
 }
 
-// Create a separate component to handle map updates for state and base map
-function MapLayers({ selectedState }: { selectedState?: string }) {
+// Create a separate component to handle map updates for state, districts and base map
+function MapLayers({ selectedState, selectedDistricts }: { selectedState?: string; selectedDistricts?: string[] }) {
   const map = useMap();
   const [currentStateLayer, setCurrentStateLayer] = useState<L.GeoJSON | null>(null);
+  const [currentDistrictLayers, setCurrentDistrictLayers] = useState<L.GeoJSON | null>(null);
   const [baseMapLayer, setBaseMapLayer] = useState<L.GeoJSON | null>(null);
   const [isLoadingBase, setIsLoadingBase] = useState(true); // Track base map loading
   const [isLoadingState, setIsLoadingState] = useState(false); // Track state layer loading
+  const [isLoadingDistricts, setIsLoadingDistricts] = useState(false); // Track districts layer loading
 
   // Combined loading state
-  const isLoading = isLoadingBase || isLoadingState;
+  const isLoading = isLoadingBase || isLoadingState || isLoadingDistricts;
 
   // GeoJSON style for state layer
   const stateGeoJsonStyle = {
@@ -27,21 +30,32 @@ function MapLayers({ selectedState }: { selectedState?: string }) {
     weight: 2,
     opacity: 1,
     color: 'red',
+    dashArray: '1',
+    fillOpacity: 0,
+  };
+
+  // GeoJSON style for district layer
+  const districtGeoJsonStyle = {
+    fillColor: '#33ff88',
+    weight: 3,
+    opacity: 1,
+    color: 'green',
     dashArray: '3',
-    fillOpacity: 0.5,
+    fillOpacity: 0.3,
   };
 
   // GeoJSON style for base map (India)
   const baseMapGeoJsonStyle = {
     fillColor: '#blue',
     weight: 2,
-    opacity: 2,
+    opacity: 1,
     color: 'blue',
     fillOpacity: 0,
   };
 
   // Fetch and display the base map of India on initial load
   useEffect(() => {
+    // Existing base map code - no changes needed
     let isMounted = true;
 
     const fetchBaseMap = async () => {
@@ -139,6 +153,7 @@ function MapLayers({ selectedState }: { selectedState?: string }) {
 
   // Handle state-specific shapefile updates
   useEffect(() => {
+    // Existing state layer code - no changes needed
     console.log('StateLayer: selectedState changed to', selectedState);
     
     // Set loading state as soon as state changes
@@ -259,6 +274,141 @@ function MapLayers({ selectedState }: { selectedState?: string }) {
     };
   }, [selectedState, map]);
 
+  // NEW EFFECT: Handle district-specific shapefile updates
+  useEffect(() => {
+    console.log('DistrictLayers: selectedDistricts changed to', selectedDistricts);
+    
+    // Set loading state as soon as districts change
+    if (selectedDistricts && selectedDistricts.length > 0) {
+      setIsLoadingDistricts(true);
+    }
+
+    // Create a cleanup function to properly handle the current district layers
+    const cleanupCurrentDistrictLayers = () => {
+      if (currentDistrictLayers) {
+        console.log('Removing existing district layers');
+        try {
+          map.removeLayer(currentDistrictLayers);
+          setCurrentDistrictLayers(null);
+        } catch (error) {
+          console.error('Error removing district layers:', error);
+        }
+      }
+    };
+    
+    // Clean up the current district layers first
+    cleanupCurrentDistrictLayers();
+    
+    // Exit if no districts are selected
+    if (!selectedDistricts || selectedDistricts.length === 0) {
+      setIsLoadingDistricts(false);
+      return;
+    }
+
+    const fetchDistrictShapefiles = async () => {
+      try {
+        console.log('Fetching shapefiles for districts:', selectedDistricts);
+        
+        // Prepare request payload for the API
+        const districtPayload = {
+          districts: selectedDistricts.map(districtCode => {
+            return {
+              state_code: selectedState || "0",
+              district_c: districtCode
+            };
+          })
+        };
+        
+        console.log('District API request payload:', districtPayload);
+        
+        const response = await fetch('http://localhost:9000/api/basic/multiple-districts/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(districtPayload),
+        });
+
+        if (!response.ok) {
+          alert('Unable to fetch district shapefiles. Please try again.');
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('District shapefile data received:', data);
+
+        // Validate GeoJSON
+        if (!data || !data.type || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+          throw new Error('Invalid GeoJSON: Expected a FeatureCollection with features');
+        }
+
+        // Filter out invalid features
+        const validFeatures = data.features.filter((feature: any) => {
+          return (
+            feature &&
+            feature.type === 'Feature' &&
+            feature.geometry &&
+            feature.geometry.coordinates &&
+            feature.geometry.coordinates.length > 0
+          );
+        });
+
+        if (validFeatures.length === 0) {
+          throw new Error('No valid features found in district GeoJSON');
+        }
+
+        // Create new GeoJSON layer for districts
+        const newDistrictLayers = L.geoJSON(
+          { type: 'FeatureCollection', features: validFeatures },
+          {
+            style: districtGeoJsonStyle,
+            onEachFeature: (feature, layer) => {
+              if (feature.properties && feature.properties.name) {
+                layer.bindPopup(feature.properties.name);
+              }
+            },
+          }
+        );
+
+        // Ensure map is ready before adding the layer
+        map.whenReady(() => {
+          // Remove existing layers again (redundant but safe)
+          cleanupCurrentDistrictLayers();
+          
+          // Add the new layer and update state
+          newDistrictLayers.addTo(map);
+          setCurrentDistrictLayers(newDistrictLayers);
+
+          // Fit map to the bounds if no state layer is active
+          if (!currentStateLayer) {
+            try {
+              const bounds = newDistrictLayers.getBounds();
+              if (bounds.isValid()) {
+                map.fitBounds(bounds);
+              }
+            } catch (error) {
+              console.error('Error fitting map to district layer bounds:', error);
+            }
+          }
+          
+          // Set loading state to false
+          setIsLoadingDistricts(false);
+        });
+      } catch (error) {
+        console.error('Error fetching or rendering district shapefiles:', error);
+        setIsLoadingDistricts(false);
+      }
+    };
+
+    // Start fetching district data
+    fetchDistrictShapefiles();
+
+    // Cleanup district layers on unmount or when selectedDistricts changes
+    return () => {
+      cleanupCurrentDistrictLayers();
+    };
+  }, [selectedDistricts, selectedState, map, currentStateLayer]);
+
   return (
     <>
       {isLoading && (
@@ -292,8 +442,9 @@ function MapLayers({ selectedState }: { selectedState?: string }) {
   );
 }
 
-export default function Map({ selectedState }: MapProps) {
+export default function Map({ selectedState, selectedDistricts }: MapProps) {
   console.log('Map component rendering with selectedState:', selectedState);
+  console.log('Map component rendering with selectedDistricts:', selectedDistricts);
 
   // Fix Leaflet icon issues
   useEffect(() => {
@@ -325,24 +476,36 @@ export default function Map({ selectedState }: MapProps) {
     return () => clearTimeout(timer);
   }, []);
 
-  return (
-    <div className="relative">
-      <MapContainer
-        center={[22.9734, 78.6569]} // India center coordinates
-        zoom={4}
-        className="map-container  border-4 border-blue-500 rounded-xl shadow-lg p-4 hover:border-green-500 hover:shadow-2xl transition-all duration-300 w-[30vw] h-[48vh] mx-auto"
-        worldCopyJump={true}
-      >
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {/* Use the child component to handle base map and state updates */}
-        <MapLayers selectedState={selectedState} />
-        {/* Optional: Debug display */}
-        {selectedState && (
-          <div className="absolute bottom-2 left-2 bg-white px-2 py-1 text-xs rounded shadow z-[1000]">
-            Selected State: {selectedState}
-          </div>
+// Update the MapContainer configuration in the return statement of your Map component
+return (
+  <div className="relative">
+    <MapContainer
+      center={[22.9734, 78.6569]} // India center coordinates
+      zoom={4}
+      className="map-container border-4 border-blue-500 rounded-xl shadow-lg p-4 hover:border-green-500 hover:shadow-2xl transition-all duration-300 w-[30vw] h-[48vh] mx-auto"
+      worldCopyJump={true}
+      maxBoundsViscosity={1.0}
+      minZoom={2}
+      scrollWheelZoom={true}
+      doubleClickZoom={true}
+    >
+      <TileLayer 
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        noWrap={false}
+        continuousWorld={true}
+        bounds={[[-90, -180], [90, 180]]}
+      />
+      {/* Rest of the code remains the same */}
+      <MapLayers selectedState={selectedState} selectedDistricts={selectedDistricts} />
+      
+      {/* Optional: Debug display for state and districts */}
+      <div className="absolute bottom-2 left-2 bg-white px-2 py-1 text-xs rounded shadow z-[1000]">
+        {selectedState && <div>Selected State: {selectedState}</div>}
+        {selectedDistricts && selectedDistricts.length > 0 && (
+          <div>Selected Districts Count: {selectedDistricts.length}</div>
         )}
-      </MapContainer>
-    </div>
-  );
+      </div>
+    </MapContainer>
+  </div>
+);
 }
