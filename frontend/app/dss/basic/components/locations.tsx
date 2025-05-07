@@ -33,6 +33,7 @@ interface LocationSelectorProps {
   onReset?: () => void;
   onStateChange?: (stateCode: string) => void;
   onDistrictsChange?: (districts: string[]) => void;
+  onSubDistrictsChange?: (subDistricts: string[]) => void; // Add this line
 }
 const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset, onStateChange, onDistrictsChange }) => {
 
@@ -305,6 +306,20 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
     }
   };
 
+
+
+  const handleSubDistrictsChange = (newSelectedSubDistricts: string[]) => {
+    setSelectedSubDistricts(newSelectedSubDistricts);
+
+    // Call the callback to notify parent component
+    if (onSubDistrictsChange) {
+      onSubDistrictsChange(newSelectedSubDistricts);
+    }
+  };
+
+
+
+
   // Handle form reset
   const handleReset = (): void => {
     setSelectedState('');
@@ -562,7 +577,10 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
         <MultiSelect
           items={subDistricts}
           selectedItems={selectedSubDistricts}
-          onSelectionChange={selectionsLocked ? () => { } : setSelectedSubDistricts}
+          onSelectionChange={selectionsLocked ? () => { } : (newValue) => {
+            setSelectedSubDistricts(newValue);
+            handleSubDistrictsChange(newValue);
+          }}
           label="Sub-District"
           placeholder="--Choose Sub-Districts--"
           disabled={selectedDistricts.length === 0 || selectionsLocked}
@@ -609,8 +627,8 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
       <div className="flex space-x-4 mt-4">
         <button
           className={`${selectedVillages.length > 0 && !selectionsLocked
-              ? 'bg-blue-500 hover:bg-blue-700'
-              : 'bg-gray-400 cursor-not-allowed'
+            ? 'bg-blue-500 hover:bg-blue-700'
+            : 'bg-gray-400 cursor-not-allowed'
             } text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
           onClick={handleConfirm}
           disabled={selectedVillages.length === 0 || selectionsLocked}

@@ -158,7 +158,15 @@ const WaterSupplyForm: React.FC = () => {
 
   return (
     <div className="p-4 border rounded bg-white">
-      <h3 className="text-xl font-semibold mb-3">Water Supply Calculation</h3>
+  <div className="flex items-center mb-3">
+    <h3 className="text-xl font-semibold">Water Supply Calculation</h3>
+    <div className="relative ml-2 group">
+      <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 text-white rounded-full cursor-help">i</span>
+      <div className="absolute z-10 hidden group-hover:block w-64 text-red text-xs rounded p-2 bg-white shadow-lg -mt-5 left-5 ml-2">
+        Water supply about
+      </div>
+    </div>
+  </div>
       
       {/* Surface Water Supply Section */}
       <div className="mb-4 p-3 border rounded bg-blue-50">
@@ -229,7 +237,7 @@ const WaterSupplyForm: React.FC = () => {
           </div>
           <div>
             <label className="block text-sm font-medium">
-              Discharge Rate:
+              Discharge Rate (lt/hrs):
             </label>
             <input
               type="number"

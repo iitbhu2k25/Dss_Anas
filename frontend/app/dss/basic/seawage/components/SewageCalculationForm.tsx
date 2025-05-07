@@ -54,7 +54,7 @@ const SewageCalculationForm: React.FC = () => {
   const [showRawSewage, setShowRawSewage] = useState(false);
 
   // --- New state for drain tapping ---
-  const [drainCount, setDrainCount] = useState<number | ''>(0);
+  const [drainCount, setDrainCount] = useState<number | ''>(1);
   const [drainItems, setDrainItems] = useState<DrainItem[]>([]);
   const [totalDrainDischarge, setTotalDrainDischarge] = useState<number>(0);
 
@@ -1452,12 +1452,14 @@ const calculateDrainBasedSewFlow = (popVal: number) => {
       </div>
 
 
-      <button 
-        className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 ml-300 mb-2 rounded-md transition duration-300 ease-in-out"
-        onClick={handle1pdfDownload}
-      >
-        Download Comprehensive Report
-      </button>
+      <div className="mt-6 flex justify-center">
+        <button
+          className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out shadow-md w-full sm:w-auto"
+          onClick={handle1pdfDownload}
+        >
+          Download Comprehensive Report
+        </button>
+      </div>
       
       
     </div>

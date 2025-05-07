@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { CheckCircle, CircleDot, Circle, ChevronDown, ArrowLeft } from 'lucide-react'
+import { CheckCircle, CircleDot, Circle, ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react'
 
 interface Step {
   id: string
@@ -32,10 +32,10 @@ export default function StatusBar({ currentStep, onStepChange, skippedSteps = []
       status: completedSteps.includes(i)
         ? 'completed'
         : skippedSteps.includes(i)
-        ? 'skipped'
-        : i === currentStep
-        ? 'current'
-        : 'upcoming'
+          ? 'skipped'
+          : i === currentStep
+            ? 'current'
+            : 'upcoming'
     }));
   }, [currentStep, skippedSteps, completedSteps, baseSteps]);
 
@@ -46,21 +46,21 @@ export default function StatusBar({ currentStep, onStepChange, skippedSteps = []
   };
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 shadow-sm h-full">
+    <div className="w-full md:w-full bg-white border-b md:border-b-0 md:border-r border-gray-200 shadow-sm h-auto md:h-full">
       <div className="p-6 border-b border-gray-100">
         <h2 className="text-xl font-semibold text-gray-800">Basic Module</h2>
       </div>
 
       <nav aria-label="Progress" className="p-6">
-        <ol className="space-y-10 relative">
+        <ol className="flex flex-col md:space-y-10 md:flex-col flex-row justify-center space-x-6 md:space-x-0 relative">
           {steps.map((step, idx) => (
-            <li 
-              key={step.id} 
-              className={`relative ${idx < currentStep ? 'cursor-pointer group' : ''}`}
+            <li
+              key={step.id}
+              className={`relative flex-shrink-0 md:flex-shrink md:w-auto ${idx < currentStep ? 'cursor-pointer group' : ''}`}
               onClick={() => handleStepClick(idx)}
             >
-              <div className={`flex items-start space-x-3 transition-all duration-300 ${idx < currentStep ? 'group-hover:translate-x-1' : ''}`}>
-                <div className="flex flex-col items-center">
+              <div className={`flex md:flex-row flex-col items-center justify-center md:items-start space-x-0 md:space-x-3 space-y-2 md:space-y-0 transition-all duration-300 ${idx < currentStep ? 'group-hover:translate-x-1' : ''}`}>
+                <div className="flex flex-col items-center w-full md:w-auto">
                   {step.status === 'completed' ? (
                     <div className="relative">
                       <CheckCircle className="h-6 w-6 text-green-600 transition-all duration-300 group-hover:scale-110" />
@@ -78,31 +78,48 @@ export default function StatusBar({ currentStep, onStepChange, skippedSteps = []
                   )}
 
                   {idx < steps.length - 1 && (
-                    <div className="relative h-10 flex items-center justify-center">
-                      <div className={`h-10 w-1 rounded-full transition-all duration-500 ${
+                    <div className="relative h-10 md:h-10 md:w-1 w-10 flex items-center justify-center">
+                      {/* Line - vertical on desktop, horizontal on mobile */}
+                      <div className={`md:h-10 md:w-1 h-1 w-10 rounded-full transition-all duration-500 ${
                         step.status === 'completed' ? 'bg-green-400' :
                         step.status === 'skipped' ? 'bg-yellow-400' :
                         step.status === 'current' ? 'bg-blue-300' :
                         'bg-gray-200'
                       }`} />
+                      
                       {(step.status === 'completed' || step.status === 'skipped') && (
-                        <ChevronDown 
-                          className={`absolute animate-bounce opacity-70 ${
-                            step.status === 'completed' ? 'text-green-500' : 'text-yellow-500'
-                          }`}
-                          size={30}
-                          style={{ top: '80%' }}
-                        />
+                        <>
+                          {/* Vertical chevron for desktop */}
+                          <ChevronDown
+                            className={`hidden md:block absolute animate-bounce opacity-70 ${
+                              step.status === 'completed' ? 'text-green-500' : 'text-yellow-500'
+                            }`}
+                            size={30}
+                            style={{ top: '80%' }}
+                          />
+                          {/* Horizontal chevron for mobile */}
+                          <ChevronRight
+                            className={`block md:hidden absolute  opacity-70 ${
+                              step.status === 'completed' ? 'text-green-500' : 'text-yellow-500'
+                            }`}
+                            size={30}
+                            style={{ left: '80%' }}
+                          />
+                        </>
                       )}
+                      
                       {step.status === 'current' && (
                         <div className="absolute w-3 h-3 bg-blue-400 rounded-full opacity-0 animate-ping"
-                             style={{ top: '80%' }} />
+                          style={{ 
+                            top: 'calc(50% - 6px)', 
+                            left: 'calc(50% - 6px)' 
+                          }} />
                       )}
                     </div>
                   )}
                 </div>
 
-                <div className="flex-1">
+                <div className="flex-1 text-center md:text-left">
                   <div
                     className={`text-sm font-semibold transition-colors duration-300 ${
                       step.status === 'completed' ? 'text-green-600' :

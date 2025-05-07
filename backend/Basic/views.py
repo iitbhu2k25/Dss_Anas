@@ -1032,7 +1032,7 @@ class MultipleSubdistrictsAPI(APIView):
         
         if not subdistricts_data or not isinstance(subdistricts_data, list):
             return Response(
-                {"error": "subdistricts must be provided as a list of objects containing state_code, district_c, and subdis_cod."},
+                {"error": "subdistricts must be provided as a list of objects containing district_c and subdis_cod."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -1057,35 +1057,28 @@ class MultipleSubdistrictsAPI(APIView):
             print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
             
             # Ensure all code columns are strings for consistent comparison
-            gdf['state_code'] = gdf['state_code'].astype(str)
-            gdf['district_c'] = gdf['district_c'].astype(str)
-            gdf['subdis_cod'] = gdf['subdis_cod'].astype(str)
+            gdf['DISTRICT_C'] = gdf['DISTRICT_C'].astype(str)
+            gdf['SUBDIS_COD'] = gdf['SUBDIS_COD'].astype(str)
             
             # Initialize a list to store matching rows
             matched_rows = []
             
             for subdistrict_entry in subdistricts_data:
-                state_code = str(subdistrict_entry.get('state_code', ''))
-                district_c = str(subdistrict_entry.get('district_c', ''))
-                subdis_cod = str(subdistrict_entry.get('subdis_cod', ''))
+                district_c = str(subdistrict_entry.get('district_c', '')).upper()  # Convert to uppercase
+                subdis_cod = str(subdistrict_entry.get('subdis_cod', '')).upper()  # Convert to uppercase
                 
-                if not state_code or not district_c or not subdis_cod:
+                if not district_c or not subdis_cod:
                     print(f"Skipping entry missing required codes: {subdistrict_entry}")
                     continue
                 
                 # Try with original codes
-                subdistrict_match = gdf[(gdf['state_code'] == state_code) & 
-                                      (gdf['district_c'] == district_c) &
-                                      (gdf['subdis_cod'] == subdis_cod)]
+                subdistrict_match = gdf[(gdf['DISTRICT_C'] == district_c) &
+                                      (gdf['SUBDIS_COD'] == subdis_cod)]
                 
                 # Try with padded codes if needed
                 if subdistrict_match.empty:
-                    padded_state = state_code
                     padded_district = district_c
                     padded_subdis = subdis_cod
-                    
-                    if state_code.isdigit():
-                        padded_state = state_code.zfill(2)
                     
                     if district_c.isdigit():
                         padded_district = district_c.zfill(2)
@@ -1094,45 +1087,39 @@ class MultipleSubdistrictsAPI(APIView):
                         padded_subdis = subdis_cod.zfill(4)
                     
                     # Try with all combinations of padded codes
-                    subdistrict_match = gdf[(gdf['state_code'] == padded_state) & 
-                                          (gdf['district_c'] == padded_district) &
-                                          (gdf['subdis_cod'] == padded_subdis)]
+                    subdistrict_match = gdf[(gdf['DISTRICT_C'] == padded_district) &
+                                          (gdf['SUBDIS_COD'] == padded_subdis)]
                     
-                    # If still not found, try other combinations (padded state + original district/subdis, etc.)
+                    # If still not found, try other combinations
                     if subdistrict_match.empty:
-                        for s_code in [state_code, padded_state]:
-                            for d_code in [district_c, padded_district]:
-                                for sd_code in [subdis_cod, padded_subdis]:
-                                    potential_match = gdf[(gdf['state_code'] == s_code) & 
-                                                       (gdf['district_c'] == d_code) &
-                                                       (gdf['subdis_cod'] == sd_code)]
-                                    if not potential_match.empty:
-                                        subdistrict_match = potential_match
-                                        break
-                
-                # Try with unpadded codes if needed
-                if subdistrict_match.empty:
-                    unpadded_state = state_code.lstrip('0') or '0' if state_code.startswith('0') else state_code
-                    unpadded_district = district_c.lstrip('0') or '0' if district_c.startswith('0') else district_c
-                    unpadded_subdis = subdis_cod.lstrip('0') or '0' if subdis_cod.startswith('0') else subdis_cod
-                    
-                    # Try with all combinations of unpadded codes
-                    for s_code in [state_code, unpadded_state]:
-                        for d_code in [district_c, unpadded_district]:
-                            for sd_code in [subdis_cod, unpadded_subdis]:
-                                potential_match = gdf[(gdf['state_code'] == s_code) & 
-                                                   (gdf['district_c'] == d_code) &
-                                                   (gdf['subdis_cod'] == sd_code)]
+                        for d_code in [district_c, padded_district]:
+                            for sd_code in [subdis_cod, padded_subdis]:
+                                potential_match = gdf[(gdf['DISTRICT_C'] == d_code) &
+                                                   (gdf['SUBDIS_COD'] == sd_code)]
                                 if not potential_match.empty:
                                     subdistrict_match = potential_match
                                     break
                 
+                # Try with unpadded codes if needed
+                if subdistrict_match.empty:
+                    unpadded_district = district_c.lstrip('0') or '0' if district_c.startswith('0') else district_c
+                    unpadded_subdis = subdis_cod.lstrip('0') or '0' if subdis_cod.startswith('0') else subdis_cod
+                    
+                    # Try with all combinations of unpadded codes
+                    for d_code in [district_c, unpadded_district]:
+                        for sd_code in [subdis_cod, unpadded_subdis]:
+                            potential_match = gdf[(gdf['DISTRICT_C'] == d_code) &
+                                               (gdf['SUBDIS_COD'] == sd_code)]
+                            if not potential_match.empty:
+                                subdistrict_match = potential_match
+                                break
+                
                 if not subdistrict_match.empty:
                     # Append the matched rows to our list
                     matched_rows.append(subdistrict_match)
-                    print(f"Found match for state_code: {state_code}, district_c: {district_c}, subdis_cod: {subdis_cod}")
+                    print(f"Found match for district_c: {district_c}, subdis_cod: {subdis_cod}")
                 else:
-                    print(f"No match found for state_code: {state_code}, district_c: {district_c}, subdis_cod: {subdis_cod}")
+                    print(f"No match found for district_c: {district_c}, subdis_cod: {subdis_cod}")
             
             if not matched_rows:
                 print("No matching subdistricts found.")
@@ -1163,3 +1150,4 @@ class MultipleSubdistrictsAPI(APIView):
                 {"error": f"Error processing subdistricts: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        

@@ -35,13 +35,17 @@ const Basic: React.FC = () => {
   // Add new state for selected state code
   const [selectedStateCode, setSelectedStateCode] = useState<string>('');
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
+  const [selectedSubDistricts, setSelectedSubDistricts] = useState<string[]>([]);
 
   // Add a handler for district selection
   const handleDistrictsChange = (districts: string[]): void => {
     console.log('Districts changed to:', districts);
     setSelectedDistricts(districts);
   };
-
+  const handleSubDistrictsChange = (subdistricts: string[]): void => {
+    console.log('Sub-districts changed to:', subdistricts);
+    setSelectedSubDistricts(subdistricts);
+  };
 
 
   const handleLocationConfirm = (data: SelectedLocationData): void => {
@@ -118,8 +122,8 @@ const Basic: React.FC = () => {
   }, [selectedLocationData]);
 
   return (
-    <div className="flex w-full min-h-0">
-      <div className="w-64 border-r border-gray-200">
+    <div className="flex flex-col md:flex-row w-full min-h-0">
+      <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-200">
         <StatusBar
           currentStep={currentStep}
           onStepChange={handleStepChange}
@@ -129,27 +133,29 @@ const Basic: React.FC = () => {
       </div>
 
       <div className="w-full relative">
-        <div className="w-full justify-end absolute top-4 right-4">
+      <div className="absolute top-4 right-4">
 
         </div>
 
         {/* Modified layout for LocationSelector and Map side by side */}
         <div className="flex w-full">
           {/* Left side - Location Selector (half width) */}
-          <div className="w-2/3">
+          <div className="w-2/3 mt-3 ml-4">
             <LocationSelector
               onConfirm={handleLocationConfirm}
               onReset={handleLocationReset}
               onStateChange={handleStateChange} // Add the new prop
               onDistrictsChange={handleDistrictsChange} // Add this prop
+              onSubDistrictsChange={handleSubDistrictsChange} // Add this line
             />
           </div>
 
           {/* Right side - Map (half width) */}
-          <div className="w-1/2 ">
+          <div className="w-1/2 mt-3 mr-6">
             <Map
               selectedState={selectedStateCode}
               selectedDistricts={selectedDistricts} // Add this prop
+              selectedSubDistricts={selectedSubDistricts} // Add this line
             />
           </div>
         </div>
@@ -193,7 +199,7 @@ const Basic: React.FC = () => {
 
           <div className={currentStep === 3 ? 'block' : 'hidden'}>
             <Sewage />
-            <ExportReport projectName="Report Basic Module DSS" />
+            {/* <ExportReport projectName="Report Basic Module DSS" /> */}
           </div>
         </div>
 
