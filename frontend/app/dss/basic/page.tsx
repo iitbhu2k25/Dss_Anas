@@ -1,5 +1,6 @@
 'use client'
 import React, { useEffect, useState } from "react"
+import dynamic from "next/dynamic";
 import StatusBar from "./components/statusbar"
 import LocationSelector from "./components/locations"
 import Population from "./populations/population"
@@ -100,6 +101,7 @@ const Basic: React.FC = () => {
     // Reset selected state code
     setSelectedStateCode('');
     setSelectedDistricts([]); // Add this line
+    setSelectedSubDistricts([]); // Add this line
   };
 
   const handleFinish = () => {

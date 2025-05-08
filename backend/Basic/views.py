@@ -1133,7 +1133,7 @@ class MultipleSubdistrictsAPI(APIView):
             
             # Concatenate all matched rows into a single GeoDataFrame
             matched_subdistricts = gpd.GeoDataFrame(pd.concat(matched_rows, ignore_index=True))
-            
+            matched_subdistricts = matched_subdistricts.to_crs(epsg=4326)
             # Convert to GeoJSON format
             geojson_data = json.loads(matched_subdistricts.to_json())
             

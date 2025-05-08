@@ -35,7 +35,7 @@ interface LocationSelectorProps {
   onDistrictsChange?: (districts: string[]) => void;
   onSubDistrictsChange?: (subDistricts: string[]) => void; // Add this line
 }
-const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset, onStateChange, onDistrictsChange }) => {
+const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset, onStateChange, onDistrictsChange, onSubDistrictsChange }) => {
 
   // States for dropdown data
   const [states, setStates] = useState<LocationItem[]>([]);

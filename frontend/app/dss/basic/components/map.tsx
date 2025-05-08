@@ -9,41 +9,107 @@ import 'leaflet/dist/leaflet.css';
 interface MapProps {
   selectedState?: string;
   selectedDistricts?: string[];
-  selectedSubDistricts?: string[]; // Add this line
+  selectedSubDistricts?: string[]; // Added sub-district support
+  subDistrictData?: any[]; // Optional: for passing mapped sub-district data
 }
 
 // Create a separate component to handle map updates
 function MapLayers({ 
   selectedState, 
   selectedDistricts,
-  selectedSubDistricts // Add this parameter
+  selectedSubDistricts,
+  subDistrictData
 }: { 
   selectedState?: string; 
   selectedDistricts?: string[];
-  selectedSubDistricts?: string[]; // Add this type
+  selectedSubDistricts?: string[];
+  subDistrictData?: any[];
 }) {
   const map = useMap();
-  // Add state for sub-district layers
-  const [currentSubDistrictLayers, setCurrentSubDistrictLayers] = useState<L.GeoJSON | null>(null);
-  const [isLoadingSubDistricts, setIsLoadingSubDistricts] = useState(false);
-  
-  
-  // Update the combined loading state
+  const [currentStateLayer, setCurrentStateLayer] = useState<L.GeoJSON | null>(null);
+  const [currentDistrictLayers, setCurrentDistrictLayers] = useState<L.GeoJSON | null>(null);
+  const [currentSubDistrictLayers, setCurrentSubDistrictLayers] = useState<L.GeoJSON | null>(null); // Added for sub-districts
+  const [baseMapLayer, setBaseMapLayer] = useState<L.GeoJSON | null>(null);
+  const [isLoadingBase, setIsLoadingBase] = useState(true);
+  const [isLoadingState, setIsLoadingState] = useState(false);
+  const [isLoadingDistricts, setIsLoadingDistricts] = useState(false);
+  const [isLoadingSubDistricts, setIsLoadingSubDistricts] = useState(false); // Added for sub-districts
+
+  // Combined loading state
   const isLoading = isLoadingBase || isLoadingState || isLoadingDistricts || isLoadingSubDistricts;
-  
-  // Add styling for sub-districts
-  const subDistrictGeoJsonStyle = {
+
+  // GeoJSON styles
+  const stateGeoJsonStyle = {
+    fillColor: '#3388ff',
+    weight: 2,
+    opacity: 1,
+    color: 'red',
+    dashArray: '1',
+    fillOpacity: 0,
+  };
+
+  const districtGeoJsonStyle = {
+    fillColor: '#33ff88',
+    weight: 3,
+    opacity: 1,
+    color: 'green',
+    dashArray: '3',
+    fillOpacity: 0.3,
+  };
+
+  const subDistrictGeoJsonStyle = { // Added style for sub-districts
     fillColor: '#ff6b6b',
     weight: 4,
     opacity: 1,
-    color: 'purple',
+    color: 'black',
     dashArray: '5',
     fillOpacity: 0.4,
   };
-  
-  // Add the sub-district effect cleanup whenever district changes
+
+  const baseMapGeoJsonStyle = {
+    fillColor: '#blue',
+    weight: 2,
+    opacity: 1,
+    color: 'blue',
+    fillOpacity: 0,
+  };
+
+  // Clear district and sub-district layers whenever state changes
   useEffect(() => {
-    // Clear sub-district layers when district selection changes
+    console.log('State changed to:', selectedState);
+    
+    // Remove existing district layers when state changes
+    if (currentDistrictLayers) {
+      console.log('State changed: Removing district layers');
+      try {
+        map.removeLayer(currentDistrictLayers);
+        setCurrentDistrictLayers(null);
+      } catch (error) {
+        console.error('Error removing district layers:', error);
+      }
+    }
+    
+    // Remove existing sub-district layers when state changes
+    if (currentSubDistrictLayers) {
+      console.log('State changed: Removing sub-district layers');
+      try {
+        map.removeLayer(currentSubDistrictLayers);
+        setCurrentSubDistrictLayers(null);
+      } catch (error) {
+        console.error('Error removing sub-district layers:', error);
+      }
+    }
+    
+    // Reset loading states
+    setIsLoadingDistricts(false);
+    setIsLoadingSubDistricts(false);
+  }, [selectedState, map]);
+
+  // Clear sub-district layers whenever districts change
+  useEffect(() => {
+    console.log('Districts changed to:', selectedDistricts);
+    
+    // Remove existing sub-district layers when districts change
     if (currentSubDistrictLayers) {
       console.log('Districts changed: Removing sub-district layers');
       try {
@@ -57,12 +123,369 @@ function MapLayers({
     // Reset sub-district loading state
     setIsLoadingSubDistricts(false);
   }, [selectedDistricts, map]);
-  
-  // Add this effect to handle sub-district layers
+
+  // Fetch and display the base map of India on initial load
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchBaseMap = async () => {
+      try {
+        setIsLoadingBase(true);
+        console.log('Fetching base map for India');
+        const response = await fetch('http://localhost:9000/api/basic/basemap/', {
+          method: 'GET',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Base map data received:', data);
+
+        // Validate GeoJSON
+        if (!data || !data.type || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+          throw new Error('Invalid GeoJSON: Expected a FeatureCollection with features');
+        }
+
+        // Filter out invalid features
+        const validFeatures = data.features.filter((feature: any) => {
+          return (
+            feature &&
+            feature.type === 'Feature' &&
+            feature.geometry &&
+            feature.geometry.coordinates &&
+            feature.geometry.coordinates.length > 0
+          );
+        });
+
+        if (validFeatures.length === 0) {
+          throw new Error('No valid features found in GeoJSON');
+        }
+
+        // Create a new GeoJSON layer for the base map
+        const newBaseLayer = L.geoJSON(
+          { type: 'FeatureCollection', features: validFeatures },
+          {
+            style: baseMapGeoJsonStyle,
+            onEachFeature: (feature, layer) => {
+              if (feature.properties && feature.properties.name) {
+                layer.bindPopup(feature.properties.name);
+              }
+            },
+          }
+        );
+
+        // Ensure map is ready before adding the layer
+        map.whenReady(() => {
+          if (isMounted) {
+            newBaseLayer.addTo(map);
+            setBaseMapLayer(newBaseLayer);
+
+            // Fit map to the bounds of the base map
+            try {
+              const bounds = newBaseLayer.getBounds();
+              if (bounds.isValid()) {
+                map.fitBounds(bounds);
+              } else {
+                console.warn('Invalid bounds for base map layer');
+              }
+            } catch (error) {
+              console.error('Error fitting map to base map bounds:', error);
+            }
+            
+            setIsLoadingBase(false);
+          }
+        });
+      } catch (error) {
+        console.error('Error fetching or rendering base map:', error);
+        if (isMounted) {
+          setIsLoadingBase(false);
+        }
+      }
+    };
+
+    fetchBaseMap();
+
+    // Cleanup base map layer on component unmount
+    return () => {
+      isMounted = false;
+      if (baseMapLayer) {
+        try {
+          map.removeLayer(baseMapLayer);
+        } catch (error) {
+          console.error('Error removing base map layer:', error);
+        }
+      }
+    };
+  }, [map]);
+
+  // Handle state-specific shapefile updates
+  useEffect(() => {
+    console.log('StateLayer: selectedState changed to', selectedState);
+    
+    // Set loading state as soon as state changes
+    if (selectedState) {
+      setIsLoadingState(true);
+    }
+
+    // Create a cleanup function to properly handle the current state layer
+    const cleanupCurrentStateLayer = () => {
+      if (currentStateLayer) {
+        console.log('Removing existing state layer');
+        try {
+          map.removeLayer(currentStateLayer);
+          setCurrentStateLayer(null);
+        } catch (error) {
+          console.error('Error removing state layer:', error);
+        }
+      }
+    };
+    
+    // Clean up the current state layer first
+    cleanupCurrentStateLayer();
+    
+    // Exit if no state is selected
+    if (!selectedState) {
+      setIsLoadingState(false);
+      return;
+    }
+
+    const fetchStateShapefile = async () => {
+      try {
+        console.log('Fetching shapefile for state:', selectedState);
+        const response = await fetch('http://localhost:9000/api/basic/state-shapefile/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ state_code: selectedState }),
+        });
+
+        if (!response.ok) {
+          alert('Due to unavailability of the JSON data, the map will not be displayed for the selected state. Please select another state.');
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('State shapefile data received:', data);
+
+        // Validate GeoJSON
+        if (!data || !data.type || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+          throw new Error('Invalid GeoJSON: Expected a FeatureCollection with features');
+        }
+
+        // Filter out invalid features
+        const validFeatures = data.features.filter((feature: any) => {
+          return (
+            feature &&
+            feature.type === 'Feature' &&
+            feature.geometry &&
+            feature.geometry.coordinates &&
+            feature.geometry.coordinates.length > 0
+          );
+        });
+
+        if (validFeatures.length === 0) {
+          throw new Error('No valid features found in state GeoJSON');
+        }
+
+        // Create a new GeoJSON layer for the state
+        const newStateLayer = L.geoJSON(
+          { type: 'FeatureCollection', features: validFeatures },
+          {
+            style: stateGeoJsonStyle,
+            onEachFeature: (feature, layer) => {
+              if (feature.properties && feature.properties.name) {
+                layer.bindPopup(feature.properties.name);
+              }
+            },
+          }
+        );
+
+        // Ensure map is ready before adding the layer
+        map.whenReady(() => {
+          // Make sure any existing layer is removed again (redundant but safe)
+          cleanupCurrentStateLayer();
+          
+          // Add the new layer and update state
+          newStateLayer.addTo(map);
+          setCurrentStateLayer(newStateLayer);
+
+          // Fit map to the bounds of the state layer
+          try {
+            const bounds = newStateLayer.getBounds();
+            if (bounds.isValid()) {
+              map.fitBounds(bounds);
+            } else {
+              console.warn('Invalid bounds for state layer');
+            }
+          } catch (error) {
+            console.error('Error fitting map to state layer bounds:', error);
+          }
+          
+          setIsLoadingState(false);
+        });
+      } catch (error) {
+        console.error('Error fetching or rendering state shapefile:', error);
+        setIsLoadingState(false);
+      }
+    };
+
+    // Start fetching the new state data
+    fetchStateShapefile();
+
+    // Cleanup state layer on component unmount or when selectedState changes
+    return () => {
+      cleanupCurrentStateLayer();
+    };
+  }, [selectedState, map]);
+
+  // Handle district-specific shapefile updates
+  useEffect(() => {
+    console.log('DistrictLayers: selectedDistricts changed to', selectedDistricts);
+    console.log('Current state for districts:', selectedState);
+    
+    // Create a cleanup function to properly handle the current district layers
+    const cleanupCurrentDistrictLayers = () => {
+      if (currentDistrictLayers) {
+        console.log('Removing existing district layers');
+        try {
+          map.removeLayer(currentDistrictLayers);
+          setCurrentDistrictLayers(null);
+        } catch (error) {
+          console.error('Error removing district layers:', error);
+        }
+      }
+    };
+    
+    // Clean up current district layers first
+    cleanupCurrentDistrictLayers();
+    
+    // Exit if no districts are selected or no state is selected
+    if (!selectedDistricts || selectedDistricts.length === 0 || !selectedState) {
+      setIsLoadingDistricts(false);
+      return;
+    }
+    
+    // Set loading state for districts
+    setIsLoadingDistricts(true);
+
+    const fetchDistrictShapefiles = async () => {
+      try {
+        // Extra validation check before making the API call
+        if (!selectedState || !selectedDistricts || selectedDistricts.length === 0) {
+          setIsLoadingDistricts(false);
+          return;
+        }
+        
+        console.log('Fetching shapefiles for districts:', selectedDistricts, 'for state:', selectedState);
+        
+        // Prepare request payload for the API
+        const districtPayload = {
+          districts: selectedDistricts.map(districtCode => {
+            return {
+              state_code: selectedState,
+              district_c: districtCode
+            };
+          })
+        };
+        
+        console.log('District API request payload:', districtPayload);
+        
+        const response = await fetch('http://localhost:9000/api/basic/multiple-districts/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(districtPayload),
+        });
+
+        if (!response.ok) {
+          console.error('Failed to fetch district data:', response.status);
+          setIsLoadingDistricts(false);
+          return;
+        }
+
+        const data = await response.json();
+        console.log('District shapefile data received:', data);
+
+        // Validate GeoJSON
+        if (!data || !data.type || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+          throw new Error('Invalid GeoJSON: Expected a FeatureCollection with features');
+        }
+
+        // Filter out invalid features
+        const validFeatures = data.features.filter((feature: any) => {
+          return (
+            feature &&
+            feature.type === 'Feature' &&
+            feature.geometry &&
+            feature.geometry.coordinates &&
+            feature.geometry.coordinates.length > 0
+          );
+        });
+
+        if (validFeatures.length === 0) {
+          throw new Error('No valid features found in district GeoJSON');
+        }
+
+        // Create new GeoJSON layer for districts
+        const newDistrictLayers = L.geoJSON(
+          { type: 'FeatureCollection', features: validFeatures },
+          {
+            style: districtGeoJsonStyle,
+            onEachFeature: (feature, layer) => {
+              if (feature.properties && feature.properties.name) {
+                layer.bindPopup(feature.properties.name);
+              }
+            },
+          }
+        );
+
+        // Ensure map is ready before adding the layer
+        map.whenReady(() => {
+          // Remove existing layers again (redundant but safe)
+          cleanupCurrentDistrictLayers();
+          
+          // Add the new layer and update state
+          newDistrictLayers.addTo(map);
+          setCurrentDistrictLayers(newDistrictLayers);
+
+          // Fit map to the bounds if no state layer is active
+          if (!currentStateLayer) {
+            try {
+              const bounds = newDistrictLayers.getBounds();
+              if (bounds.isValid()) {
+                map.fitBounds(bounds);
+              }
+            } catch (error) {
+              console.error('Error fitting map to district layer bounds:', error);
+            }
+          }
+          
+          setIsLoadingDistricts(false);
+        });
+      } catch (error) {
+        console.error('Error fetching or rendering district shapefiles:', error);
+        setIsLoadingDistricts(false);
+      }
+    };
+
+    // Start fetching district data
+    fetchDistrictShapefiles();
+
+    // Cleanup district layers on unmount or when selectedDistricts changes
+    return () => {
+      cleanupCurrentDistrictLayers();
+    };
+  }, [selectedDistricts, selectedState, map, currentStateLayer]);
+
+  // NEW: Handle sub-district-specific shapefile updates
   useEffect(() => {
     console.log('SubDistrictLayers: selectedSubDistricts changed to', selectedSubDistricts);
     
-    // Create a cleanup function for the sub-district layers
+    // Create a cleanup function to properly handle the current sub-district layers
     const cleanupCurrentSubDistrictLayers = () => {
       if (currentSubDistrictLayers) {
         console.log('Removing existing sub-district layers');
@@ -78,36 +501,51 @@ function MapLayers({
     // Clean up current sub-district layers first
     cleanupCurrentSubDistrictLayers();
     
-    // Exit if no sub-districts are selected or prerequisites are missing
-    if (!selectedSubDistricts || selectedSubDistricts.length === 0 || !selectedState || !selectedDistricts || selectedDistricts.length === 0) {
+    // Exit if no sub-districts are selected or no districts are selected
+    if (!selectedSubDistricts || selectedSubDistricts.length === 0 || !selectedDistricts || selectedDistricts.length === 0) {
       setIsLoadingSubDistricts(false);
       return;
     }
     
     // Set loading state for sub-districts
     setIsLoadingSubDistricts(true);
-    
+
     const fetchSubDistrictShapefiles = async () => {
       try {
         console.log('Fetching shapefiles for sub-districts:', selectedSubDistricts);
         
-        // Prepare request payload for the API
-        // We need to match each sub-district with its parent district
+        // Prepare the sub-district to district mapping
+        // In a real implementation, you would get this data from your state or props
+        // For now, we'll create a simple mapping assuming the subDistrictData is passed in props
+        const subDistrictToDistrictMap: Record<string, string> = {};
+        
+        // If subDistrictData is provided, use it to build the mapping
+        if (subDistrictData && subDistrictData.length > 0) {
+          subDistrictData.forEach(sd => {
+            if (sd.id && sd.districtId) {
+              subDistrictToDistrictMap[sd.id.toString()] = sd.districtId.toString();
+            }
+          });
+        }
+        
+        // Create the payload for the API request
         const subDistrictPayload = {
           subdistricts: selectedSubDistricts.map(subDistrictCode => {
-            // Find the district this sub-district belongs to
-            // This is a simplification - you'll need to determine the correct district for each sub-district
-            // You might need to store a mapping of sub-districts to their parent districts
-            const subDistrictObj = subDistricts?.find(sd => sd.id.toString() === subDistrictCode);
+            // Try to find the district for this sub-district from our mapping
+            const districtCode = subDistrictToDistrictMap[subDistrictCode] || 
+                                // Fallback: use the first selected district if no mapping exists
+                                (selectedDistricts.length > 0 ? selectedDistricts[0] : '');
+            
             return {
-              district_c: subDistrictObj?.districtId.toString() || '',
+              district_c: districtCode,
               subdis_cod: subDistrictCode
             };
-          }).filter(item => item.district_c !== '') // Filter out items with missing district codes
+          }).filter(item => item.district_c !== '') // Remove items with missing district codes
         };
         
         console.log('Sub-district API request payload:', subDistrictPayload);
         
+        // Make the API request
         const response = await fetch('http://localhost:9000/api/basic/multiple-subdistricts/', {
           method: 'POST',
           headers: {
@@ -115,21 +553,22 @@ function MapLayers({
           },
           body: JSON.stringify(subDistrictPayload),
         });
-        
+
         if (!response.ok) {
+          alert('Due to unavailability of the JSON data, the map will not be displayed for the selected state. The Data is only available for the varuna Basin.');
           console.error('Failed to fetch sub-district data:', response.status);
           setIsLoadingSubDistricts(false);
           return;
         }
-        
+
         const data = await response.json();
         console.log('Sub-district shapefile data received:', data);
-        
+
         // Validate GeoJSON
         if (!data || !data.type || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
           throw new Error('Invalid GeoJSON: Expected a FeatureCollection with features');
         }
-        
+
         // Filter out invalid features
         const validFeatures = data.features.filter((feature: any) => {
           return (
@@ -140,11 +579,11 @@ function MapLayers({
             feature.geometry.coordinates.length > 0
           );
         });
-        
+
         if (validFeatures.length === 0) {
           throw new Error('No valid features found in sub-district GeoJSON');
         }
-        
+
         // Create new GeoJSON layer for sub-districts
         const newSubDistrictLayers = L.geoJSON(
           { type: 'FeatureCollection', features: validFeatures },
@@ -157,7 +596,7 @@ function MapLayers({
             },
           }
         );
-        
+
         // Ensure map is ready before adding the layer
         map.whenReady(() => {
           // Remove existing layers again (redundant but safe)
@@ -174,15 +613,15 @@ function MapLayers({
         setIsLoadingSubDistricts(false);
       }
     };
-    
+
     // Start fetching sub-district data
     fetchSubDistrictShapefiles();
-    
-    // Cleanup sub-district layers on unmount or when selections change
+
+    // Cleanup sub-district layers on unmount or when selectedSubDistricts changes
     return () => {
       cleanupCurrentSubDistrictLayers();
     };
-  }, [selectedSubDistricts, selectedDistricts, selectedState, map, subDistricts]);
+  }, [selectedSubDistricts, selectedDistricts, map, subDistrictData]);
 
   return (
     <>
@@ -217,7 +656,7 @@ function MapLayers({
   );
 }
 
-export default function Map({ selectedState, selectedDistricts, selectedSubDistricts }: MapProps) {
+export default function Map({ selectedState, selectedDistricts, selectedSubDistricts, subDistrictData }: MapProps) {
   console.log('Map component rendering with selectedState:', selectedState);
   console.log('Map component rendering with selectedDistricts:', selectedDistricts);
   console.log('Map component rendering with selectedSubDistricts:', selectedSubDistricts);
@@ -272,11 +711,12 @@ export default function Map({ selectedState, selectedDistricts, selectedSubDistr
         />
         <MapLayers 
           selectedState={selectedState} 
-          selectedDistricts={selectedDistricts}
-          selectedSubDistricts={selectedSubDistricts} // Add this prop
+          selectedDistricts={selectedDistricts} 
+          selectedSubDistricts={selectedSubDistricts}
+          subDistrictData={subDistrictData}
         />
         
-        {/* Optional: Debug display for state and districts */}
+        {/* Updated debug display to include sub-districts */}
         <div className="absolute bottom-2 left-2 bg-white px-2 py-1 text-xs rounded shadow z-[1000]">
           {selectedState && <div>Selected State: {selectedState}</div>}
           {selectedDistricts && selectedDistricts.length > 0 && (
