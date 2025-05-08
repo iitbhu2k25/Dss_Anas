@@ -14,13 +14,13 @@ interface MapProps {
 }
 
 // Create a separate component to handle map updates
-function MapLayers({ 
-  selectedState, 
+function MapLayers({
+  selectedState,
   selectedDistricts,
   selectedSubDistricts,
   subDistrictData
-}: { 
-  selectedState?: string; 
+}: {
+  selectedState?: string;
   selectedDistricts?: string[];
   selectedSubDistricts?: string[];
   subDistrictData?: any[];
@@ -77,7 +77,7 @@ function MapLayers({
   // Clear district and sub-district layers whenever state changes
   useEffect(() => {
     console.log('State changed to:', selectedState);
-    
+
     // Remove existing district layers when state changes
     if (currentDistrictLayers) {
       console.log('State changed: Removing district layers');
@@ -88,7 +88,7 @@ function MapLayers({
         console.error('Error removing district layers:', error);
       }
     }
-    
+
     // Remove existing sub-district layers when state changes
     if (currentSubDistrictLayers) {
       console.log('State changed: Removing sub-district layers');
@@ -99,7 +99,7 @@ function MapLayers({
         console.error('Error removing sub-district layers:', error);
       }
     }
-    
+
     // Reset loading states
     setIsLoadingDistricts(false);
     setIsLoadingSubDistricts(false);
@@ -108,7 +108,7 @@ function MapLayers({
   // Clear sub-district layers whenever districts change
   useEffect(() => {
     console.log('Districts changed to:', selectedDistricts);
-    
+
     // Remove existing sub-district layers when districts change
     if (currentSubDistrictLayers) {
       console.log('Districts changed: Removing sub-district layers');
@@ -119,7 +119,7 @@ function MapLayers({
         console.error('Error removing sub-district layers:', error);
       }
     }
-    
+
     // Reset sub-district loading state
     setIsLoadingSubDistricts(false);
   }, [selectedDistricts, map]);
@@ -193,7 +193,7 @@ function MapLayers({
             } catch (error) {
               console.error('Error fitting map to base map bounds:', error);
             }
-            
+
             setIsLoadingBase(false);
           }
         });
@@ -223,7 +223,7 @@ function MapLayers({
   // Handle state-specific shapefile updates
   useEffect(() => {
     console.log('StateLayer: selectedState changed to', selectedState);
-    
+
     // Set loading state as soon as state changes
     if (selectedState) {
       setIsLoadingState(true);
@@ -241,10 +241,10 @@ function MapLayers({
         }
       }
     };
-    
+
     // Clean up the current state layer first
     cleanupCurrentStateLayer();
-    
+
     // Exit if no state is selected
     if (!selectedState) {
       setIsLoadingState(false);
@@ -307,7 +307,7 @@ function MapLayers({
         map.whenReady(() => {
           // Make sure any existing layer is removed again (redundant but safe)
           cleanupCurrentStateLayer();
-          
+
           // Add the new layer and update state
           newStateLayer.addTo(map);
           setCurrentStateLayer(newStateLayer);
@@ -323,7 +323,7 @@ function MapLayers({
           } catch (error) {
             console.error('Error fitting map to state layer bounds:', error);
           }
-          
+
           setIsLoadingState(false);
         });
       } catch (error) {
@@ -345,7 +345,7 @@ function MapLayers({
   useEffect(() => {
     console.log('DistrictLayers: selectedDistricts changed to', selectedDistricts);
     console.log('Current state for districts:', selectedState);
-    
+
     // Create a cleanup function to properly handle the current district layers
     const cleanupCurrentDistrictLayers = () => {
       if (currentDistrictLayers) {
@@ -358,16 +358,16 @@ function MapLayers({
         }
       }
     };
-    
+
     // Clean up current district layers first
     cleanupCurrentDistrictLayers();
-    
+
     // Exit if no districts are selected or no state is selected
     if (!selectedDistricts || selectedDistricts.length === 0 || !selectedState) {
       setIsLoadingDistricts(false);
       return;
     }
-    
+
     // Set loading state for districts
     setIsLoadingDistricts(true);
 
@@ -378,9 +378,9 @@ function MapLayers({
           setIsLoadingDistricts(false);
           return;
         }
-        
+
         console.log('Fetching shapefiles for districts:', selectedDistricts, 'for state:', selectedState);
-        
+
         // Prepare request payload for the API
         const districtPayload = {
           districts: selectedDistricts.map(districtCode => {
@@ -390,9 +390,9 @@ function MapLayers({
             };
           })
         };
-        
+
         console.log('District API request payload:', districtPayload);
-        
+
         const response = await fetch('http://localhost:9000/api/basic/multiple-districts/', {
           method: 'POST',
           headers: {
@@ -447,7 +447,7 @@ function MapLayers({
         map.whenReady(() => {
           // Remove existing layers again (redundant but safe)
           cleanupCurrentDistrictLayers();
-          
+
           // Add the new layer and update state
           newDistrictLayers.addTo(map);
           setCurrentDistrictLayers(newDistrictLayers);
@@ -463,7 +463,7 @@ function MapLayers({
               console.error('Error fitting map to district layer bounds:', error);
             }
           }
-          
+
           setIsLoadingDistricts(false);
         });
       } catch (error) {
@@ -484,7 +484,7 @@ function MapLayers({
   // NEW: Handle sub-district-specific shapefile updates
   useEffect(() => {
     console.log('SubDistrictLayers: selectedSubDistricts changed to', selectedSubDistricts);
-    
+
     // Create a cleanup function to properly handle the current sub-district layers
     const cleanupCurrentSubDistrictLayers = () => {
       if (currentSubDistrictLayers) {
@@ -497,27 +497,27 @@ function MapLayers({
         }
       }
     };
-    
+
     // Clean up current sub-district layers first
     cleanupCurrentSubDistrictLayers();
-    
+
     // Exit if no sub-districts are selected or no districts are selected
     if (!selectedSubDistricts || selectedSubDistricts.length === 0 || !selectedDistricts || selectedDistricts.length === 0) {
       setIsLoadingSubDistricts(false);
       return;
     }
-    
+
     // Set loading state for sub-districts
     setIsLoadingSubDistricts(true);
 
     const fetchSubDistrictShapefiles = async () => {
       try {
         console.log('Fetching shapefiles for sub-districts:', selectedSubDistricts);
-        
+
         // Create separate API requests for each district
         // This approach ensures we only send valid district-subdistrict combinations
         const apiResults = [];
-        
+
         // Process each district separately
         for (const districtCode of selectedDistricts) {
           // For each district, create a payload with all subdistricts
@@ -528,9 +528,9 @@ function MapLayers({
               subdis_cod: subDistrictCode
             }))
           };
-          
+
           console.log(`Making API request for district: ${districtCode}`, districtPayload);
-          
+
           try {
             const response = await fetch('http://localhost:9000/api/basic/multiple-subdistricts/', {
               method: 'POST',
@@ -539,7 +539,7 @@ function MapLayers({
               },
               body: JSON.stringify(districtPayload),
             });
-            
+
             if (response.ok) {
               const districtData = await response.json();
               if (districtData && districtData.features && districtData.features.length > 0) {
@@ -551,27 +551,27 @@ function MapLayers({
             // Continue with other districts even if one fails
           }
         }
-        
+
         // If we didn't get any valid results
         if (apiResults.length === 0) {
           console.warn('No valid subdistrict data received for any district');
           setIsLoadingSubDistricts(false);
           return;
         }
-        
+
         // Combine all valid results into a single GeoJSON
         const combinedData = {
           type: 'FeatureCollection',
           features: apiResults.flatMap(result => result.features || [])
         };
-        
+
         console.log('Combined subdistrict data:', combinedData);
-        
+
         // Validate the combined GeoJSON
         if (!combinedData.features || combinedData.features.length === 0) {
           throw new Error('No valid features found in subdistrict GeoJSON');
         }
-        
+
         // Create new GeoJSON layer for sub-districts
         const newSubDistrictLayers = L.geoJSON(
           combinedData,
@@ -584,16 +584,16 @@ function MapLayers({
             },
           }
         );
-        
+
         // Ensure map is ready before adding the layer
         map.whenReady(() => {
           // Remove existing layers again (redundant but safe)
           cleanupCurrentSubDistrictLayers();
-          
+
           // Add the new layer and update state
           newSubDistrictLayers.addTo(map);
           setCurrentSubDistrictLayers(newSubDistrictLayers);
-          
+
           setIsLoadingSubDistricts(false);
         });
       } catch (error) {
@@ -690,37 +690,37 @@ export default function Map({ selectedState, selectedDistricts, selectedSubDistr
         scrollWheelZoom={true}
         doubleClickZoom={true}
       >
-        <TileLayer 
+        <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           noWrap={false}
           continuousWorld={true}
           bounds={[[-90, -180], [90, 180]]}
         />
-        <MapLayers 
-          selectedState={selectedState} 
-          selectedDistricts={selectedDistricts} 
+        <MapLayers
+          selectedState={selectedState}
+          selectedDistricts={selectedDistricts}
           selectedSubDistricts={selectedSubDistricts}
           subDistrictData={subDistrictData}
         />
-        
+
         <div className="absolute bottom-2 left-2 bg-white px-3 py-2 text-xs rounded shadow z-[1000] space-y-1">
-  <div className="flex items-center space-x-2">
-    <span className="w-4 h-2 bg-blue-500 inline-block"></span>
-    <span>India Boundary</span>
-  </div>
-  <div className="flex items-center space-x-2">
-    <span className="w-4 h-2 bg-red-500 inline-block"></span>
-    <span>State Boundary</span>
-  </div>
-  <div className="flex items-center space-x-2">
-    <span className="w-4 h-2 bg-green-500 inline-block"></span>
-    <span>Sub-District</span>
-  </div>
-  <div className="flex items-center space-x-2">
-    <span className="w-4 h-2 bg-black inline-block"></span>
-    <span>Village</span>
-  </div>
-</div>
+          <div className="flex items-center space-x-2">
+            <span className="w-4 h-2 bg-blue-500 inline-block"></span>
+            <span>India Boundary</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="w-4 h-2 bg-red-500 inline-block"></span>
+            <span>State Boundary</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="w-4 h-2 bg-green-500 inline-block"></span>
+            <span>Sub-District</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="w-4 h-2 bg-black inline-block"></span>
+            <span>Village</span>
+          </div>
+        </div>
 
       </MapContainer>
     </div>
