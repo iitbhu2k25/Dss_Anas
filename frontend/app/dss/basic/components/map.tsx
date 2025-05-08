@@ -514,79 +514,67 @@ function MapLayers({
       try {
         console.log('Fetching shapefiles for sub-districts:', selectedSubDistricts);
         
-        // Prepare the sub-district to district mapping
-        // In a real implementation, you would get this data from your state or props
-        // For now, we'll create a simple mapping assuming the subDistrictData is passed in props
-        const subDistrictToDistrictMap: Record<string, string> = {};
+        // Create separate API requests for each district
+        // This approach ensures we only send valid district-subdistrict combinations
+        const apiResults = [];
         
-        // If subDistrictData is provided, use it to build the mapping
-        if (subDistrictData && subDistrictData.length > 0) {
-          subDistrictData.forEach(sd => {
-            if (sd.id && sd.districtId) {
-              subDistrictToDistrictMap[sd.id.toString()] = sd.districtId.toString();
-            }
-          });
-        }
-        
-        // Create the payload for the API request
-        const subDistrictPayload = {
-          subdistricts: selectedSubDistricts.map(subDistrictCode => {
-            // Try to find the district for this sub-district from our mapping
-            const districtCode = subDistrictToDistrictMap[subDistrictCode] || 
-                                // Fallback: use the first selected district if no mapping exists
-                                (selectedDistricts.length > 0 ? selectedDistricts[0] : '');
-            
-            return {
+        // Process each district separately
+        for (const districtCode of selectedDistricts) {
+          // For each district, create a payload with all subdistricts
+          // The backend will filter out invalid combinations
+          const districtPayload = {
+            subdistricts: selectedSubDistricts.map(subDistrictCode => ({
               district_c: districtCode,
               subdis_cod: subDistrictCode
-            };
-          }).filter(item => item.district_c !== '') // Remove items with missing district codes
-        };
+            }))
+          };
+          
+          console.log(`Making API request for district: ${districtCode}`, districtPayload);
+          
+          try {
+            const response = await fetch('http://localhost:9000/api/basic/multiple-subdistricts/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(districtPayload),
+            });
+            
+            if (response.ok) {
+              const districtData = await response.json();
+              if (districtData && districtData.features && districtData.features.length > 0) {
+                apiResults.push(districtData);
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching subdistricts for district ${districtCode}:`, error);
+            // Continue with other districts even if one fails
+          }
+        }
         
-        console.log('Sub-district API request payload:', subDistrictPayload);
-        
-        // Make the API request
-        const response = await fetch('http://localhost:9000/api/basic/multiple-subdistricts/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(subDistrictPayload),
-        });
-
-        if (!response.ok) {
-          alert('Due to unavailability of the JSON data, the map will not be displayed for the selected state. The Data is only available for the varuna Basin.');
-          console.error('Failed to fetch sub-district data:', response.status);
+        // If we didn't get any valid results
+        if (apiResults.length === 0) {
+          console.warn('No valid subdistrict data received for any district');
           setIsLoadingSubDistricts(false);
           return;
         }
-
-        const data = await response.json();
-        console.log('Sub-district shapefile data received:', data);
-
-        // Validate GeoJSON
-        if (!data || !data.type || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
-          throw new Error('Invalid GeoJSON: Expected a FeatureCollection with features');
+        
+        // Combine all valid results into a single GeoJSON
+        const combinedData = {
+          type: 'FeatureCollection',
+          features: apiResults.flatMap(result => result.features || [])
+        };
+        
+        console.log('Combined subdistrict data:', combinedData);
+        
+        // Validate the combined GeoJSON
+        if (!combinedData.features || combinedData.features.length === 0) {
+          throw new Error('No valid features found in subdistrict GeoJSON');
         }
-
-        // Filter out invalid features
-        const validFeatures = data.features.filter((feature: any) => {
-          return (
-            feature &&
-            feature.type === 'Feature' &&
-            feature.geometry &&
-            feature.geometry.coordinates &&
-            feature.geometry.coordinates.length > 0
-          );
-        });
-
-        if (validFeatures.length === 0) {
-          throw new Error('No valid features found in sub-district GeoJSON');
-        }
-
+        
         // Create new GeoJSON layer for sub-districts
         const newSubDistrictLayers = L.geoJSON(
-          { type: 'FeatureCollection', features: validFeatures },
+          combinedData,
           {
             style: subDistrictGeoJsonStyle,
             onEachFeature: (feature, layer) => {
@@ -596,7 +584,7 @@ function MapLayers({
             },
           }
         );
-
+        
         // Ensure map is ready before adding the layer
         map.whenReady(() => {
           // Remove existing layers again (redundant but safe)
@@ -613,7 +601,6 @@ function MapLayers({
         setIsLoadingSubDistricts(false);
       }
     };
-
     // Start fetching sub-district data
     fetchSubDistrictShapefiles();
 

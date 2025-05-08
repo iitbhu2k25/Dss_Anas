@@ -791,8 +791,8 @@ class DefaultBaseMapAPI(APIView):
     def get(self, request, *args, **kwargs):
         try:
             # Construct path to india.shp
-            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'india')
-            shapefile_full_path = os.path.join(shapefile_path, 'india.shp')
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_State')
+            shapefile_full_path = os.path.join(shapefile_path, 'B_State.shp')
 
             if not os.path.exists(shapefile_full_path):
                 return Response({'error': 'Shapefile not found.'}, status=status.HTTP_404_NOT_FOUND)
@@ -802,10 +802,10 @@ class DefaultBaseMapAPI(APIView):
 
             # Convert to GeoJSON
             geojson_data = json.loads(gdf.to_json())
-
+            
             return Response(geojson_data, status=status.HTTP_200_OK)
 
-        except Exception as e:
+        except Exception as e: 
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
