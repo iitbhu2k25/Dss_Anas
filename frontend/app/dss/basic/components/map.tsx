@@ -703,16 +703,25 @@ export default function Map({ selectedState, selectedDistricts, selectedSubDistr
           subDistrictData={subDistrictData}
         />
         
-        {/* Updated debug display to include sub-districts */}
-        <div className="absolute bottom-2 left-2 bg-white px-2 py-1 text-xs rounded shadow z-[1000]">
-          {selectedState && <div>Selected State: {selectedState}</div>}
-          {selectedDistricts && selectedDistricts.length > 0 && (
-            <div>Selected Districts Count: {selectedDistricts.length}</div>
-          )}
-          {selectedSubDistricts && selectedSubDistricts.length > 0 && (
-            <div>Selected Sub-Districts Count: {selectedSubDistricts.length}</div>
-          )}
-        </div>
+        <div className="absolute bottom-2 left-2 bg-white px-3 py-2 text-xs rounded shadow z-[1000] space-y-1">
+  <div className="flex items-center space-x-2">
+    <span className="w-4 h-2 bg-blue-500 inline-block"></span>
+    <span>India Boundary</span>
+  </div>
+  <div className="flex items-center space-x-2">
+    <span className="w-4 h-2 bg-red-500 inline-block"></span>
+    <span>State Boundary</span>
+  </div>
+  <div className="flex items-center space-x-2">
+    <span className="w-4 h-2 bg-green-500 inline-block"></span>
+    <span>Sub-District</span>
+  </div>
+  <div className="flex items-center space-x-2">
+    <span className="w-4 h-2 bg-black inline-block"></span>
+    <span>Village</span>
+  </div>
+</div>
+
       </MapContainer>
     </div>
   );
