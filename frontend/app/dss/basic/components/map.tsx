@@ -714,11 +714,11 @@ export default function Map({ selectedState, selectedDistricts, selectedSubDistr
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-4 h-2 bg-green-500 inline-block"></span>
-            <span>Sub-District</span>
+            <span>District</span>
           </div>
           <div className="flex items-center space-x-2">
             <span className="w-4 h-2 bg-black inline-block"></span>
-            <span>Village</span>
+            <span>Sub-District</span>
           </div>
         </div>
 

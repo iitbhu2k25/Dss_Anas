@@ -1,6 +1,5 @@
 'use client'
 import React, { useEffect, useState } from "react"
-import dynamic from "next/dynamic";
 import StatusBar from "./components/statusbar"
 import LocationSelector from "./components/locations"
 import Population from "./populations/population"
@@ -8,23 +7,31 @@ import Water_Demand from "./water_demand/page"
 import Water_Supply from "./water_supply/page"
 import Sewage from "./seawage/page"
 import ExportReport from './populations/components/export';
-import Map from "./components/map"
-// import DrainLocationSelector from "./components/Drain_location"
-
+import GeographicMap from "./components/GeographicMap"
+import DrainLocationSelector from "./components/Drain_location"
 
 interface SelectedLocationData {
   villages: {
-    id: number;
+    id: string;
     name: string;
-    subDistrictId: number;
+    subDistrictId: string;
     population: number;
   }[];
   subDistricts: {
-    id: number;
+    id: string;
     name: string;
-    districtId: number;
+    districtId: string;
   }[];
   totalPopulation: number;
+}
+
+interface FeatureInfo {
+  type: 'state' | 'district' | 'subdistrict' | 'village';
+  code: string;
+  properties?: {
+    state_code?: string;
+    district_c?: string;
+  };
 }
 
 const Basic: React.FC = () => {
@@ -34,31 +41,28 @@ const Basic: React.FC = () => {
   const [skippedSteps, setSkippedSteps] = useState<number[]>([]);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
-  // Add new state for selected state code
   const [selectedStateCode, setSelectedStateCode] = useState<string>('');
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
-  const [selectedSubDistricts, setSelectedSubDistricts] = useState<string[]>([]);
+  const [mode, setMode] = useState<'admin' | 'drain'>('admin');
 
-  // Add a handler for district selection
   const handleDistrictsChange = (districts: string[]): void => {
     console.log('Districts changed to:', districts);
     setSelectedDistricts(districts);
   };
-  const handleSubDistrictsChange = (subdistricts: string[]): void => {
-    console.log('Sub-districts changed to:', subdistricts);
-    setSelectedSubDistricts(subdistricts);
-  };
 
+  const handleModeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setMode(event.target.value as 'admin' | 'drain');
+  };
 
   const handleLocationConfirm = (data: SelectedLocationData): void => {
     console.log('Received confirmed location data:', data);
     setSelectedLocationData(data);
   };
 
-  // Add new handler for state changes
   const handleStateChange = (stateCode: string): void => {
     console.log('State changed to:', stateCode);
     setSelectedStateCode(stateCode);
+    setSelectedDistricts([]);
   };
 
   const handleNext = () => {
@@ -99,17 +103,56 @@ const Basic: React.FC = () => {
     setCompletedSteps([]);
     setSelectedLocationData(null);
     setShowSuccess(false);
-    // Reset selected state code
     setSelectedStateCode('');
-    setSelectedDistricts([]); // Add this line
-    setSelectedSubDistricts([]); // Add this line
+    setSelectedDistricts([]);
+  };
+
+  const handleMapFeatureClick = (feature: FeatureInfo) => {
+    console.log('Map feature clicked in page.tsx:', feature);
+    switch (feature.type) {
+      case 'state':
+        handleStateChange(feature.code);
+        break;
+      case 'district':
+        handleDistrictsChange(
+          selectedDistricts.includes(feature.code)
+            ? selectedDistricts.filter(d => d !== feature.code)
+            : [...selectedDistricts, feature.code]
+        );
+        if (feature.properties?.state_code && feature.properties.state_code !== selectedStateCode) {
+          handleStateChange(feature.properties.state_code);
+        }
+        break;
+      case 'subdistrict':
+        if (feature.properties?.state_code && feature.properties.state_code !== selectedStateCode) {
+          handleStateChange(feature.properties.state_code);
+        }
+        if (feature.properties?.district_c) {
+          handleDistrictsChange(
+            selectedDistricts.includes(feature.properties.district_c)
+              ? selectedDistricts
+              : [...selectedDistricts, feature.properties.district_c]
+          );
+        }
+        break;
+      case 'village':
+        if (feature.properties?.state_code && feature.properties.state_code !== selectedStateCode) {
+          handleStateChange(feature.properties.state_code);
+        }
+        if (feature.properties?.district_c) {
+          handleDistrictsChange(
+            selectedDistricts.includes(feature.properties.district_c)
+              ? selectedDistricts
+              : [...selectedDistricts, feature.properties.district_c]
+          );
+        }
+        break;
+    }
   };
 
   const handleFinish = () => {
     setCompletedSteps(prev => [...prev.filter(step => step !== 3), 3]);
     setShowSuccess(true);
-
-    // Hide success message after 3 seconds
     setTimeout(() => {
       setShowSuccess(false);
     }, 2000);
@@ -125,8 +168,33 @@ const Basic: React.FC = () => {
   }, [selectedLocationData]);
 
   return (
-    <div className="flex flex-col md:flex-row w-full min-h-0">
-      <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-200">
+    <div className="flex w-full min-h-screen relative">
+
+{/* Radio Buttons for Mode Selection */}
+<div className="absolute top-4 right-140 flex space-x-4 z-50 bg-white p-2 rounded-md shadow-md border border-gray-200">
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <input
+              type="radio"
+              value="admin"
+              checked={mode === 'admin'}
+              onChange={handleModeChange}
+              className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+            />
+            Admin
+          </label>
+          <label className="flex items-center text-sm font-medium text-gray-700">
+            <input
+              type="radio"
+              value="drain"
+              checked={mode === 'drain'}
+              onChange={handleModeChange}
+              className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500"
+            />
+            Drain
+          </label>
+        </div>
+
+      <div className="w-64 border-r border-gray-200">
         <StatusBar
           currentStep={currentStep}
           onStepChange={handleStepChange}
@@ -135,33 +203,46 @@ const Basic: React.FC = () => {
         />
       </div>
 
-      <div className="w-full relative">
-      <div className="absolute top-4 right-4">
+        
 
-        </div>
+      <div className="flex-1 relative">
+      
 
-        {/* Modified layout for LocationSelector and Map side by side */}
-        <div className="flex w-full">
-          {/* Left side - Location Selector (half width) */}
-          <div className="w-2/3 mt-3 ml-4">
-            <LocationSelector
-              onConfirm={handleLocationConfirm}
-              onReset={handleLocationReset}
-              onStateChange={handleStateChange} // Add the new prop
-              onDistrictsChange={handleDistrictsChange} // Add this prop
-              onSubDistrictsChange={handleSubDistrictsChange} // Add this line
-            />
+        {/* Conditional Rendering Based on Mode */}
+        {mode === 'drain' ? (
+          <div className="flex w-full">
+            <div className="w-2/3">
+          <DrainLocationSelector />
           </div>
+          <div className="w-1/3">
+              <GeographicMap
+                selectedState={selectedStateCode}
+                selectedDistricts={selectedDistricts}
+                onFeatureClick={handleMapFeatureClick}
+              />
+            </div>
+            </div>
 
-          {/* Right side - Map (half width) */}
-          <div className="w-1/2 mt-3 mr-6">
-            <Map
-              selectedState={selectedStateCode}
-              selectedDistricts={selectedDistricts} // Add this prop
-              selectedSubDistricts={selectedSubDistricts} // Add this line
-            />
-          </div>
-        </div>
+        ) : (
+          <div className="flex w-full">
+            <div className="w-2/3">
+              <LocationSelector
+                onConfirm={handleLocationConfirm}
+                onReset={handleLocationReset}
+                onStateChange={handleStateChange}
+                onDistrictsChange={handleDistrictsChange}
+                onFeatureClick={handleMapFeatureClick}
+              />
+            </div>
+            <div className="w-1/3">
+              <GeographicMap
+                selectedState={selectedStateCode}
+                selectedDistricts={selectedDistricts}
+                onFeatureClick={handleMapFeatureClick}
+              />
+            </div>
+            </div>
+        )}
 
         {showSuccess && (
           <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 animate-fade-in-out">
@@ -180,7 +261,6 @@ const Basic: React.FC = () => {
           </div>
         )}
 
-        {/* Step Content - keep all mounted */}
         <div className="transition-all duration-300 transform">
           <div className={currentStep === 0 ? 'block' : 'hidden'}>
             {selectedLocationData && (
@@ -202,11 +282,10 @@ const Basic: React.FC = () => {
 
           <div className={currentStep === 3 ? 'block' : 'hidden'}>
             <Sewage />
-            {/* <ExportReport projectName="Report Basic Module DSS" /> */}
+            <ExportReport projectName="Report Basic Module DSS" />
           </div>
         </div>
 
-        {/* Navigation buttons */}
         {selectedLocationData && (
           <div className="mt-6 flex justify-between">
             <div className="flex space-x-4">
@@ -216,7 +295,6 @@ const Basic: React.FC = () => {
                 onClick={handleSkip}
               >
                 Skip
-
               </button>
 
               {currentStep > 0 && (
