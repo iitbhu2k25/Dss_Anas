@@ -2,6 +2,55 @@
 import React, { useState, useEffect } from 'react';
 import { MultiSelect } from './Multiselect'; // Import the enhanced component
 
+// Define the global interface for window to add our reset functions
+declare global {
+  interface Window {
+    resetDistrictSelectionsInLocationSelector?: () => void;
+    resetSubDistrictSelectionsInLocationSelector?: () => void;
+    selectedLocations?: any;
+  }
+}
+
+interface TruncatedListProps {
+  content: string;
+  maxLength?: number;
+}
+const TruncatedList: React.FC<TruncatedListProps> = ({ content, maxLength = 100 }) => {
+  const [expanded, setExpanded] = useState<boolean>(false);
+
+  if (!content || content === 'None') return <span>None</span>;
+
+  // If content fits, just display it
+  if (content.length <= maxLength) return <span>{content}</span>;
+
+  // Otherwise truncate and add "Show more" button
+  return (
+    <span>
+      {expanded ? (
+        <>
+          {content}
+          <button
+            onClick={() => setExpanded(false)}
+            className="ml-2 text-blue-500 hover:text-blue-700 text-xs font-medium"
+          >
+            Show less
+          </button>
+        </>
+      ) : (
+        <>
+          {content.substring(0, maxLength)}...
+          <button
+            onClick={() => setExpanded(true)}
+            className="ml-2 text-blue-500 hover:text-blue-700 text-xs font-medium"
+          >
+            Show more
+          </button>
+        </>
+      )}
+    </span>
+  );
+};
+
 // TypeScript interfaces
 interface LocationItem {
   id: number;
@@ -33,7 +82,7 @@ interface LocationSelectorProps {
   onReset?: () => void;
   onStateChange?: (stateCode: string) => void;
   onDistrictsChange?: (districts: string[]) => void;
-  onSubDistrictsChange?: (subDistricts: string[]) => void; // Add this line
+  onSubDistrictsChange?: (subDistricts: string[]) => void;
 }
 const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset, onStateChange, onDistrictsChange, onSubDistrictsChange }) => {
 
@@ -52,6 +101,36 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
 
   // New state to track if selections are locked after confirmation
   const [selectionsLocked, setSelectionsLocked] = useState<boolean>(false);
+
+  // Register the reset functions in the global window object
+  useEffect(() => {
+    // Function to reset district selections
+    window.resetDistrictSelectionsInLocationSelector = () => {
+      if (!selectionsLocked) {
+        console.log('Location selector resetting district selections');
+        setSelectedDistricts([]);
+        setSelectedSubDistricts([]);
+        setSelectedVillages([]);
+        setTotalPopulation(0);
+      }
+    };
+
+    // Function to reset subdistrict selections
+    window.resetSubDistrictSelectionsInLocationSelector = () => {
+      if (!selectionsLocked) {
+        console.log('Location selector resetting subdistrict selections');
+        setSelectedSubDistricts([]);
+        setSelectedVillages([]);
+        setTotalPopulation(0);
+      }
+    };
+
+    // Cleanup function to remove the handlers when component unmounts
+    return () => {
+      window.resetDistrictSelectionsInLocationSelector = undefined;
+      window.resetSubDistrictSelectionsInLocationSelector = undefined;
+    };
+  }, [selectionsLocked]);
 
   // Fetch states on component mount
   useEffect(() => {
@@ -78,7 +157,6 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
   }, []);
 
   // Fetch districts when state changes
-
   useEffect(() => {
     if (selectedState) {
       const fetchDistricts = async (): Promise<void> => {
@@ -306,8 +384,6 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
     }
   };
 
-
-
   const handleSubDistrictsChange = (newSelectedSubDistricts: string[]) => {
     setSelectedSubDistricts(newSelectedSubDistricts);
 
@@ -317,9 +393,6 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
     }
   };
 
-
-
-
   // Handle form reset
   const handleReset = (): void => {
     setSelectedState('');
@@ -328,7 +401,6 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
     setSelectedVillages([]);
     setTotalPopulation(0);
     setSelectionsLocked(false);
-
 
     // Call the onReset prop to notify parent component
     if (onReset) {
@@ -341,9 +413,7 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
     }, 1000);
   };
 
-  // Selected items display - show without district repetition
   // Selected items display - optimized to show "All" for complete selections
-  // Replace the entire formatSelectedItems function with this:
   const formatSelectedItems = (items: (SubDistrict | Village)[], selectedIds: string[]): string => {
     if (selectedIds.length === 0) {
       return 'None';
@@ -467,7 +537,7 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
       };
 
       // Store in window object for access by PDF generator
-      (window as any).selectedLocations = locationData;
+      window.selectedLocations = locationData;
       console.log('Location data stored in window object:', locationData);
 
       // Pass the data to parent component if callback exists
@@ -480,8 +550,6 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
       }
     }
   };
-
-
 
   // Village dropdown display - just show name and population (no district prefix)
   const formatVillageDisplay = (village: Village): string => {
@@ -606,19 +674,46 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
         />
       </div>
 
+
+
       {/* Display selected values for demonstration */}
       <div className="mt-6 p-10 px-5 bg-gray-50 rounded-lg border border-gray-200">
         <h3 className="text-md font-medium text-gray-800 mb-2">Selected Locations</h3>
         <div className="space-y-2 text-sm text-gray-700">
-          <p><span className="font-medium">State:</span> {states.find(s => s.id.toString() === selectedState)?.name || 'None'}</p>
-          <p><span className="font-medium">Districts:</span> {selectedDistricts.length > 0
-            ? (selectedDistricts.length === districts.length
-              ? 'All Districts'
-              : districts.filter(d => selectedDistricts.includes(d.id.toString())).map(d => d.name).join(', '))
-            : 'None'}</p>
-          <p><span className="font-medium">Sub-Districts:</span> {formatSelectedItems(subDistricts, selectedSubDistricts)}</p>
-          <p><span className="font-medium">Villages:</span> {formatSelectedItems(villages, selectedVillages)}</p>
-          <p><span className="font-medium">Total Population:</span> {totalPopulation.toLocaleString()}</p>
+          <p>
+            <span className="font-medium">State:</span> {states.find(s => s.id.toString() === selectedState)?.name || 'None'}
+          </p>
+          <p>
+            <span className="font-medium">Districts:</span> {
+              selectedDistricts.length > 0
+                ? (selectedDistricts.length === districts.length
+                  ? 'All Districts'
+                  : <TruncatedList
+                    content={districts.filter(d => selectedDistricts.includes(d.id.toString())).map(d => d.name).join(', ')}
+                    maxLength={60}
+                  />)
+                : 'None'
+            }
+          </p>
+          <p>
+            <span className="font-medium">Sub-Districts:</span> {
+              <TruncatedList
+                content={formatSelectedItems(subDistricts, selectedSubDistricts)}
+                maxLength={80}
+              />
+            }
+          </p>
+          <p>
+            <span className="font-medium">Villages:</span> {
+              <TruncatedList
+                content={formatSelectedItems(villages, selectedVillages)}
+                maxLength={80}
+              />
+            }
+          </p>
+          <p>
+            <span className="font-medium">Total Population:</span> {totalPopulation.toLocaleString()}
+          </p>
           {selectionsLocked && (
             <p className="mt-2 text-green-600 font-medium">Selections confirmed and locked</p>
           )}

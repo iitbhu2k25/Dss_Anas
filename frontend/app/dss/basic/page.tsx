@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useRef } from "react"
 import dynamic from "next/dynamic";
 import StatusBar from "./components/statusbar"
 import LocationSelector from "./components/locations"
@@ -9,8 +9,6 @@ import Water_Supply from "./water_supply/page"
 import Sewage from "./seawage/page"
 import ExportReport from './populations/components/export';
 import Map from "./components/map"
-// import DrainLocationSelector from "./components/Drain_location"
-
 
 interface SelectedLocationData {
   villages: {
@@ -34,30 +32,86 @@ const Basic: React.FC = () => {
   const [skippedSteps, setSkippedSteps] = useState<number[]>([]);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
+  
   // Add new state for selected state code
   const [selectedStateCode, setSelectedStateCode] = useState<string>('');
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [selectedSubDistricts, setSelectedSubDistricts] = useState<string[]>([]);
-
-  // Add a handler for district selection
-  const handleDistrictsChange = (districts: string[]): void => {
-    console.log('Districts changed to:', districts);
-    setSelectedDistricts(districts);
-  };
-  const handleSubDistrictsChange = (subdistricts: string[]): void => {
-    console.log('Sub-districts changed to:', subdistricts);
-    setSelectedSubDistricts(subdistricts);
-  };
-
+  
+  // Track changes with refs to avoid issues with stale closures
+  const stateRef = useRef<string>('');
+  const districtsRef = useRef<string[]>([]);
+  const subDistrictsRef = useRef<string[]>([]);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    stateRef.current = selectedStateCode;
+  }, [selectedStateCode]);
+  
+  useEffect(() => {
+    districtsRef.current = [...selectedDistricts];
+  }, [selectedDistricts]);
+  
+  useEffect(() => {
+    subDistrictsRef.current = [...selectedSubDistricts];
+  }, [selectedSubDistricts]);
 
   const handleLocationConfirm = (data: SelectedLocationData): void => {
     console.log('Received confirmed location data:', data);
     setSelectedLocationData(data);
   };
 
-  // Add new handler for state changes
+  // Handler for district selection with enforced reset of subdisticts
+  const handleDistrictsChange = (districts: string[]): void => {
+    console.log('Districts changed to:', districts);
+    
+    // If the districts selection has changed, clear subdisticts
+    if (JSON.stringify(districts) !== JSON.stringify(districtsRef.current)) {
+      console.log('Resetting subdistrict selections');
+      
+      // First update the state
+      setSelectedSubDistricts([]);
+      
+      // Then trigger the global reset for the UI
+      if (window.resetSubDistrictSelectionsInLocationSelector) {
+        window.resetSubDistrictSelectionsInLocationSelector();
+      }
+    }
+    
+    // Update districts state
+    setSelectedDistricts([...districts]);
+  };
+  
+  // Handler for subdistrict selection
+  const handleSubDistrictsChange = (subdistricts: string[]): void => {
+    console.log('Sub-districts changed to:', subdistricts);
+    
+    // Ensure we're working with fresh copies of arrays
+    setSelectedSubDistricts([...subdistricts]);
+  };
+
+  // Handler for state changes with enforced reset of districts and subdisticts
   const handleStateChange = (stateCode: string): void => {
     console.log('State changed to:', stateCode);
+    
+    // If state has changed, reset districts and subdisticts
+    if (stateCode !== stateRef.current) {
+      console.log('Resetting district and subdistrict selections');
+      
+      // First update the state
+      setSelectedDistricts([]);
+      setSelectedSubDistricts([]);
+      
+      // Then trigger the global resets for the UI
+      if (window.resetDistrictSelectionsInLocationSelector) {
+        window.resetDistrictSelectionsInLocationSelector();
+      }
+      if (window.resetSubDistrictSelectionsInLocationSelector) {
+        window.resetSubDistrictSelectionsInLocationSelector();
+      }
+    }
+    
+    // Update state code
     setSelectedStateCode(stateCode);
   };
 
@@ -93,16 +147,31 @@ const Basic: React.FC = () => {
     }
   };
 
+  // Complete reset handler
   const handleLocationReset = (): void => {
+    console.log('FULL RESET triggered');
+    
+    // Reset all step-related state
     setCurrentStep(0);
     setSkippedSteps([]);
     setCompletedSteps([]);
     setSelectedLocationData(null);
     setShowSuccess(false);
-    // Reset selected state code
+    
+    // Reset location selections
     setSelectedStateCode('');
-    setSelectedDistricts([]); // Add this line
-    setSelectedSubDistricts([]); // Add this line
+    setSelectedDistricts([]);
+    setSelectedSubDistricts([]);
+    
+    // Update refs
+    stateRef.current = '';
+    districtsRef.current = [];
+    subDistrictsRef.current = [];
+    
+    // Add a slight delay before refresh to ensure all state is properly reset
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   };
 
   const handleFinish = () => {
@@ -147,9 +216,9 @@ const Basic: React.FC = () => {
             <LocationSelector
               onConfirm={handleLocationConfirm}
               onReset={handleLocationReset}
-              onStateChange={handleStateChange} // Add the new prop
-              onDistrictsChange={handleDistrictsChange} // Add this prop
-              onSubDistrictsChange={handleSubDistrictsChange} // Add this line
+              onStateChange={handleStateChange}
+              onDistrictsChange={handleDistrictsChange}
+              onSubDistrictsChange={handleSubDistrictsChange}
             />
           </div>
 
@@ -157,8 +226,8 @@ const Basic: React.FC = () => {
           <div className="w-1/2 mt-3 mr-6">
             <Map
               selectedState={selectedStateCode}
-              selectedDistricts={selectedDistricts} // Add this prop
-              selectedSubDistricts={selectedSubDistricts} // Add this line
+              selectedDistricts={selectedDistricts}
+              selectedSubDistricts={selectedSubDistricts}
             />
           </div>
         </div>

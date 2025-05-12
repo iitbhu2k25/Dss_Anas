@@ -1202,9 +1202,7 @@ const SewageCalculationForm: React.FC = () => {
         </div>
         {domesticSewageResult && (
           <div className="mt-4 p-3 border rounded bg-green-50">
-            <h4 className створи
-
-="font-bold text-green-700">Sewage Generation (Domestic):</h4>
+            <h4 className ="font-bold text-green-700">Sewage Generation (Domestic):</h4>
             {typeof domesticSewageResult === 'number' ? (
               <p>{domesticSewageResult.toFixed(2)} MLD</p>
             ) : (

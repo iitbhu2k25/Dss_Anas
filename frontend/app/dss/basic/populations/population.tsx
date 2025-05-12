@@ -72,7 +72,7 @@ const Population: React.FC<PopulationProps> = ({
         annualEmigrationRate: "",
         annualImmigrationRate: ""
     });
-    
+
     // Flag to track if cohort request is pending
     const [cohortRequestPending, setCohortRequestPending] = useState(false);
 
@@ -462,7 +462,7 @@ const Population: React.FC<PopulationProps> = ({
                     return prevResults;
                 });
             }
-            
+
             // Reset cohort request pending flag
             setCohortRequestPending(false);
         } catch (error) {
@@ -541,7 +541,7 @@ const Population: React.FC<PopulationProps> = ({
             if (methods.cohort) {
                 // Set cohort request as pending to prevent double submissions
                 setCohortRequestPending(true);
-                
+
                 const cohortYears = [];
 
                 // If single year is specified, use it
@@ -844,7 +844,16 @@ const Population: React.FC<PopulationProps> = ({
                             checked={methods.cohort}
                             onChange={() => handleMethodChange('cohort')}
                         />
-                        <span className="ml-2 text-gray-700">Cohort</span>
+
+                        <label className="block text-sm font-medium flex items-center">
+                            <span className="ml-2 text-gray-700">Cohort</span>
+                            <div className="relative ml-1 group">
+                                <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 text-white rounded-full cursor-help">i</span>
+                                <div className="absolute z-10 hidden group-hover:block w-64  text-red text-xs rounded p-0 -mt-12 ml-6">
+                                    Cohort Data only available for a 2011 to 2035 till now and if you go beyond that range then it will shown zero (0) or NaNa
+                                </div>
+                            </div>
+                        </label>
                     </label>
                 </div>
                 {!isMethodSelected && (
@@ -934,8 +943,8 @@ const Population: React.FC<PopulationProps> = ({
                                                         key={`${method}-${year}`}
                                                         className="border-b px-6 py-4 text-center text-gray-600"
                                                     >
-                                                        {method === 'Demographic' ? 
-                                                            results[method][year] ?? '-' : 
+                                                        {method === 'Demographic' ?
+                                                            results[method][year] ?? '-' :
                                                             results[method][year] ?? '-'}
                                                     </td>
                                                 )
