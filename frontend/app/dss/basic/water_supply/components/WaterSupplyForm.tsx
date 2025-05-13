@@ -161,9 +161,9 @@ const WaterSupplyForm: React.FC = () => {
   <div className="flex items-center mb-3">
     <h3 className="text-xl font-semibold">Water Supply Calculation</h3>
     <div className="relative ml-2 group">
-      <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 text-white rounded-full cursor-help">i</span>
-      <div className="absolute z-10 hidden group-hover:block w-64 text-red text-xs rounded p-2 bg-white shadow-lg -mt-5 left-5 ml-2">
-        Water supply about
+      <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
+      <div className="absolute z-10 hidden group-hover:block w-180 text-red text-xs rounded p-2 bg-white shadow-lg -mt-5 left-5 ml-2">
+        Water supply plays a critical role in determining sewage generation within a region. The total water supplied directly influences wastewater production, which must be effectively managed through sewage treatment systems
       </div>
     </div>
   </div>
@@ -215,7 +215,7 @@ const WaterSupplyForm: React.FC = () => {
           <label className="block text-sm font-medium flex items-center">
               Number of Tube-wells:
               <div className="relative ml-1 group">
-                <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 text-white rounded-full cursor-help">i</span>
+                <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
                 <div className="absolute z-10 hidden group-hover:block w-64  text-red text-xs rounded p-0 -mt-12 ml-6">
                   All three tube-well fields (Number, Discharge Rate, and Operating Hours) must be filled for the calculation to work properly.
                 </div>
@@ -301,7 +301,7 @@ const WaterSupplyForm: React.FC = () => {
           <label className="block text-sm font-medium flex items-center">
               Roof-top Harvesting (Rain-tank Storage) (MLD):
               <div className="relative ml-1 group">
-                <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 font-medium text-white rounded-full cursor-help">i</span>
+                <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 font-medium text-white rounded-full cursor-help">i</span>
                 <div className="absolute z-10 hidden group-hover:block w-64 text-red text-xs rounded p-0 -mt-12 ml-6">
                   At least one of the four alternate water supply component fields must be filled for the calculation to reflect in the table.
                 </div>

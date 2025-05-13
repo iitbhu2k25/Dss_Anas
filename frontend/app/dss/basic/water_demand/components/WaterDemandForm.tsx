@@ -390,9 +390,7 @@ const WaterDemandForm: React.FC = () => {
   // Function to update the total demand
   const updateTotalDemand = () => {
     if (!forecastData) return;
-    
     const totalDemand: { [year: string]: number } = {};
-    
     Object.keys(forecastData).sort().forEach(year => {
       const domesticVal = domesticChecked && domesticDemand?.[year] ? domesticDemand[year] : 0;
       const floatingVal = floatingChecked && floatingDemand?.[year] ? floatingDemand[year] : 0;
@@ -401,10 +399,8 @@ const WaterDemandForm: React.FC = () => {
         firefightingChecked && selectedFirefightingMethod && firefightingDemand?.[selectedFirefightingMethod]?.[year]
           ? firefightingDemand[selectedFirefightingMethod][year]
           : 0;
-          
       totalDemand[year] = domesticVal + floatingVal + institutionalVal + firefightingVal;
     });
-    
     // Store in window object for other components to access
     (window as any).totalWaterDemand = totalDemand;
   };

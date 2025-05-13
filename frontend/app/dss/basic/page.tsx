@@ -277,35 +277,42 @@ const Basic: React.FC = () => {
 
         {/* Navigation buttons */}
         {selectedLocationData && (
-          <div className="mt-6 flex justify-between">
-            <div className="flex space-x-4">
-              <button
-                className={`${currentStep === 0 || currentStep === 3 ? "bg-gray-600 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"} text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-                disabled={currentStep === 0 || currentStep === 3}
-                onClick={handleSkip}
-              >
-                Skip
+  <div className="mt-6 mb-6 ml-2 mr-36 border border-gray-300 rounded-xl shadow-md p-4 px-4  hover:shadow-lg transition-shadow duration-300">
+    <div className="flex justify-between items-center">
+      <div className="flex space-x-4">
+        <button
+          className={`${
+            currentStep === 0 || currentStep === 3
+              ? "bg-gray-600 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700"
+          } text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+          disabled={currentStep === 0 || currentStep === 3}
+          onClick={handleSkip}
+        >
+          Skip
+        </button>
 
-              </button>
-
-              {currentStep > 0 && (
-                <button
-                  className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
-                  onClick={handlePrevious}
-                >
-                  Previous
-                </button>
-              )}
-            </div>
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 mr-20 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-              onClick={currentStep === 3 ? handleFinish : handleNext}
-              disabled={currentStep === 3 && completedSteps.includes(3)}
-            >
-              {currentStep === 3 ? "Finish" : "Save and Next"}
-            </button>
-          </div>
+        {currentStep > 0 && (
+          <button
+            className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+            onClick={handlePrevious}
+          >
+            Previous
+          </button>
         )}
+      </div>
+
+      <button
+        className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+        onClick={currentStep === 3 ? handleFinish : handleNext}
+        disabled={currentStep === 3 && completedSteps.includes(3)}
+      >
+        {currentStep === 3 ? "Finish" : "Save and Next"}
+      </button>
+    </div>
+  </div>
+)}
+
       </div>
     </div>
   )
