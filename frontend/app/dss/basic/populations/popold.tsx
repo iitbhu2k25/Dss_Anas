@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react"
 
 import TimeMethods from "./components/timeseries";
 import DemographicPopulation, { DemographicData } from "./components/demographic";
+import Cohort from "./components/cohort"; // Import the Cohort component
 import dynamic from "next/dynamic";
 import { Info } from "lucide-react";
 
@@ -19,17 +20,34 @@ interface SubDistrict {
     name: string;
     districtId: number;
 }
+
+interface CohortData {
+    year: number;
+    data: {
+        [ageGroup: string]: {
+            male: number;
+            female: number;
+            total: number;
+        };
+    };
+}
+
 interface PopulationProps {
     villages_props: Village[];
     subDistricts_props: SubDistrict[];
     totalPopulation_props: number;
     demographicData?: DemographicData; // New prop to receive demographic data
+    state_props?: { id: string; name: string }; // Added for cohort API
+    district_props?: { id: string; name: string }; // Added for cohort API
 }
+
 const Population: React.FC<PopulationProps> = ({
     villages_props,
     subDistricts_props,
     totalPopulation_props,
-    demographicData
+    demographicData,
+    state_props,
+    district_props
 }) => {
     const [single_year, setSingleYear] = useState<number | null>(null);
     const [range_year_start, setRangeYearStart] = useState<number | null>(null);
@@ -45,6 +63,8 @@ const Population: React.FC<PopulationProps> = ({
     // Add state for results
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any | null>(null);
+    const [cohortData, setCohortData] = useState<CohortData[] | null>(null); // New state for cohort data
+    const [cohortPopulationData, setCohortPopulationData] = useState<{ [year: string]: number } | null>(null); // New state for cohort population data
     const [selectedMethod, setSelectedMethodd] = useState<string>("");
     const [localDemographicData, setLocalDemographicData] = useState<DemographicData>(demographicData || {
         annualBirthRate: "",
@@ -52,6 +72,9 @@ const Population: React.FC<PopulationProps> = ({
         annualEmigrationRate: "",
         annualImmigrationRate: ""
     });
+
+    // Flag to track if cohort request is pending
+    const [cohortRequestPending, setCohortRequestPending] = useState(false);
 
     // Update input mode when user interacts with fields
     useEffect(() => {
@@ -165,10 +188,29 @@ const Population: React.FC<PopulationProps> = ({
         }
     }, [selectedMethod, results]);
 
+    // Function to extract total population from cohort data
+    const extractCohortPopulation = (cohortDataArray: CohortData[]) => {
+        if (!cohortDataArray || cohortDataArray.length === 0) return null;
+
+        const populationByYear: { [year: string]: number } = {};
+
+        cohortDataArray.forEach(cohortItem => {
+            let totalPop = 0;
+
+            // Sum up all age groups for this year
+            Object.values(cohortItem.data).forEach(ageGroup => {
+                totalPop += ageGroup.total;
+            });
+
+            populationByYear[cohortItem.year.toString()] = totalPop;
+        });
+
+        return populationByYear;
+    };
 
     //////////////////////////
 
-////////////This api call for special case of 2025 population and save window.selectedPopulationMethod and used in sewage drain basis calculation
+    ////////////This api call for special case of 2025 population and save window.selectedPopulationMethod and used in sewage drain basis calculation
     // This function will make a separate API call to always get the 2025 population based on the selected method
     useEffect(() => {
         // Only proceed if we have a selected method
@@ -196,6 +238,28 @@ const Population: React.FC<PopulationProps> = ({
                         "emigrationRate": localDemographicData.annualEmigrationRate === "" ? null : localDemographicData.annualEmigrationRate,
                         "immigrationRate": localDemographicData.annualImmigrationRate === "" ? null : localDemographicData.annualImmigrationRate
                     } : null
+                };
+            } else if (selectedMethod.toLowerCase().includes('cohort')) {
+                // Handle cohort method for 2025
+                apiEndpoint = 'http://localhost:9000/api/basic/cohort/';
+
+                requestBody = {
+                    "start_year": null,
+                    "end_year": null,
+                    "year": 2025,
+                    "state_props": state_props,
+                    "district_props": district_props,
+                    "subdistrict_props": subDistricts_props.length > 0 ? {
+                        id: subDistricts_props[0].id.toString(),
+                        name: subDistricts_props[0].name
+                    } : undefined,
+                    "villages_props": villages_props.map(village => ({
+                        id: village.id.toString(),
+                        name: village.name,
+                        subDistrictId: village.subDistrictId.toString(),
+                        subDistrictName: subDistricts_props.find(sd => sd.id === village.subDistrictId)?.name || "",
+                        districtName: district_props?.name || ""
+                    }))
                 };
             } else {
                 // For all non-demographic methods
@@ -235,8 +299,23 @@ const Population: React.FC<PopulationProps> = ({
                         window.population2025 = null;
                         window.selectedPopulationForecast2025 = null;
 
+                        // Handle cohort response
+                        if (selectedMethod.toLowerCase().includes('cohort')) {
+                            if (result.cohort) {
+                                let totalPop = 0;
+                                // Sum up all age groups for this year
+                                Object.values(result.cohort.data).forEach((ageGroup: any) => {
+                                    totalPop += ageGroup.total;
+                                });
+
+                                window.population2025 = totalPop;
+                                window.selectedPopulationForecast2025 = totalPop;
+                                window.selectedMethod = "Cohort";
+                                console.log("2025 Cohort Population:", window.population2025);
+                            }
+                        }
                         // Handle demographic response differently
-                        if (selectedMethod.toLowerCase().includes('demographic')) {
+                        else if (selectedMethod.toLowerCase().includes('demographic')) {
                             // For demographic, we need to navigate the specific structure
                             // Find the Demographic key in results
                             if (result.Demographic) {
@@ -342,9 +421,55 @@ const Population: React.FC<PopulationProps> = ({
             }
         }
     }, [selectedMethod, localDemographicData]);
-///end of special case 2025 
-///////////////////////////////////
+    ///end of special case 2025 
+    ///////////////////////////////////
 
+    // Process cohort data and update state
+    const processCohortData = async (cohortApiRequests) => {
+        try {
+            const yearResponses = await Promise.all(cohortApiRequests);
+            // Process each year's response
+            const allCohortData: CohortData[] = [];
+
+            for (const yearResponse of yearResponses) {
+                const { year, data } = yearResponse;
+                const responseData = await data;
+
+                if (responseData.cohort) {
+                    allCohortData.push(responseData.cohort);
+                }
+            }
+
+            // Sort cohort data by year
+            allCohortData.sort((a, b) => a.year - b.year);
+
+            // Update state with all cohort data
+            setCohortData(allCohortData);
+
+            // Extract total population from cohort data
+            const cohortPopulation = extractCohortPopulation(allCohortData);
+            setCohortPopulationData(cohortPopulation);
+
+            // Add cohort population data to results
+            if (cohortPopulation && Object.keys(cohortPopulation).length > 0) {
+                setResults(prevResults => {
+                    if (prevResults) {
+                        return {
+                            ...prevResults,
+                            "Cohort": cohortPopulation
+                        };
+                    }
+                    return prevResults;
+                });
+            }
+
+            // Reset cohort request pending flag
+            setCohortRequestPending(false);
+        } catch (error) {
+            console.error("Error processing cohort data:", error);
+            setCohortRequestPending(false);
+        }
+    };
 
     // Handle form submission - in a real app, you would make an API call here
     const handleSubmit = async () => {
@@ -353,6 +478,7 @@ const Population: React.FC<PopulationProps> = ({
             console.log("methods", methods);
             if (!isMethodSelected) {
                 setError('Please select at least one method');
+                setLoading(false);
                 return;
             }
 
@@ -381,7 +507,6 @@ const Population: React.FC<PopulationProps> = ({
                 );
                 requestTypes.push('timeseries');
             }
-
 
             if (methods.demographic) {
                 requests.push(
@@ -412,7 +537,72 @@ const Population: React.FC<PopulationProps> = ({
                 requestTypes.push('demographic');
             }
 
+            // Updated cohort API request handling for range of years
+            if (methods.cohort) {
+                // Set cohort request as pending to prevent double submissions
+                setCohortRequestPending(true);
 
+                const cohortYears = [];
+
+                // If single year is specified, use it
+                if (single_year !== null) {
+                    cohortYears.push(single_year);
+                }
+                // If range years are specified, create an array with all years in the range
+                else if (range_year_start !== null && range_year_end !== null) {
+                    // Create an array with all years in the range (inclusive)
+                    for (let year = range_year_start; year <= range_year_end; year++) {
+                        cohortYears.push(year);
+                    }
+                }
+                // Only use default if neither single nor range years are specified
+                else {
+                    cohortYears.push(2036);
+                }
+
+                // Reset cohort data
+                setCohortData(null);
+                const cohortApiRequests = [];
+
+                // Create multiple requests for each year
+                cohortYears.forEach(year => {
+                    cohortApiRequests.push(
+                        fetch('http://localhost:9000/api/basic/cohort/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                "start_year": null,
+                                "end_year": null,
+                                "year": year,
+                                "state_props": state_props,
+                                "district_props": district_props,
+                                "subdistrict_props": subDistricts_props.length > 0 ? {
+                                    id: subDistricts_props[0].id.toString(),
+                                    name: subDistricts_props[0].name
+                                } : undefined,
+                                "villages_props": villages_props.map(village => ({
+                                    id: village.id.toString(),
+                                    name: village.name,
+                                    subDistrictId: village.subDistrictId.toString(),
+                                    subDistrictName: subDistricts_props.find(sd => sd.id === village.subDistrictId)?.name || "",
+                                    districtName: district_props?.name || ""
+                                }))
+                            })
+                        }).then(response => {
+                            if (!response.ok) throw new Error(`Cohort API error: ${response.status}`);
+                            return { year, data: response.json() };
+                        })
+                    );
+                });
+
+                // Process all cohort API requests separately
+                if (cohortApiRequests.length > 0) {
+                    // Start processing cohort data - this is now separated into its own function
+                    processCohortData(cohortApiRequests);
+                }
+            }
 
             if (requests.length > 0) {
                 try {
@@ -429,9 +619,11 @@ const Population: React.FC<PopulationProps> = ({
                             result = { ...result, ...response };
                         }
                         else if (requestType === 'demographic') {
-                            // For demographic data, make sure to access the population data correctly
-                            if (response.demographic) {
-                                result = { ...result, Demographic: response.demographic };
+                            // For demographic data, properly add it to the result object
+                            if (response.Demographic) {
+                                result.Demographic = response.Demographic;
+                            } else if (response.demographic) {
+                                result.Demographic = response.demographic;
                             }
 
                             // If demographic response also contains population data
@@ -441,13 +633,18 @@ const Population: React.FC<PopulationProps> = ({
 
                             // If the demographic endpoint returns population forecasts directly
                             const populationKeys = Object.keys(response).filter(key =>
-                                key !== 'demographic' && typeof response[key] === 'object');
+                                key !== 'demographic' && key !== 'Demographic' && typeof response[key] === 'object');
 
                             populationKeys.forEach(key => {
                                 result[key] = response[key];
                             });
                         }
                     });
+
+                    // Add cohort data if available
+                    if (cohortPopulationData) {
+                        result["Cohort"] = cohortPopulationData;
+                    }
 
                     console.log("Final Merged Result:", result);
                     setResults(result);
@@ -457,8 +654,15 @@ const Population: React.FC<PopulationProps> = ({
                     let maxPopulation = -Infinity;
 
                     Object.keys(result).forEach((method) => {
-                        // Skip the Demographic key when calculating population
-                        if (method === 'Demographic') return;
+                        // We'll include Demographic in the methods selection - change from original code
+                        if (method === 'Demographic' && typeof result[method] === 'object') {
+                            const totalPop = Object.values(result[method]).reduce((sum: number, val: number) => sum + val, 0);
+                            if (totalPop > maxPopulation) {
+                                maxPopulation = totalPop;
+                                maxMethod = method;
+                            }
+                            return; // Continue to next method after processing Demographic
+                        }
 
                         const methodData = result[method];
                         // Check if method data is an object with population values
@@ -473,13 +677,7 @@ const Population: React.FC<PopulationProps> = ({
 
                     // If no population method was found but we have demographic data, use a fallback
                     if (maxMethod === "" && result.Demographic) {
-                        // Look for any key that might contain population data
-                        const populationKeys = Object.keys(result).filter(key =>
-                            key !== 'Demographic' && typeof result[key] === 'object');
-
-                        if (populationKeys.length > 0) {
-                            maxMethod = populationKeys[0];
-                        }
+                        maxMethod = "Demographic";
                     }
 
                     const finalMethod = selectedMethod ? selectedMethod : maxMethod;
@@ -491,16 +689,24 @@ const Population: React.FC<PopulationProps> = ({
 
                 } catch (error) {
                     console.error("Error fetching data:", error);
+                    setError('Failed to fetch data. Please try again.');
                 }
                 finally {
-                    setLoading(false)
+                    // Only set loading to false if cohort requests are not pending
+                    if (!methods.cohort || !cohortRequestPending) {
+                        setLoading(false);
+                    }
                 }
+            } else if (methods.cohort) {
+                // If only cohort method is selected, loading state will be managed by the cohort processing
             } else {
                 console.warn("No method selected. Skipping API calls.");
+                setLoading(false);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
             setError('Failed to fetch data. Please try again.');
+            setLoading(false);
         }
     };
 
@@ -509,11 +715,20 @@ const Population: React.FC<PopulationProps> = ({
         if (!data) return [];
         const allYears = new Set<number>();
 
-        Object.values(data).forEach((model: any) => {
-            Object.keys(model).forEach((year) => {
-                const yearNum = Number(year);
-                allYears.add(yearNum); // Exclude 2011
-            });
+        Object.keys(data).forEach((modelName) => {
+            const model = data[modelName];
+            if (modelName !== 'Demographic' && typeof model === 'object') {
+                Object.keys(model).forEach((year) => {
+                    const yearNum = Number(year);
+                    allYears.add(yearNum); // Exclude 2011
+                });
+            } else if (modelName === 'Demographic' && typeof model === 'object') {
+                // Also include years from Demographic data
+                Object.keys(model).forEach((year) => {
+                    const yearNum = Number(year);
+                    allYears.add(yearNum);
+                });
+            }
         });
 
         return Array.from(allYears).sort((a, b) => a - b);
@@ -544,7 +759,7 @@ const Population: React.FC<PopulationProps> = ({
                             id="single-year"
                             type="number"
                             className={`w-32 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 
-                                   ${inputMode === 'range' ? 'bg-gray-200 cursor-not-allowed' : 'focus:ring-blue-500 border-gray-300'}`}
+                                ${inputMode === 'range' ? 'bg-gray-200 cursor-not-allowed' : 'focus:ring-blue-500 border-gray-300'}`}
                             value={single_year === null ? '' : single_year}
                             onChange={handleSingleYearChange}
                             placeholder="Year"
@@ -565,7 +780,7 @@ const Population: React.FC<PopulationProps> = ({
                             id="range-start"
                             type="number"
                             className={`w-32 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 
-                                      ${inputMode === 'single' ? 'bg-gray-200 cursor-not-allowed' : 'focus:ring-blue-500 border-gray-300'}`}
+                                   ${inputMode === 'single' ? 'bg-gray-200 cursor-not-allowed' : 'focus:ring-blue-500 border-gray-300'}`}
                             value={range_year_start === null ? '' : range_year_start}
                             onChange={handleRangeStartChange}
                             placeholder="Start"
@@ -584,7 +799,7 @@ const Population: React.FC<PopulationProps> = ({
                             id="range-end"
                             type="number"
                             className={`w-32 border rounded-md px-3 py-2 focus:outline-none focus:ring-2 
-                                      ${inputMode === 'single' ? 'bg-gray-200 cursor-not-allowed' : 'focus:ring-blue-500 border-gray-300'}`}
+                                   ${inputMode === 'single' ? 'bg-gray-200 cursor-not-allowed' : 'focus:ring-blue-500 border-gray-300'}`}
                             value={range_year_end === null ? '' : range_year_end}
                             onChange={handleRangeEndChange}
                             placeholder="End"
@@ -612,7 +827,7 @@ const Population: React.FC<PopulationProps> = ({
                         />
                         <span className="ml-2 text-gray-700">Time Series</span>
                     </label>
-                    
+
                     <label className="inline-flex items-center">
                         <input
                             type="checkbox"
@@ -629,7 +844,16 @@ const Population: React.FC<PopulationProps> = ({
                             checked={methods.cohort}
                             onChange={() => handleMethodChange('cohort')}
                         />
-                        <span className="ml-2 text-gray-700">Cohort</span>
+
+                        <label className="block text-sm font-medium flex items-center">
+                            <span className="ml-2 text-gray-700">Cohort</span>
+                            <div className="relative ml-1 group">
+                                <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 text-white rounded-full cursor-help">i</span>
+                                <div className="absolute z-10 hidden group-hover:block w-64  text-red text-xs rounded p-0 -mt-12 ml-6">
+                                    Cohort Data only available for a 2011 to 2035 till now and if you go beyond that range then it will shown zero (0) or NaNa
+                                </div>
+                            </div>
+                        </label>
                     </label>
                 </div>
                 {!isMethodSelected && (
@@ -652,14 +876,15 @@ const Population: React.FC<PopulationProps> = ({
                         initialData={demographicData} // Use the props data, not the local state!
                     />
                 </div>
-            )} {/* Add DemographicMethods component here.}
+            )}
 
             {/* Submit Button */}
             <div className="mt-6">
                 <button
-                    className={`bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center justify-center gap-2`}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center justify-center gap-2"
                     disabled={
                         loading || // Disable button when loading
+                        cohortRequestPending || // Also disable when cohort request is pending
                         (inputMode === 'single' && (single_year === null || single_year < 2011 || single_year > 2099)) ||
                         (inputMode === 'range' && (range_year_start === null || range_year_end === null ||
                             range_year_start < 2011 || range_year_start > 2099 ||
@@ -670,60 +895,65 @@ const Population: React.FC<PopulationProps> = ({
                     }
                     onClick={handleSubmit}
                 >
-                    {loading ? (
+                    {loading || cohortRequestPending ? (
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                     ) : (
                         "Calculate"
                     )}
                 </button>
-
             </div>
 
             {/* Results Table */}
 
-
-
             {/* Show Table */}
             {results && (
-                <div className="mt-8 max-w-4xl ">
-                    <h2 className="text-3xl font-bold text-blue-800 mb-6 ">Population Data</h2>
+                <div className="mt-8 max-w-4xl">
+                    <h2 className="text-3xl font-bold text-blue-800 mb-6">Population Data</h2>
 
                     {/* Scrollable Table Container */}
-                    <div className="table-container overflow-x-auto border border-gray-200 rounded-xl shadow-lg bg-white">
-                        <table className="w-full min-w-[600px] border-collapse">
-                            <thead className="bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700">
-                                <tr>
-                                    <th className="border-b px-6 py-4 text-left font-semibold text-sm w-28">Year</th>
-                                    {Object.keys(results).map((method) => (
-                                        <th
-                                            key={method}
-                                            className="border-b px-6 py-4 text-center font-semibold text-sm"
-                                        >
-                                            {method}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {getYears(results).map((year, index) => (
-                                    <tr
-                                        key={year}
-                                        className={`border-b hover:bg-gray-50 transition-colors ${index % 2 === 0 ? "bg-gray-50/50" : "bg-white"
-                                            }`}
-                                    >
-                                        <td className="border-b px-6 py-4 font-medium text-gray-800">{year}</td>
-                                        {Object.keys(results).map((method) => (
-                                            <td
-                                                key={`${method}-${year}`}
-                                                className="border-b px-6 py-4 text-center text-gray-600"
-                                            >
-                                                {results[method][year] ?? "-"}
-                                            </td>
-                                        ))}
+                    <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-lg bg-white">
+                        <div className="max-h-96 overflow-y-auto">
+                            <table className="w-full min-w-[600px] border-collapse">
+                                <thead className="sticky top-0 z-10 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700">
+                                    <tr>
+                                        <th className="border-b px-6 py-4 text-left font-semibold text-sm w-28">Year</th>
+                                        {Object.keys(results).map(
+                                            (method) => (
+                                                <th
+                                                    key={method}
+                                                    className="border-b px-6 py-4 text-center font-semibold text-sm"
+                                                >
+                                                    {method}
+                                                </th>
+                                            )
+                                        )}
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {getYears(results).map((year, index) => (
+                                        <tr
+                                            key={year}
+                                            className={`border-b hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-gray-50/50' : 'bg-white'
+                                                }`}
+                                        >
+                                            <td className="border-b px-6 py-4 font-medium text-gray-800">{year}</td>
+                                            {Object.keys(results).map(
+                                                (method) => (
+                                                    <td
+                                                        key={`${method}-${year}`}
+                                                        className="border-b px-6 py-4 text-center text-gray-600"
+                                                    >
+                                                        {method === 'Demographic' ?
+                                                            results[method][year] ?? '-' :
+                                                            results[method][year] ?? '-'}
+                                                    </td>
+                                                )
+                                            )}
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* Radio Buttons Below Table */}
@@ -735,8 +965,8 @@ const Population: React.FC<PopulationProps> = ({
                             <div className="relative group">
                                 <Info className="w-5 h-5 text-blue-600 cursor-pointer" />
 
-                                <div className="absolute left-1/2 -translate-x-1/2 top-full mb-10 -mt-11 ml-50 w-max max-w-xs  text-black text-sm rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out z-10 pointer-events-none">
-                                    This method’s data will be used in further analysis.
+                                <div className="absolute left-1/2 -translate-x-1/2 top-full mb-10 -mt-11 ml-50 w-max max-w-xs text-black text-sm rounded-lg shadow-lg px-3 py-2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out z-10 pointer-events-none">
+                                    This method's data will be used in further analysis.
                                 </div>
                             </div>
                         </div>
@@ -753,10 +983,9 @@ const Population: React.FC<PopulationProps> = ({
                                         value={method}
                                         checked={selectedMethod === method}
                                         onChange={() => {
-                                            setSelectedMethodd(method); // Fix typo from setSelectedMethodd
+                                            setSelectedMethodd(method);
                                             window.selectedPopulationMethod = method;
                                         }}
-
                                         className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 transition"
                                     />
                                     <span className="text-gray-700 font-medium group-hover:text-blue-600 transition">
@@ -769,12 +998,13 @@ const Population: React.FC<PopulationProps> = ({
                 </div>
             )}
 
-            {/* Show Chart */}
+            {/* Show Cohort Data Tables */}
+            {cohortData && cohortData.length > 0 && <Cohort cohortData={cohortData} />}
 
+            {/* Show Chart */}
             {results && <PopulationChart results={results} />}
 
         </div>
-
     )
 }
 
