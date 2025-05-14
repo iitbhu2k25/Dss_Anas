@@ -67,6 +67,8 @@ const WaterDemandForm: React.FC = () => {
   const [institutionalInputMode, setInstitutionalInputMode] = useState<'manual' | 'total'>('manual');
   const [totalInstitutionalDemand, setTotalInstitutionalDemand] = useState<string>("0");
 
+  
+
   // Institutional fields (sample fields; add more as needed)
   const [institutionalFields, setInstitutionalFields] = useState<InstitutionalFields>({
     hospitals100Units: "0",
@@ -133,6 +135,7 @@ const WaterDemandForm: React.FC = () => {
   
   // Add a state to track if initial calculation has been performed
   const [initialCalculationDone, setInitialCalculationDone] = useState(false);
+  const [lastForecastData, setLastForecastData] = useState<{ [year: string]: number } | null>(null);
 
   
   const forecastData = (window as any).selectedPopulationForecast;
@@ -242,6 +245,31 @@ const WaterDemandForm: React.FC = () => {
   useEffect(() => {
     updateTotalDemand();
   }, [domesticDemand, floatingDemand, institutionalDemand, firefightingDemand, selectedFirefightingMethod]);
+
+    // New useEffect to detect changes in forecastData------------------------h
+    useEffect(() => {
+      // Only run if initialCalculationDone is true to avoid unnecessary calculations on mount
+      if (initialCalculationDone && forecastData !== lastForecastData) {
+        // Update lastForecastData
+        setLastForecastData(forecastData);
+  
+        // Trigger calculations for enabled components
+        if (domesticChecked) {
+          calculateDomesticDemand();
+        }
+        if (floatingChecked) {
+          calculateFloatingDemand();
+        }
+        if (institutionalChecked) {
+          calculateInstitutionalDemand();
+        }
+        if (firefightingChecked) {
+          calculateFirefightingDemand();
+        }
+      }
+    }, [forecastData, initialCalculationDone]);
+
+
 
   // Function to calculate domestic water demand
   const calculateDomesticDemand = async () => {

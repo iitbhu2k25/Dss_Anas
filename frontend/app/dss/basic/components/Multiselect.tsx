@@ -43,7 +43,7 @@ export const MultiSelect = <T extends Item>({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+
   // Handle outside click to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -51,22 +51,22 @@ export const MultiSelect = <T extends Item>({
         setIsOpen(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-  
+
   // Filter items based on search term
-  const filteredItems = items.filter(item => 
+  const filteredItems = items.filter(item =>
     displayPattern(item).toLowerCase().includes(searchTerm.toLowerCase())
   );
-  
+
   // Group items if groupBy function is provided
   const groupedItems = groupBy ? groupBy(filteredItems) : null;
   const nestedGroupedItems = nestedGroupBy && useNestedGroups ? nestedGroupBy(filteredItems) : null;
-  
+
   // Toggle all items
   const handleToggleAll = () => {
     if (selectedItems.length === items.length) {
@@ -77,7 +77,7 @@ export const MultiSelect = <T extends Item>({
       onSelectionChange(items.map(item => item.id.toString()));
     }
   };
-  
+
   // Toggle a single item
   const handleToggleItem = (itemId: string) => {
     if (selectedItems.includes(itemId)) {
@@ -86,12 +86,12 @@ export const MultiSelect = <T extends Item>({
       onSelectionChange([...selectedItems, itemId]);
     }
   };
-  
+
   // Toggle all items in a group
   const handleToggleGroup = (groupItems: T[]) => {
     const groupItemIds = groupItems.map(item => item.id.toString());
     const allSelected = groupItemIds.every(id => selectedItems.includes(id));
-    
+
     if (allSelected) {
       // If all in group are selected, deselect them
       onSelectionChange(selectedItems.filter(id => !groupItemIds.includes(id)));
@@ -106,18 +106,18 @@ export const MultiSelect = <T extends Item>({
       onSelectionChange(newSelection);
     }
   };
-  
+
   // Determine if all items in a group are selected
   const isGroupSelected = (groupItems: T[]) => {
     return groupItems.every(item => selectedItems.includes(item.id.toString()));
   };
-  
+
   // Determine if some (but not all) items in a group are selected
   const isGroupPartiallySelected = (groupItems: T[]) => {
     const selected = groupItems.some(item => selectedItems.includes(item.id.toString()));
     return selected && !isGroupSelected(groupItems);
   };
-  
+
   // Display selected items summary
   const getSelectedDisplay = () => {
     if (selectedItems.length === 0) {
@@ -143,19 +143,18 @@ export const MultiSelect = <T extends Item>({
   const formatSubDistrictHeader = (subDistrictName: string) => {
     return subDistrictHeaderFormat.replace('{subDistrictName}', subDistrictName);
   };
-  
-  
+
+
   return (
     <div className="relative" ref={dropdownRef}>
       <label className="block text-sm font-semibold text-gray-700 mb-2">
         {label}:
       </label>
-      <div 
-        className={`p-2 border rounded-md cursor-pointer ${
-          disabled 
-            ? 'bg-blue-100 border-gray-300 cursor-not-allowed' 
+      <div
+        className={`p-2 border rounded-md cursor-pointer ${disabled
+            ? 'bg-blue-100 border-gray-300 cursor-not-allowed'
             : 'border-blue-500 focus:ring-2 focus:ring-blue-500'
-        }`}
+          }`}
         onClick={() => !disabled && setIsOpen(!isOpen)}
       >
         <div className="flex justify-between items-center">
@@ -163,11 +162,11 @@ export const MultiSelect = <T extends Item>({
             {getSelectedDisplay()}
           </div>
           <div>
-            <svg 
-              className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24" 
+            <svg
+              className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
               xmlns="http://www.w3.org/2000/svg"
             >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
@@ -175,7 +174,7 @@ export const MultiSelect = <T extends Item>({
           </div>
         </div>
       </div>
-      
+
       {isOpen && !disabled && (
         <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
           {/* Search Input */}
@@ -189,26 +188,23 @@ export const MultiSelect = <T extends Item>({
               onClick={(e) => e.stopPropagation()}
             />
           </div>
-          
+
           {/* Select All Option */}
-          <div 
+          <div
             className="p-2 hover:bg-gray-100 border-b border-gray-200 cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleAll();
-            }}
           >
             <label className="flex items-center space-x-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={selectedItems.length === items.length && items.length > 0}
-                onChange={() => {}}
+                onChange={() => handleToggleAll()}
                 className="form-checkbox h-4 w-4 text-blue-600"
               />
               <span className="text-sm font-medium">Select All</span>
             </label>
           </div>
-          
+
+
           {/* Nested Grouped Items (for Villages with District > SubDistrict structure) */}
           {useNestedGroups && nestedGroupedItems ? (
             Object.entries(nestedGroupedItems).sort(([a], [b]) => a.localeCompare(b)).map(([districtName, subDistrictGroups]) => (
@@ -217,17 +213,13 @@ export const MultiSelect = <T extends Item>({
                 <div className="p-2 bg-gray-100 font-medium text-sm">
                   {formatDistrictHeader(districtName)}
                 </div>
-                
+
                 {/* SubDistrict Groups */}
                 {Object.entries(subDistrictGroups).sort(([a], [b]) => a.localeCompare(b)).map(([subDistrictName, villages]) => (
                   <div key={`${districtName}-${subDistrictName}`} className="border-t border-gray-100">
                     {/* SubDistrict Header */}
-                    <div 
+                    <div
                       className="pl-4 p-2 bg-gray-50 hover:bg-gray-100 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleGroup(villages);
-                      }}
                     >
                       <label className="flex items-center space-x-2 cursor-pointer w-full">
                         <input
@@ -238,30 +230,26 @@ export const MultiSelect = <T extends Item>({
                               input.indeterminate = isGroupPartiallySelected(villages);
                             }
                           }}
-                          onChange={() => {}}
+                          onChange={() => handleToggleGroup(villages)}
                           className="form-checkbox h-4 w-4 text-blue-600"
                         />
                         <span className="text-sm font-medium">{formatSubDistrictHeader(subDistrictName)}</span>
                         <span className="text-xs text-gray-500">({villages.length})</span>
                       </label>
                     </div>
-                    
+
                     {/* Villages within SubDistrict */}
                     <div className="pl-8">
                       {villages.map(village => (
-                        <div 
+                        <div
                           key={village.id}
                           className="p-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleItem(village.id.toString());
-                          }}
                         >
                           <label className="flex items-center space-x-2 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={selectedItems.includes(village.id.toString())}
-                              onChange={() => {}}
+                              onChange={() => handleToggleItem(village.id.toString())}
                               className="form-checkbox h-4 w-4 text-blue-600"
                             />
                             <span className="text-sm">{displayPattern(village as unknown as T)}</span>
@@ -283,14 +271,10 @@ export const MultiSelect = <T extends Item>({
                     {formatGroupHeader(groupName)}
                   </div>
                 )}
-                
+
                 {/* Group Toggle */}
-                <div 
+                <div
                   className={`p-2 ${showGroupHeaders ? 'pl-4' : ''} ${showGroupHeaders ? 'bg-gray-50' : 'bg-gray-50'} hover:bg-gray-100 cursor-pointer`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleGroup(groupItems);
-                  }}
                 >
                   <label className="flex items-center space-x-2 cursor-pointer w-full">
                     <input
@@ -301,30 +285,26 @@ export const MultiSelect = <T extends Item>({
                           input.indeterminate = isGroupPartiallySelected(groupItems);
                         }
                       }}
-                      onChange={() => {}}
+                      onChange={() => handleToggleGroup(groupItems)}
                       className="form-checkbox h-4 w-4 text-blue-600"
                     />
                     <span className="text-sm font-medium">{showGroupHeaders ? 'Select All' : groupName}</span>
                     <span className="text-xs text-gray-500">({groupItems.length})</span>
                   </label>
                 </div>
-                
+
                 {/* Group Items */}
                 <div className={`${showGroupHeaders ? 'pl-8' : 'pl-6'}`}>
                   {groupItems.map(item => (
-                    <div 
+                    <div
                       key={item.id}
                       className="p-2 hover:bg-gray-100 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleItem(item.id.toString());
-                      }}
                     >
                       <label className="flex items-center space-x-2 cursor-pointer">
                         <input
                           type="checkbox"
                           checked={selectedItems.includes(item.id.toString())}
-                          onChange={() => {}}
+                          onChange={() => handleToggleItem(item.id.toString())}
                           className="form-checkbox h-4 w-4 text-blue-600"
                         />
                         <span className="text-sm">{displayPattern(item)}</span>
@@ -337,19 +317,15 @@ export const MultiSelect = <T extends Item>({
           ) : (
             // Flat list of items
             filteredItems.map(item => (
-              <div 
+              <div
                 key={item.id}
                 className="p-2 hover:bg-gray-100 cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleItem(item.id.toString());
-                }}
               >
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={selectedItems.includes(item.id.toString())}
-                    onChange={() => {}}
+                    onChange={() => handleToggleItem(item.id.toString())}
                     className="form-checkbox h-4 w-4 text-blue-600"
                   />
                   <span className="text-sm">{displayPattern(item)}</span>
@@ -357,7 +333,7 @@ export const MultiSelect = <T extends Item>({
               </div>
             ))
           )}
-          
+
           {filteredItems.length === 0 && (
             <div className="p-3 text-center text-gray-500 text-sm">
               No items found
