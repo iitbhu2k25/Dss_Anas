@@ -1151,3 +1151,104 @@ class MultipleSubdistrictsAPI(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
+
+
+
+#Below code for Drain based approach 
+
+#This os for to get rivers shapefile in drain based approach in basic module 
+class RiverMapAPI(APIView):
+    def get(self, request, *args, **kwargs):
+        try:
+            # Construct path to Rivers.shp
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'Drain_shp', 'Rivers')
+            shapefile_full_path = os.path.join(shapefile_path, 'Rivers.shp')
+
+            if not os.path.exists(shapefile_full_path):
+                return Response({'error': 'River shapefile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Read shapefile using GeoPandas
+            gdf = gpd.read_file(shapefile_full_path)
+
+            # Convert to GeoJSON
+            geojson_data = json.loads(gdf.to_json())
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+
+        except Exception as e: 
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)        
+        
+#this is for river stretch where we post River_Code and get json accordingly 
+
+class RiverStretched(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            # Get River_Code from request data
+            river_code = request.data.get('River_Code')
+            
+            if not river_code:
+                return Response({'error': 'River_Code is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Construct path to Stretches.shp
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'Drain_shp', 'River_Stretches')
+            shapefile_full_path = os.path.join(shapefile_path, 'Stretches.shp')
+
+            if not os.path.exists(shapefile_full_path):
+                return Response({'error': 'Stretches shapefile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Read shapefile using GeoPandas
+            gdf = gpd.read_file(shapefile_full_path)
+            
+            # Filter data based on River_Code
+            filtered_gdf = gdf[gdf['River_Code'] == river_code]
+            
+            if filtered_gdf.empty:
+                return Response({'error': f'No data found for River_Code: {river_code}'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Convert to GeoJSON
+            geojson_data = json.loads(filtered_gdf.to_json())
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+
+        except Exception as e: 
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)     
+
+#this is for drain where we post stretched id and get json accordingly of drain
+
+class Drain(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            # Get Stretch_ID(s) from request data
+            stretch_ids = request.data.get('Stretch_ID', [])
+            
+            # Check if stretch_ids is provided and is a list
+            if not stretch_ids:
+                return Response({'error': 'Stretch_ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Convert to list if a single ID is provided
+            if not isinstance(stretch_ids, list):
+                stretch_ids = [stretch_ids]
+            
+            # Construct path to Stretches.shp
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'Drain_shp', 'Drains')
+            shapefile_full_path = os.path.join(shapefile_path, 'Drain.shp')
+
+            if not os.path.exists(shapefile_full_path):
+                return Response({'error': 'Stretches shapefile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Read shapefile using GeoPandas
+            gdf = gpd.read_file(shapefile_full_path)
+            
+            # Filter data based on multiple Stretch_IDs
+            filtered_gdf = gdf[gdf['Stretch_ID'].isin(stretch_ids)]
+            
+            if filtered_gdf.empty:
+                return Response({'error': f'No data found for the provided Stretch_IDs'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Convert to GeoJSON
+            geojson_data = json.loads(filtered_gdf.to_json())
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+
+        except Exception as e: 
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

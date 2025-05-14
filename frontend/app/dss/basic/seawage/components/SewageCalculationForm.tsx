@@ -50,6 +50,18 @@ const SewageCalculationForm: React.FC = () => {
   const [drainCount, setDrainCount] = useState<number | ''>(1);
   const [drainItems, setDrainItems] = useState<DrainItem[]>([]);
   const [totalDrainDischarge, setTotalDrainDischarge] = useState<number>(0);
+  // -----------h
+  const [previousTotalWaterSupply, setpreviousTotalWaterSupply] = useState<number>(0);
+
+  const [checkboxes, setCheckboxes] = useState({
+    populationForecasting: false,
+    waterDemand: false,
+    waterSupply: false,
+    sewageCalculation: false,
+    rawSewageCharacteristics: false,
+  });
+
+
   const computedPopulation: { [year: string]: number } = (window as any).selectedPopulationForecast || {};
   const [pollutionItemsState, setPollutionItemsState] = useState<PollutionItem[]>(defaultPollutionItems);
   const [rawSewageTable, setRawSewageTable] = useState<JSX.Element | null>(null);
@@ -60,12 +72,28 @@ const SewageCalculationForm: React.FC = () => {
     babbitt: false,
   });
 
-  // --- Initialize Total Water Supply ---
+
+const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => checked);
+
+  // // --- Initialize Total Water Supply ---
+  // useEffect(() => {
+  //   if ((window as any).totalWaterSupply) {
+  //     setTotalSupplyInput(Number((window as any).totalWaterSupply));
+  //   }
+  // }, []);
+
+  // --- Initialize and Update Total Water Supply ---
   useEffect(() => {
-    if ((window as any).totalWaterSupply) {
-      setTotalSupplyInput(Number((window as any).totalWaterSupply));
+    if ((window as any).totalWaterSupply !== undefined) {
+      // Only set the default value if the input is empty or hasn't been manually changed
+      if (totalSupplyInput === '' || totalSupplyInput === (window as any).previousTotalWaterSupply) {
+        const newSupply = Number((window as any).totalWaterSupply);
+        setTotalSupplyInput(newSupply);
+        // Store the value to track if it was set programmatically
+        (window as any).previousTotalWaterSupply = newSupply;
+      }
     }
-  }, []);
+  }, [(window as any).totalWaterSupply]);
 
   // --- Update Drain Items ---
   useEffect(() => {
@@ -227,9 +255,9 @@ const SewageCalculationForm: React.FC = () => {
   };
 
 
-   
+
   const getHarmonFactor = (pop: number) => 1 + 14 / (4 + Math.sqrt(pop / 1000));
-  const getBabbittFactor = (pop: number) => 5 / (pop/1000)**0.2;
+  const getBabbittFactor = (pop: number) => 5 / (pop / 1000) ** 0.2;
 
   const calculateDrainBasedSewFlow = (popVal: number) => {
     if (totalDrainDischarge <= 0) return 0;
@@ -239,6 +267,18 @@ const SewageCalculationForm: React.FC = () => {
     }
     return totalDrainDischarge;
   };
+  // -------------------------h
+  const calculatewaterBasedSewFlow = (popVal: number) => {
+    if (totalSupplyInput == 0) return 0;
+    const referencePopulation = (window as any).population2025;
+    if (referencePopulation && referencePopulation > 0) {
+      return (popVal / referencePopulation) * totalSupplyInput;
+    }
+    return totalSupplyInput;
+  };
+
+
+
 
   const handleCalculatePeakFlow = () => {
     if (!computedPopulation || (!waterSupplyResult && !domesticSewageResult)) {
@@ -358,9 +398,9 @@ const SewageCalculationForm: React.FC = () => {
                 const newVal = Number(e.target.value);
                 setPollutionItemsState(prev => {
                   const newItems = [...prev];
-                  newItems[index] = { 
-                    ...newItems[index], 
-                    designCharacteristic: newVal 
+                  newItems[index] = {
+                    ...newItems[index],
+                    designCharacteristic: newVal
                   };
                   return newItems;
                 });
@@ -435,9 +475,9 @@ const SewageCalculationForm: React.FC = () => {
                       const newVal = Number(e.target.value);
                       setPollutionItemsState(prev => {
                         const newItems = [...prev];
-                        newItems[index] = { 
-                          ...newItems[index], 
-                          designCharacteristic: newVal 
+                        newItems[index] = {
+                          ...newItems[index],
+                          designCharacteristic: newVal
                         };
                         return newItems;
                       });
@@ -509,7 +549,7 @@ const SewageCalculationForm: React.FC = () => {
 
   const handle1pdfDownload = () => {
     const doc = new jsPDF();
-    
+
     const addLogos = async () => {
       try {
         const iitLogo = new Image();
@@ -881,22 +921,28 @@ const SewageCalculationForm: React.FC = () => {
         } else {
           const sewageRows = Object.entries(domesticSewageResult).map(([year, value]: [string, unknown]) => {
             const popValue = computedPopulation[year] || 0;
+            const waterSewage = calculatewaterBasedSewFlow(popValue);
             if (domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) {
               const drainSewage = calculateDrainBasedSewFlow(popValue);
               return [
                 year,
                 popValue.toLocaleString(),
                 `${Number(value).toFixed(2)} MLD`,
+                waterSewage > 0 ? `${waterSewage.toFixed(2)} MLD` : '0.00 MLD',
                 `${drainSewage.toFixed(2)} MLD`
               ];
             }
             return [
               year,
               popValue.toLocaleString(),
-              `${Number(value).toFixed(2)} MLD`
+              `${Number(value).toFixed(2)} MLD`,
+              waterSewage > 0 ? `${waterSewage.toFixed(2)} MLD` : '0.00 MLD'
             ];
           });
           let headers = ["Year", "Population", "Sewage Generation (MLD)"];
+          if ((window as any).totalWaterSupply > 0) {
+            headers.push("Water Based Sewage (MLD)");
+          }
           if (domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) {
             headers.push("Drain-Based Sewage (MLD)");
           }
@@ -1094,10 +1140,19 @@ const SewageCalculationForm: React.FC = () => {
     });
   };
 
+    // --- Handler for Checkbox Changes ---
+  const handleCheckboxChange = (key: keyof typeof checkboxes) => {
+    setCheckboxes(prev => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  };
+
+
   return (
     <div className="p-4 border rounded bg-white space-y-8">
       <h3 className="text-xl font-semibold mb-3">Sewage Calculation</h3>
-      
+
       {/* Water Supply Method Container */}
       <div className="p-4 border rounded bg-gray-50">
         <h4 className="text-lg font-semibold mb-3">Water Supply Method</h4>
@@ -1144,6 +1199,30 @@ const SewageCalculationForm: React.FC = () => {
             )}
           </div>
         )}
+      </div>
+
+      {/* Drain Tapping Input */}
+      <div className="mb-4 p-3 border rounded bg-gray-50">
+        <h4 className="font-bold text-gray-700 mb-2">Drain Tapping Information</h4>
+        <label className="block text-sm font-medium flex items-center">
+          Number Of Drains to be Tapped
+          <div className="relative ml-1 group">
+            <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
+            <div className="absolute z-10 hidden group-hover:block w-64 text-red text-xs rounded p-0 -mt-12 ml-6">
+              The number you enter indicates how many drain discharge entries are needed
+            </div>
+          </div>
+        </label>
+        <input
+          type="number"
+          id="drain_count"
+          value={drainCount}
+          onChange={handleDrainCountChange}
+          className="mt-1 block w-1/3 border rounded px-2 py-1"
+          placeholder="Enter number of drains"
+          min="0"
+        />
+        {drainCount && drainCount > 0 && drainItemsTableJSX}
       </div>
 
       {/* Domestic Sewage Load Estimation Container */}
@@ -1202,7 +1281,7 @@ const SewageCalculationForm: React.FC = () => {
         </div>
         {domesticSewageResult && (
           <div className="mt-4 p-3 border rounded bg-green-50">
-            <h4 className ="font-bold text-green-700">Sewage Generation (Domestic):</h4>
+            <h4 className="font-bold text-green-700">Sewage Generation (Domestic):</h4>
             {typeof domesticSewageResult === 'number' ? (
               <p>{domesticSewageResult.toFixed(2)} MLD</p>
             ) : (
@@ -1211,6 +1290,9 @@ const SewageCalculationForm: React.FC = () => {
                   <tr>
                     <th className="border px-2 py-1">Year</th>
                     <th className="border px-4 py-2">Forecasted Population</th>
+                    {(window as any).totalWaterSupply > 0 && (
+                      <th className="border px-2 py-1">Water Based Sewage Generation (MLD)</th>
+                    )}
                     <th className="border px-2 py-1">Population Based Sewage Generation (MLD)</th>
                     {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
                       <th className="border px-2 py-1">Drains Based Sewage Generation (MLD)</th>
@@ -1222,10 +1304,14 @@ const SewageCalculationForm: React.FC = () => {
                     const forecastData = (window as any).selectedPopulationForecast;
                     const domesticPop = forecastData[year] ?? "";
                     const drainsSewage = calculateDrainBasedSewFlow(domesticPop);
+                    const waterSewage = calculatewaterBasedSewFlow(domesticPop);
                     return (
                       <tr key={year}>
                         <td className="border px-2 py-1">{year}</td>
-                        <td className="border px-4 py-2">{domesticPop}</td>
+                        <td className="border px-4 py-2">{domesticPop.toLocaleString()}</td>
+                        {(window as any).totalWaterSupply > 0 && (
+                          <td className="border px-2 py-1">{waterSewage > 0 ? waterSewage.toFixed(6) : "0.000000"}</td>
+                        )}
                         <td className="border px-2 py-1">{Number(value).toFixed(2)}</td>
                         {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
                           <td className="border px-2 py-1">{drainsSewage > 0 ? drainsSewage.toFixed(6) : "0.000000"}</td>
@@ -1240,29 +1326,7 @@ const SewageCalculationForm: React.FC = () => {
         )}
       </div>
 
-      {/* Drain Tapping Input */}
-      <div className="mb-4 p-3 border rounded bg-gray-50">
-        <h4 className="font-bold text-gray-700 mb-2">Drain Tapping Information</h4>
-        <label className="block text-sm font-medium flex items-center">
-          Number Of Drains to be Tapped
-          <div className="relative ml-1 group">
-            <span className="flex items-center justify-center h-4 w-4 text-xs bg-blue-500 text-white rounded-full cursor-help">i</span>
-            <div className="absolute z-10 hidden group-hover:block w-64 text-red text-xs rounded p-0 -mt-12 ml-6">
-              The number you enter indicates how many drain discharge entries are needed
-            </div>
-          </div>
-        </label>
-        <input
-          type="number"
-          id="drain_count"
-          value={drainCount}
-          onChange={handleDrainCountChange}
-          className="mt-1 block w-1/3 border rounded px-2 py-1"
-          placeholder="Enter number of drains"
-          min="0"
-        />
-        {drainCount && drainCount > 0 && drainItemsTableJSX}
-      </div>
+
 
       <button
         className="bg-blue-600 text-white px-4 py-2 rounded"
@@ -1359,10 +1423,69 @@ const SewageCalculationForm: React.FC = () => {
         {showRawSewage && <div className="mt-4">{rawSewageJSX}</div>}
       </div>
 
+      <div className="mt-6 p-4 border rounded bg-gray-50">
+        <h5 className="font-bold text-gray-700 mb-3">Report Checklist</h5>
+        <p className="text-sm text-gray-600 mb-4">
+          Please confirm completion of the following sections to enable the comprehensive report download.
+        </p>
+        <div className="space-y-2">
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.populationForecasting}
+              onChange={() => handleCheckboxChange('populationForecasting')}
+              className="mr-2"
+            />
+            Population Forecasting
+          </label>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.waterDemand}
+              onChange={() => handleCheckboxChange('waterDemand')}
+              className="mr-2"
+            />
+            Water Demand
+          </label>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.waterSupply}
+              onChange={() => handleCheckboxChange('waterSupply')}
+              className="mr-2"
+            />
+            Water Supply
+          </label>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.sewageCalculation}
+              onChange={() => handleCheckboxChange('sewageCalculation')}
+              className="mr-2"
+            />
+            Sewage Calculation
+          </label>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.rawSewageCharacteristics}
+              onChange={() => handleCheckboxChange('rawSewageCharacteristics')}
+              className="mr-2"
+            />
+            Raw Sewage Characteristics
+          </label>
+        </div>
+      </div>
+
       <div className="mt-6 flex justify-center">
         <button
-          className="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out shadow-md w-full sm:w-auto"
+          className={`text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out shadow-md w-full sm:w-auto ${
+            areAllCheckboxesChecked
+              ? 'bg-purple-600 hover:bg-purple-700'
+              : 'bg-gray-400 cursor-not-allowed'
+          }`}
           onClick={handle1pdfDownload}
+          disabled={!areAllCheckboxesChecked}
         >
           Download Comprehensive Report
         </button>

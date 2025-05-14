@@ -167,6 +167,8 @@ const Basic: React.FC = () => {
     stateRef.current = '';
     districtsRef.current = [];
     subDistrictsRef.current = [];
+    (window as any).totalWaterSupply = undefined;
+    (window as any).previousTotalWaterSupply = undefined;
     
     // Add a slight delay before refresh to ensure all state is properly reset
     setTimeout(() => {

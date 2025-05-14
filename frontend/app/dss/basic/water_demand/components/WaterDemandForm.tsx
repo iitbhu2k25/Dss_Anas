@@ -390,7 +390,9 @@ const WaterDemandForm: React.FC = () => {
   // Function to update the total demand
   const updateTotalDemand = () => {
     if (!forecastData) return;
+    
     const totalDemand: { [year: string]: number } = {};
+    
     Object.keys(forecastData).sort().forEach(year => {
       const domesticVal = domesticChecked && domesticDemand?.[year] ? domesticDemand[year] : 0;
       const floatingVal = floatingChecked && floatingDemand?.[year] ? floatingDemand[year] : 0;
@@ -399,8 +401,10 @@ const WaterDemandForm: React.FC = () => {
         firefightingChecked && selectedFirefightingMethod && firefightingDemand?.[selectedFirefightingMethod]?.[year]
           ? firefightingDemand[selectedFirefightingMethod][year]
           : 0;
+          
       totalDemand[year] = domesticVal + floatingVal + institutionalVal + firefightingVal;
     });
+    
     // Store in window object for other components to access
     (window as any).totalWaterDemand = totalDemand;
   };
@@ -450,17 +454,65 @@ const WaterDemandForm: React.FC = () => {
       {/* Domestic Fields */}
       {domesticChecked && (
         <div className="mb-4 p-3 border rounded bg-blue-50">
-          <h6 className="font-bold text-blue-700">Domestic Fields</h6>
-          <label className="block mt-2 font-bold ">
+        <h6 className="font-bold text-blue-700">Domestic Fields</h6>
+        <div className="block mt-2 font-bold flex items-center">
+          <label>
             Per Capita Consumption (LPCD):
-            <input 
-              type="number" 
+          </label>
+          <div className="flex items-center">
+            <input
+              type="number"
               value={perCapitaConsumption}
               onChange={handlePerCapitaChange}
               className="border rounded ml-2 w-24 bg-white"
             />
-          </label>
+            
+            {/* Info icon with hover table */}
+            <div className="relative inline-block ml-1 group z-50">
+              <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 text-white rounded-full cursor-help">i</span>
+              
+              {/* Hover table positioned above the icon */}
+              <div className="absolute z-50 hidden group-hover:block w-106 text-xs rounded bottom-6 left-0 mr-90 transform translate-x-1/2 mt-5">
+                <table className="table-fixed border-collapse border border-black w-full text-center text-xs p-0 bg-white mt-4">
+                  <caption className="caption-top font-serif font-bold text-base mb-2">
+                    Recommended Per Capita Water Supply Levels for Designing Schemes
+                  </caption>
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="border border-black p-1 w-1/12">S. No.</th>
+                      <th className="border border-black p-1 w-7/12">Classification of towns / cities</th>
+                      <th className="border border-black p-1 w-4/12">Recommended Maximum Water Supply Levels (lpcd)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="border border-black p-1">1.</td>
+                      <td className="border border-black p-1 text-left">
+                        Towns provided with piped water supply but without sewerage system
+                      </td>
+                      <td className="border border-black p-1">70</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-1">2.</td>
+                      <td className="border border-black p-1 text-left">
+                        Cities provided with piped water supply where sewerage system is existing/contemplated
+                      </td>
+                      <td className="border border-black p-1">135</td>
+                    </tr>
+                    <tr>
+                      <td className="border border-black p-1">3.</td>
+                      <td className="border border-black p-1 text-left">
+                        Metropolitan and Mega cities provided with piped water supply where sewerage system is existing/contemplated
+                      </td>
+                      <td className="border border-black p-1">150</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </div>
+      </div>
       )}
 
       {/* Floating Fields */}
