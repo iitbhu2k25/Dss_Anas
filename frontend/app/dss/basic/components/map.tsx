@@ -70,7 +70,7 @@ function MapLayers({
     fillColor: '#ff6b6b',
     weight: 4,
     opacity: 1,
-    color: 'black',
+    color: 'blue',
     dashArray: '5',
     fillOpacity: 0.4,
   };

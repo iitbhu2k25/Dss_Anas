@@ -3,12 +3,14 @@ import React, { useEffect, useState, useRef } from "react"
 import dynamic from "next/dynamic";
 import StatusBar from "./components/statusbar"
 import LocationSelector from "./components/locations"
+import DrainLocationSelector from "./components/drainlocations"
 import Population from "./populations/population"
 import Water_Demand from "./water_demand/page"
 import Water_Supply from "./water_supply/page"
 import Sewage from "./seawage/page"
 import ExportReport from './populations/components/export';
 import Map from "./components/map"
+import DrainMap from "./components/drainmap" // New import for DrainMap
 
 interface SelectedLocationData {
   villages: {
@@ -25,84 +27,137 @@ interface SelectedLocationData {
   totalPopulation: number;
 }
 
+interface SelectedRiverData {
+  drains: {
+    id: number;
+    name: string;
+    stretchId: number;
+    flowRate: number;
+  }[];
+  totalFlowRate: number;
+}
+
 const Basic: React.FC = () => {
   const [selectedLocationData, setSelectedLocationData] = useState<SelectedLocationData | null>(null);
+  const [selectedRiverData, setSelectedRiverData] = useState<SelectedRiverData | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [transitionDirection, setTransitionDirection] = useState<'forward' | 'backward'>('forward');
   const [skippedSteps, setSkippedSteps] = useState<number[]>([]);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [showSuccess, setShowSuccess] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'admin' | 'drain'>('admin'); // State for view toggle
   
-  // Add new state for selected state code
+  // Separate completed steps for admin and drain views
+  const [adminCompletedSteps, setAdminCompletedSteps] = useState<number[]>([]);
+  const [drainCompletedSteps, setDrainCompletedSteps] = useState<number[]>([]);
+  
+  // Separate skipped steps for admin and drain views
+  const [adminSkippedSteps, setAdminSkippedSteps] = useState<number[]>([]);
+  const [drainSkippedSteps, setDrainSkippedSteps] = useState<number[]>([]);
+  
+  // Separate current step for admin and drain views
+  const [adminCurrentStep, setAdminCurrentStep] = useState<number>(0);
+  const [drainCurrentStep, setDrainCurrentStep] = useState<number>(0);
+
+  // State for LocationSelector
   const [selectedStateCode, setSelectedStateCode] = useState<string>('');
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [selectedSubDistricts, setSelectedSubDistricts] = useState<string[]>([]);
-  
-  // Track changes with refs to avoid issues with stale closures
+
+  // State for RiverSelector
+  const [selectedRiver, setSelectedRiver] = useState<string>('');
+  const [selectedStretch, setSelectedStretch] = useState<string>('');
+  const [selectedDrains, setSelectedDrains] = useState<string[]>([]);
+
+  // Refs for LocationSelector
   const stateRef = useRef<string>('');
   const districtsRef = useRef<string[]>([]);
   const subDistrictsRef = useRef<string[]>([]);
-  
-  // Keep refs in sync with state
+
+  // Refs for RiverSelector
+  const riverRef = useRef<string>('');
+  const stretchRef = useRef<string>('');
+  const drainsRef = useRef<string[]>([]);
+
+  // Sync refs with state for LocationSelector
   useEffect(() => {
     stateRef.current = selectedStateCode;
   }, [selectedStateCode]);
-  
+
   useEffect(() => {
     districtsRef.current = [...selectedDistricts];
   }, [selectedDistricts]);
-  
+
   useEffect(() => {
     subDistrictsRef.current = [...selectedSubDistricts];
   }, [selectedSubDistricts]);
 
+  // Sync refs with state for RiverSelector
+  useEffect(() => {
+    riverRef.current = selectedRiver;
+  }, [selectedRiver]);
+
+  useEffect(() => {
+    stretchRef.current = selectedStretch;
+  }, [selectedStretch]);
+
+  useEffect(() => {
+    drainsRef.current = [...selectedDrains];
+  }, [selectedDrains]);
+
+  // Update current step based on view mode
+  useEffect(() => {
+    if (viewMode === 'admin') {
+      setCurrentStep(adminCurrentStep);
+      setCompletedSteps(adminCompletedSteps);
+      setSkippedSteps(adminSkippedSteps);
+    } else {
+      setCurrentStep(drainCurrentStep);
+      setCompletedSteps(drainCompletedSteps);
+      setSkippedSteps(drainSkippedSteps);
+    }
+  }, [viewMode, adminCurrentStep, drainCurrentStep, adminCompletedSteps, drainCompletedSteps, adminSkippedSteps, drainSkippedSteps]);
+
+  // Handle confirm for LocationSelector
   const handleLocationConfirm = (data: SelectedLocationData): void => {
     console.log('Received confirmed location data:', data);
     setSelectedLocationData(data);
+    setSelectedRiverData(null); // Clear RiverSelector data
   };
 
-  // Handler for district selection with enforced reset of subdisticts
+  // Handle confirm for RiverSelector
+  const handleRiverConfirm = (data: SelectedRiverData): void => {
+    console.log('Received confirmed river data:', data);
+    setSelectedRiverData(data);
+    setSelectedLocationData(null); // Clear LocationSelector data
+  };
+
+  // Handle district selection for LocationSelector
   const handleDistrictsChange = (districts: string[]): void => {
     console.log('Districts changed to:', districts);
-    
-    // If the districts selection has changed, clear subdisticts
     if (JSON.stringify(districts) !== JSON.stringify(districtsRef.current)) {
       console.log('Resetting subdistrict selections');
-      
-      // First update the state
       setSelectedSubDistricts([]);
-      
-      // Then trigger the global reset for the UI
       if (window.resetSubDistrictSelectionsInLocationSelector) {
         window.resetSubDistrictSelectionsInLocationSelector();
       }
     }
-    
-    // Update districts state
     setSelectedDistricts([...districts]);
   };
-  
-  // Handler for subdistrict selection
+
+  // Handle subdistrict selection for LocationSelector
   const handleSubDistrictsChange = (subdistricts: string[]): void => {
     console.log('Sub-districts changed to:', subdistricts);
-    
-    // Ensure we're working with fresh copies of arrays
     setSelectedSubDistricts([...subdistricts]);
   };
 
-  // Handler for state changes with enforced reset of districts and subdisticts
+  // Handle state selection for LocationSelector
   const handleStateChange = (stateCode: string): void => {
     console.log('State changed to:', stateCode);
-    
-    // If state has changed, reset districts and subdisticts
     if (stateCode !== stateRef.current) {
       console.log('Resetting district and subdistrict selections');
-      
-      // First update the state
       setSelectedDistricts([]);
       setSelectedSubDistricts([]);
-      
-      // Then trigger the global resets for the UI
       if (window.resetDistrictSelectionsInLocationSelector) {
         window.resetDistrictSelectionsInLocationSelector();
       }
@@ -110,15 +165,57 @@ const Basic: React.FC = () => {
         window.resetSubDistrictSelectionsInLocationSelector();
       }
     }
-    
-    // Update state code
     setSelectedStateCode(stateCode);
   };
 
+  // Handle river selection for RiverSelector
+  const handleRiverChange = (riverId: string): void => {
+    console.log('River changed to:', riverId);
+    if (riverId !== riverRef.current) {
+      console.log('Resetting stretch and drain selections');
+      setSelectedStretch('');
+      setSelectedDrains([]);
+      if (window.resetStretchSelectionsInDrainLocationSelector) {
+        window.resetStretchSelectionsInDrainLocationSelector();
+      }
+      if (window.resetDrainSelectionsInDrainLocationSelector) {
+        window.resetDrainSelectionsInDrainLocationSelector();
+      }
+    }
+    setSelectedRiver(riverId);
+  };
+
+  // Handle stretch selection for RiverSelector
+  const handleStretchChange = (stretchId: string): void => {
+    console.log('Stretch changed to:', stretchId);
+    if (stretchId !== stretchRef.current) {
+      console.log('Resetting drain selections');
+      setSelectedDrains([]);
+      if (window.resetDrainSelectionsInDrainLocationSelector) {
+        window.resetDrainSelectionsInDrainLocationSelector();
+      }
+    }
+    setSelectedStretch(stretchId);
+  };
+
+  // Handle drains selection for RiverSelector
+  const handleDrainsChange = (drains: string[]): void => {
+    console.log('Drains changed to:', drains);
+    setSelectedDrains([...drains]);
+  };
+
+  // Navigation handlers with view mode awareness
   const handleNext = () => {
     if (currentStep < 3) {
-      setCompletedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
-      setSkippedSteps(prev => prev.filter(step => step !== currentStep));
+      if (viewMode === 'admin') {
+        setAdminCompletedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
+        setAdminSkippedSteps(prev => prev.filter(step => step !== currentStep));
+        setAdminCurrentStep(prev => prev + 1);
+      } else {
+        setDrainCompletedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
+        setDrainSkippedSteps(prev => prev.filter(step => step !== currentStep));
+        setDrainCurrentStep(prev => prev + 1);
+      }
       setTransitionDirection('forward');
       setCurrentStep(prev => prev + 1);
     }
@@ -126,6 +223,11 @@ const Basic: React.FC = () => {
 
   const handlePrevious = () => {
     if (currentStep > 0) {
+      if (viewMode === 'admin') {
+        setAdminCurrentStep(prev => prev - 1);
+      } else {
+        setDrainCurrentStep(prev => prev - 1);
+      }
       setTransitionDirection('backward');
       setCurrentStep(prev => prev - 1);
     }
@@ -133,8 +235,15 @@ const Basic: React.FC = () => {
 
   const handleSkip = () => {
     if (currentStep > 0 && currentStep < 3) {
-      setSkippedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
-      setCompletedSteps(prev => prev.filter(step => step !== currentStep));
+      if (viewMode === 'admin') {
+        setAdminSkippedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
+        setAdminCompletedSteps(prev => prev.filter(step => step !== currentStep));
+        setAdminCurrentStep(prev => prev + 1);
+      } else {
+        setDrainSkippedSteps(prev => [...prev.filter(step => step !== currentStep), currentStep]);
+        setDrainCompletedSteps(prev => prev.filter(step => step !== currentStep));
+        setDrainCurrentStep(prev => prev + 1);
+      }
       setTransitionDirection('forward');
       setCurrentStep(prev => prev + 1);
     }
@@ -142,58 +251,94 @@ const Basic: React.FC = () => {
 
   const handleStepChange = (newStep: number) => {
     if (newStep < currentStep) {
+      if (viewMode === 'admin') {
+        setAdminCurrentStep(newStep);
+      } else {
+        setDrainCurrentStep(newStep);
+      }
       setTransitionDirection('backward');
       setCurrentStep(newStep);
     }
   };
 
   // Complete reset handler
-  const handleLocationReset = (): void => {
+  const handleReset = (): void => {
     console.log('FULL RESET triggered');
-    
-    // Reset all step-related state
     setCurrentStep(0);
+    setAdminCurrentStep(0);
+    setDrainCurrentStep(0);
     setSkippedSteps([]);
+    setAdminSkippedSteps([]);
+    setDrainSkippedSteps([]);
     setCompletedSteps([]);
+    setAdminCompletedSteps([]);
+    setDrainCompletedSteps([]);
+ 
+    // Reset LocationSelector data
     setSelectedLocationData(null);
-    setShowSuccess(false);
-    
-    // Reset location selections
     setSelectedStateCode('');
     setSelectedDistricts([]);
     setSelectedSubDistricts([]);
-    
-    // Update refs
     stateRef.current = '';
     districtsRef.current = [];
     subDistrictsRef.current = [];
+
+    // Reset RiverSelector data
+    setSelectedRiverData(null);
+    setSelectedRiver('');
+    setSelectedStretch('');
+    setSelectedDrains([]);
+    riverRef.current = '';
+    stretchRef.current = [];
+    drainsRef.current = [];
+
+    // Clear global variables
     (window as any).totalWaterSupply = undefined;
     (window as any).previousTotalWaterSupply = undefined;
-    
-    // Add a slight delay before refresh to ensure all state is properly reset
+    (window as any).selectedLocations = undefined;
+    (window as any).selectedRiverData = undefined;
+
+    // Reset view mode to admin
+    setViewMode('admin');
+
     setTimeout(() => {
       window.location.reload();
     }, 500);
   };
 
   const handleFinish = () => {
+    if (viewMode === 'admin') {
+      setAdminCompletedSteps(prev => [...prev.filter(step => step !== 3), 3]);
+    } else {
+      setDrainCompletedSteps(prev => [...prev.filter(step => step !== 3), 3]);
+    }
     setCompletedSteps(prev => [...prev.filter(step => step !== 3), 3]);
     setShowSuccess(true);
-
-    // Hide success message after 3 seconds
     setTimeout(() => {
       setShowSuccess(false);
     }, 2000);
   };
 
+  // Toggle view mode handler
+  const handleViewModeChange = (mode: 'admin' | 'drain') => {
+    setViewMode(mode);
+  };
+
+  // Reset steps when new data is confirmed
   useEffect(() => {
-    if (selectedLocationData) {
+    if (selectedLocationData || selectedRiverData) {
       setCurrentStep(0);
+      setAdminCurrentStep(0);
+      setDrainCurrentStep(0);
       setSkippedSteps([]);
+      setAdminSkippedSteps([]);
+      setDrainSkippedSteps([]);
       setCompletedSteps([]);
+      setAdminCompletedSteps([]);
+      setDrainCompletedSteps([]);
       setShowSuccess(false);
     }
-  }, [selectedLocationData]);
+  }, [selectedLocationData, selectedRiverData]);
 
   return (
     <div className="flex flex-col md:flex-row w-full min-h-0">
@@ -203,34 +348,70 @@ const Basic: React.FC = () => {
           onStepChange={handleStepChange}
           skippedSteps={skippedSteps}
           completedSteps={completedSteps}
+          viewMode={viewMode} // Pass viewMode to StatusBar
         />
       </div>
 
       <div className="w-full relative">
-      <div className="absolute top-4 right-4">
-
+        {/* Toggle Buttons */}
+        <div className="absolute top-4 right-4 flex space-x-2 mr-200 z-100">
+          <button
+            className={`px-4 py-2 rounded-md text-sm font-medium transition duration-300 ${
+              viewMode === 'admin'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => handleViewModeChange('admin')}
+          >
+            Admin
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md text-sm font-medium transition duration-300 ${
+              viewMode === 'drain'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+            onClick={() => handleViewModeChange('drain')}
+          >
+            Drain
+          </button>
         </div>
 
-        {/* Modified layout for LocationSelector and Map side by side */}
+        {/* Selector and Map Layout */}
         <div className="flex w-full">
-          {/* Left side - Location Selector (half width) */}
           <div className="w-2/3 mt-3 ml-4">
-            <LocationSelector
-              onConfirm={handleLocationConfirm}
-              onReset={handleLocationReset}
-              onStateChange={handleStateChange}
-              onDistrictsChange={handleDistrictsChange}
-              onSubDistrictsChange={handleSubDistrictsChange}
-            />
+            {viewMode === 'admin' ? (
+              <LocationSelector
+                onConfirm={handleLocationConfirm}
+                onReset={handleReset}
+                onStateChange={handleStateChange}
+                onDistrictsChange={handleDistrictsChange}
+                onSubDistrictsChange={handleSubDistrictsChange}
+              />
+            ) : (
+              <DrainLocationSelector
+                onConfirm={handleRiverConfirm}
+                onReset={handleReset}
+                onRiverChange={handleRiverChange}
+                onStretchChange={handleStretchChange}
+                onDrainsChange={handleDrainsChange}
+              />
+            )}
           </div>
-
-          {/* Right side - Map (half width) */}
-          <div className="w-1/2 mt-3 mr-6">
-            <Map
-              selectedState={selectedStateCode}
-              selectedDistricts={selectedDistricts}
-              selectedSubDistricts={selectedSubDistricts}
-            />
+          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6 rounded-1xl shadow-xl border-2 space-x-1  mx-4 border-green-500">
+            {viewMode === 'admin' ? (
+              <Map
+                selectedState={selectedStateCode}
+                selectedDistricts={selectedDistricts}
+                selectedSubDistricts={selectedSubDistricts}
+              />
+            ) : (
+              <DrainMap
+                selectedRiver={selectedRiver}
+                selectedStretch={selectedStretch}
+                selectedDrains={selectedDrains}
+              />
+            )}
           </div>
         </div>
 
@@ -251,70 +432,98 @@ const Basic: React.FC = () => {
           </div>
         )}
 
-        {/* Step Content - keep all mounted */}
+        {/* Step Content with view mode awareness */}
         <div className="transition-all duration-300 transform">
           <div className={currentStep === 0 ? 'block' : 'hidden'}>
-            {selectedLocationData && (
+            {selectedLocationData && viewMode === 'admin' && (
               <Population
                 villages_props={selectedLocationData.villages}
                 subDistricts_props={selectedLocationData.subDistricts}
                 totalPopulation_props={selectedLocationData.totalPopulation}
               />
             )}
+            {selectedRiverData && viewMode === 'drain' && (
+              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Analysis</h3>
+                <p className="text-sm text-gray-700">
+                  Total Flow Rate: {selectedRiverData.totalFlowRate.toLocaleString()} m³/s
+                </p>
+                <p className="text-sm text-gray-700">
+                  Selected Drains: {selectedRiverData.drains.map(d => d.name).join(', ')}
+                </p>
+              </div>
+            )}
           </div>
 
           <div className={currentStep === 1 ? 'block' : 'hidden'}>
-            <Water_Demand />
+            {viewMode === 'admin' && <Water_Demand />}
+            {viewMode === 'drain' && (
+              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Demand</h3>
+                <p className="text-sm text-gray-700">Placeholder for drain-specific water demand calculations.</p>
+              </div>
+            )}
           </div>
 
           <div className={currentStep === 2 ? 'block' : 'hidden'}>
-            <Water_Supply />
+            {viewMode === 'admin' && <Water_Supply />}
+            {viewMode === 'drain' && (
+              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Supply</h3>
+                <p className="text-sm text-gray-700">Placeholder for drain-specific water supply calculations.</p>
+              </div>
+            )}
           </div>
 
           <div className={currentStep === 3 ? 'block' : 'hidden'}>
-            <Sewage />
+            {viewMode === 'admin' && <Sewage />}
+            {viewMode === 'drain' && (
+              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Sewage</h3>
+                <p className="text-sm text-gray-700">Placeholder for drain-specific sewage calculations.</p>
+              </div>
+            )}
             {/* <ExportReport projectName="Report Basic Module DSS" /> */}
           </div>
         </div>
 
         {/* Navigation buttons */}
-        {selectedLocationData && (
-  <div className="mt-6 mb-6 ml-2 mr-36 border border-gray-300 rounded-xl shadow-md p-4 px-4  hover:shadow-lg transition-shadow duration-300">
-    <div className="flex justify-between items-center">
-      <div className="flex space-x-4">
-        <button
-          className={`${
-            currentStep === 0 || currentStep === 3
-              ? "bg-gray-600 cursor-not-allowed"
-              : "bg-blue-600 hover:bg-blue-700"
-          } text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-          disabled={currentStep === 0 || currentStep === 3}
-          onClick={handleSkip}
-        >
-          Skip
-        </button>
+        {((selectedLocationData && viewMode === 'admin') || (selectedRiverData && viewMode === 'drain')) && (
+          <div className="mt-6 mb-6 ml-2 mr-36 border border-gray-300 rounded-xl shadow-md p-4 px-4 hover:shadow-lg transition-shadow duration-300">
+            <div className="flex justify-between items-center">
+              <div className="flex space-x-4">
+                <button
+                  className={`${
+                    currentStep === 0 || currentStep === 3
+                      ? "bg-gray-600 cursor-not-allowed"
+                      : "bg-blue-600 hover:bg-blue-700"
+                  } text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                  disabled={currentStep === 0 || currentStep === 3}
+                  onClick={handleSkip}
+                >
+                  Skip
+                </button>
 
-        {currentStep > 0 && (
-          <button
-            className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
-            onClick={handlePrevious}
-          >
-            Previous
-          </button>
+                {currentStep > 0 && (
+                  <button
+                    className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+                    onClick={handlePrevious}
+                  >
+                    Previous
+                  </button>
+                )}
+              </div>
+
+              <button
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                onClick={currentStep === 3 ? handleFinish : handleNext}
+                disabled={currentStep === 3 && completedSteps.includes(3)}
+              >
+                {currentStep === 3 ? "Finish" : "Save and Next"}
+              </button>
+            </div>
+          </div>
         )}
-      </div>
-
-      <button
-        className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-        onClick={currentStep === 3 ? handleFinish : handleNext}
-        disabled={currentStep === 3 && completedSteps.includes(3)}
-      >
-        {currentStep === 3 ? "Finish" : "Save and Next"}
-      </button>
-    </div>
-  </div>
-)}
-
       </div>
     </div>
   )

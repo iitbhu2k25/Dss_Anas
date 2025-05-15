@@ -67,8 +67,6 @@ const WaterDemandForm: React.FC = () => {
   const [institutionalInputMode, setInstitutionalInputMode] = useState<'manual' | 'total'>('manual');
   const [totalInstitutionalDemand, setTotalInstitutionalDemand] = useState<string>("0");
 
-  
-
   // Institutional fields (sample fields; add more as needed)
   const [institutionalFields, setInstitutionalFields] = useState<InstitutionalFields>({
     hospitals100Units: "0",
@@ -135,10 +133,14 @@ const WaterDemandForm: React.FC = () => {
   
   // Add a state to track if initial calculation has been performed
   const [initialCalculationDone, setInitialCalculationDone] = useState(false);
+  // New state to track the last known forecast data-----------------------h
   const [lastForecastData, setLastForecastData] = useState<{ [year: string]: number } | null>(null);
 
+
   
-  const forecastData = (window as any).selectedPopulationForecast;
+  const forecastData = typeof window !== 'undefined' ? (window as any).selectedPopulationForecast : null;
+
+
 
   // Handlers for checkboxes and inputs
   const handleDomesticChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -246,6 +248,7 @@ const WaterDemandForm: React.FC = () => {
     updateTotalDemand();
   }, [domesticDemand, floatingDemand, institutionalDemand, firefightingDemand, selectedFirefightingMethod]);
 
+
     // New useEffect to detect changes in forecastData------------------------h
     useEffect(() => {
       // Only run if initialCalculationDone is true to avoid unnecessary calculations on mount
@@ -268,8 +271,7 @@ const WaterDemandForm: React.FC = () => {
         }
       }
     }, [forecastData, initialCalculationDone]);
-
-
+  
 
   // Function to calculate domestic water demand
   const calculateDomesticDemand = async () => {
@@ -500,8 +502,8 @@ const WaterDemandForm: React.FC = () => {
               <span className="flex items-center justify-center h-4 w-4 text-xs bg-red-500 text-white rounded-full cursor-help">i</span>
               
               {/* Hover table positioned above the icon */}
-              <div className="absolute z-50 hidden group-hover:block w-106 text-xs rounded bottom-6 left-0 mr-90 transform translate-x-1/2 mt-5">
-                <table className="table-fixed border-collapse border border-black w-full text-center text-xs p-0 bg-white mt-4">
+              <div className="absolute z-5000 hidden group-hover:block w-106 text-xs rounded bottom-6 left-0 mr-100 transform translate-x-1/2 mt-5">
+                <table className="table-fixed border-collapse border border-black w-full text-center text-xs p-0 bg-white mt-4 z-5000 ">
                   <caption className="caption-top font-serif font-bold text-base mb-2">
                     Recommended Per Capita Water Supply Levels for Designing Schemes
                   </caption>

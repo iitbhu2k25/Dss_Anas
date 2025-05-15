@@ -66,11 +66,14 @@ const WaterSupplyForm: React.FC = () => {
   ]);
 
   // Update water gap when water supply result changes
-  useEffect(() => {
-    if (waterSupplyResult !== null) {
+useEffect(() => {
+  if (typeof window !== "undefined") {
+    const totalDemand = (window as any).totalWaterDemand;
+    if (waterSupplyResult !== null && totalDemand !== undefined) {
       calculateWaterGap();
     }
-  }, [waterSupplyResult, (window as any).totalWaterDemand]); 
+  }
+}, [waterSupplyResult]);
 
   // Function to calculate water gap
   const calculateWaterGap = () => {

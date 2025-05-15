@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RiverMapAPI, RiverStretched, Drain, CohortView, DefaultBaseMapAPI, StateShapefileAPI, MultipleDistrictsAPI,MultipleSubdistrictsAPI, Locations_stateAPI,Locations_districtAPI,Locations_subdistrictAPI,Locations_villageAPI,Time_series,Demographic,SewageCalculation,WaterSupplyCalculationAPI,DomesticWaterDemandCalculationAPIView,FloatingWaterDemandCalculationAPIView,InstitutionalWaterDemandCalculationAPIView,FirefightingWaterDemandCalculationAPIView
+from .views import BasinAPI, RiverMapAPI, RiverStretched, Drain, CohortView, DefaultBaseMapAPI, StateShapefileAPI, MultipleDistrictsAPI,MultipleSubdistrictsAPI, Locations_stateAPI,Locations_districtAPI,Locations_subdistrictAPI,Locations_villageAPI,Time_series,Demographic,SewageCalculation,WaterSupplyCalculationAPI,DomesticWaterDemandCalculationAPIView,FloatingWaterDemandCalculationAPIView,InstitutionalWaterDemandCalculationAPIView,FirefightingWaterDemandCalculationAPIView
 urlpatterns = [
     path("",Locations_stateAPI.as_view(),name="states"),
     path("district/",Locations_districtAPI.as_view(),name="districts"),
@@ -22,4 +22,5 @@ urlpatterns = [
     path('rivers/', RiverMapAPI.as_view(), name='river-map'),
     path('river-stretched/', RiverStretched.as_view(), name='river-stretched'), 
     path('drain/', Drain.as_view(), name='drain'),
+    path('basin/', BasinAPI.as_view(), name='basin'),
 ]
