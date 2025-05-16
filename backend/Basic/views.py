@@ -1228,7 +1228,7 @@ class RiverStretched(APIView):
             
             # Convert to GeoJSON
             geojson_data = json.loads(filtered_gdf.to_json())
-            
+            print(f"GeoJSON features: {len(geojson_data['features'])}")
             return Response(geojson_data, status=status.HTTP_200_OK)
 
         except Exception as e: 
@@ -1271,3 +1271,161 @@ class Drain(APIView):
 
         except Exception as e: 
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+#######################
+
+
+class Catchments(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            # Get Drain_No from request data
+            drain_nos = request.data.get('Drain_No', [])
+            
+            # Construct path to Catchments.shp
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'Drain_shp', 'Catchments')
+            shapefile_full_path = os.path.join(shapefile_path, 'Catchment.shp')
+            
+            if not os.path.exists(shapefile_full_path):
+                return Response({'error': 'Catchments shapefile not found.'}, status=status.HTTP_404_NOT_FOUND)
+            
+            # Read shapefile using GeoPandas
+            gdf = gpd.read_file(shapefile_full_path)
+            gdf = gdf.to_crs("EPSG:4326")
+            
+            # Filter data based on Drain_No if provided
+            if drain_nos:
+                # Convert to list if a single ID is provided
+                if not isinstance(drain_nos, list):
+                    drain_nos = [drain_nos]
+                filtered_gdf = gdf[gdf['Drain_No'].isin(drain_nos)]
+                if filtered_gdf.empty:
+                    return Response({'error': f'No catchment data found for the provided Drain_No'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                filtered_gdf = gdf  # Return all catchments if no Drain_No are provided
+            
+            # Convert to GeoJSON
+            geojson_data = json.loads(filtered_gdf.to_json())
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        
+class AllStretches(APIView):
+    def get(self, request, *args, **kwargs):
+        try:
+            # Construct path to Stretches.shp
+            shapefile_path = os.path.join(settings.MEDIA_ROOT, 'Drain_shp', 'River_Stretches')
+            shapefile_full_path = os.path.join(shapefile_path, 'Stretches.shp')
+
+            if not os.path.exists(shapefile_full_path):
+                return Response({'error': 'Stretches shapefile not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            # Read shapefile using GeoPandas
+            gdf = gpd.read_file(shapefile_full_path)
+            gdf = gdf.to_crs("EPSG:4326")
+            
+            # Convert to GeoJSON
+            geojson_data = json.loads(gdf.to_json())
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+
+        except Exception as e: 
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+
+
+class VillagesCatchmentIntersection(APIView):
+    def post(self, request, *args, **kwargs):
+        try:
+            # Get Drain_No from request data
+            drain_nos = request.data.get('Drain_No', [])
+            
+            if not drain_nos:
+                return Response({'error': 'Drain_No is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Convert to list if a single ID is provided
+            if not isinstance(drain_nos, list):
+                drain_nos = [drain_nos]
+            
+            # Construct paths to shapefiles
+            catchment_path = os.path.join(settings.MEDIA_ROOT, 'Drain_shp', 'Catchments', 'Catchment.shp')
+            village_path = os.path.join(settings.MEDIA_ROOT, 'Drain_shp', 'Villages', 'basin_village.shp')
+            
+            if not os.path.exists(catchment_path) or not os.path.exists(village_path):
+                return Response(
+                    {'error': 'One or more required shapefiles not found'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Read shapefiles
+            catchment_gdf = gpd.read_file(catchment_path)
+            village_gdf = gpd.read_file(village_path)
+            
+            # Ensure both are in the same CRS
+            catchment_gdf = catchment_gdf.to_crs("EPSG:4326")
+            village_gdf = village_gdf.to_crs("EPSG:4326")
+            
+            # Filter catchments for selected drains
+            filtered_catchment = catchment_gdf[catchment_gdf['Drain_No'].isin(drain_nos)]
+            
+            if filtered_catchment.empty:
+                return Response(
+                    {'error': f'No catchment data found for the provided Drain_No'}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Find intersections between catchments and villages
+            intersected_villages = []
+            intersected_village_gdf = gpd.GeoDataFrame()
+            
+            for idx, catchment in filtered_catchment.iterrows():
+                catchment_geom = catchment.geometry
+                drain_no = catchment['Drain_No']
+                
+                for vidx, village in village_gdf.iterrows():
+                    if catchment_geom.intersects(village.geometry):
+                        village_data = {
+                            'shapeID': village.get('shapeID', 'Unknown'),
+                            'shapeName': village.get('shapeName', 'Unknown'),
+                            'drainNo': drain_no
+                        }
+                        intersected_villages.append(village_data)
+                        intersected_village_gdf = pd.concat(
+                            [intersected_village_gdf, village_gdf.loc[[vidx]]],
+                            ignore_index=True
+                        )
+            
+            # Remove duplicates based on shapeID
+            intersected_village_gdf = intersected_village_gdf.drop_duplicates(subset=['shapeID'])
+            
+            # Convert village GeoDataFrame to GeoJSON
+            village_geojson = json.loads(intersected_village_gdf.to_json()) if not intersected_village_gdf.empty else {
+                'type': 'FeatureCollection',
+                'features': []
+            }
+            
+            # Convert filtered catchments to GeoJSON
+            catchment_geojson = json.loads(filtered_catchment.to_json()) if not filtered_catchment.empty else {
+                'type': 'FeatureCollection',
+                'features': []
+            }
+            
+            return Response({
+                'intersected_villages': intersected_villages,
+                'count': len(intersected_villages),
+                'village_geojson': village_geojson,
+                'catchment_geojson': catchment_geojson
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            import traceback
+            print(f"Error in village-catchment intersection: {str(e)}")
+            print(traceback.format_exc())
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

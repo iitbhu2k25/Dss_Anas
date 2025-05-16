@@ -67,8 +67,8 @@ const Basic: React.FC = () => {
   // State for RiverSelector
   const [selectedRiver, setSelectedRiver] = useState<string>('');
   const [selectedStretch, setSelectedStretch] = useState<string>('');
+  const [selectedDrainIds, setSelectedDrainIds] = useState<string[]>([]);
   const [selectedDrains, setSelectedDrains] = useState<string[]>([]);
-
   // Refs for LocationSelector
   const stateRef = useRef<string>('');
   const districtsRef = useRef<string[]>([]);
@@ -199,9 +199,9 @@ const Basic: React.FC = () => {
   };
 
   // Handle drains selection for RiverSelector
-  const handleDrainsChange = (drains: string[]): void => {
-    console.log('Drains changed to:', drains);
-    setSelectedDrains([...drains]);
+  const handleDrainsChange = (drainIds: string[]) => {
+    setSelectedDrainIds(drainIds);
+    console.log("Selected drain IDs updated:", drainIds);
   };
 
   // Navigation handlers with view mode awareness
@@ -340,193 +340,228 @@ const Basic: React.FC = () => {
     }
   }, [selectedLocationData, selectedRiverData]);
 
-  return (
-    <div className="flex flex-col md:flex-row w-full min-h-0">
-      <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-200">
-        <StatusBar
-          currentStep={currentStep}
-          onStepChange={handleStepChange}
-          skippedSteps={skippedSteps}
-          completedSteps={completedSteps}
-          viewMode={viewMode} // Pass viewMode to StatusBar
-        />
-      </div>
+return (
+  <div className="flex flex-col md:flex-row w-full min-h-0">
+    <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-200">
+      <StatusBar
+        currentStep={currentStep}
+        onStepChange={handleStepChange}
+        skippedSteps={skippedSteps}
+        completedSteps={completedSteps}
+        viewMode={viewMode}
+      />
+    </div>
 
-      <div className="w-full relative">
-        {/* Toggle Buttons */}
-        <div className="absolute top-4 right-4 flex space-x-2 mr-200 z-100">
+    <div className="w-full relative flex flex-col">
+      {/* Toggle Buttons - Moved Above Location Selectors */}
+      <div className="flex justify-center mt-4 mb-6 px-4 z-10">
+        <div className="inline-flex rounded-full bg-gray-100 p-1 shadow-md">
           <button
-            className={`px-4 py-2 rounded-md text-sm font-medium transition duration-300 ${
+            className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-in-out flex items-center space-x-2 ${
               viewMode === 'admin'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
             onClick={() => handleViewModeChange('admin')}
           >
-            Admin
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 14l9-5-9-5-9 5 9 5z"
+              />
+            </svg>
+            <span>Admin</span>
           </button>
           <button
-            className={`px-4 py-2 rounded-md text-sm font-medium transition duration-300 ${
+            className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-in-out flex items-center space-x-2 ${
               viewMode === 'drain'
-                ? 'bg-blue-600 text-white'
+                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
             onClick={() => handleViewModeChange('drain')}
           >
-            Drain
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M7 16l-4-4m0 0l4-4m-4 4h18"
+              />
+            </svg>
+            <span>Drain</span>
           </button>
         </div>
-
-        {/* Selector and Map Layout */}
-        <div className="flex w-full">
-          <div className="w-2/3 mt-3 ml-4">
-            {viewMode === 'admin' ? (
-              <LocationSelector
-                onConfirm={handleLocationConfirm}
-                onReset={handleReset}
-                onStateChange={handleStateChange}
-                onDistrictsChange={handleDistrictsChange}
-                onSubDistrictsChange={handleSubDistrictsChange}
-              />
-            ) : (
-              <DrainLocationSelector
-                onConfirm={handleRiverConfirm}
-                onReset={handleReset}
-                onRiverChange={handleRiverChange}
-                onStretchChange={handleStretchChange}
-                onDrainsChange={handleDrainsChange}
-              />
-            )}
-          </div>
-          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6 rounded-1xl shadow-xl border-2 space-x-1  mx-4 border-green-500">
-            {viewMode === 'admin' ? (
-              <Map
-                selectedState={selectedStateCode}
-                selectedDistricts={selectedDistricts}
-                selectedSubDistricts={selectedSubDistricts}
-              />
-            ) : (
-              <DrainMap
-                selectedRiver={selectedRiver}
-                selectedStretch={selectedStretch}
-                selectedDrains={selectedDrains}
-              />
-            )}
-          </div>
-        </div>
-
-        {showSuccess && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 animate-fade-in-out">
-            <div className="bg-green-100 text-green-800 px-6 py-4 rounded-2xl shadow-xl border border-green-300 flex items-center space-x-3 max-w-sm w-full mx-4">
-              <svg
-                className="w-6 h-6 text-green-600 shrink-0"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-              <span className="text-sm font-medium">All Calculation has been completed now you can download the report</span>
-            </div>
-          </div>
-        )}
-
-        {/* Step Content with view mode awareness */}
-        <div className="transition-all duration-300 transform">
-          <div className={currentStep === 0 ? 'block' : 'hidden'}>
-            {selectedLocationData && viewMode === 'admin' && (
-              <Population
-                villages_props={selectedLocationData.villages}
-                subDistricts_props={selectedLocationData.subDistricts}
-                totalPopulation_props={selectedLocationData.totalPopulation}
-              />
-            )}
-            {selectedRiverData && viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Analysis</h3>
-                <p className="text-sm text-gray-700">
-                  Total Flow Rate: {selectedRiverData.totalFlowRate.toLocaleString()} m³/s
-                </p>
-                <p className="text-sm text-gray-700">
-                  Selected Drains: {selectedRiverData.drains.map(d => d.name).join(', ')}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className={currentStep === 1 ? 'block' : 'hidden'}>
-            {viewMode === 'admin' && <Water_Demand />}
-            {viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Demand</h3>
-                <p className="text-sm text-gray-700">Placeholder for drain-specific water demand calculations.</p>
-              </div>
-            )}
-          </div>
-
-          <div className={currentStep === 2 ? 'block' : 'hidden'}>
-            {viewMode === 'admin' && <Water_Supply />}
-            {viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Supply</h3>
-                <p className="text-sm text-gray-700">Placeholder for drain-specific water supply calculations.</p>
-              </div>
-            )}
-          </div>
-
-          <div className={currentStep === 3 ? 'block' : 'hidden'}>
-            {viewMode === 'admin' && <Sewage />}
-            {viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Sewage</h3>
-                <p className="text-sm text-gray-700">Placeholder for drain-specific sewage calculations.</p>
-              </div>
-            )}
-            {/* <ExportReport projectName="Report Basic Module DSS" /> */}
-          </div>
-        </div>
-
-        {/* Navigation buttons */}
-        {((selectedLocationData && viewMode === 'admin') || (selectedRiverData && viewMode === 'drain')) && (
-          <div className="mt-6 mb-6 ml-2 mr-36 border border-gray-300 rounded-xl shadow-md p-4 px-4 hover:shadow-lg transition-shadow duration-300">
-            <div className="flex justify-between items-center">
-              <div className="flex space-x-4">
-                <button
-                  className={`${
-                    currentStep === 0 || currentStep === 3
-                      ? "bg-gray-600 cursor-not-allowed"
-                      : "bg-blue-600 hover:bg-blue-700"
-                  } text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
-                  disabled={currentStep === 0 || currentStep === 3}
-                  onClick={handleSkip}
-                >
-                  Skip
-                </button>
-
-                {currentStep > 0 && (
-                  <button
-                    className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
-                    onClick={handlePrevious}
-                  >
-                    Previous
-                  </button>
-                )}
-              </div>
-
-              <button
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                onClick={currentStep === 3 ? handleFinish : handleNext}
-                disabled={currentStep === 3 && completedSteps.includes(3)}
-              >
-                {currentStep === 3 ? "Finish" : "Save and Next"}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Selector and Map Layout */}
+      <div className="flex w-full px-4">
+        <div className="w-2/3 mt-3">
+          {viewMode === 'admin' ? (
+            <LocationSelector
+              onConfirm={handleLocationConfirm}
+              onReset={handleReset}
+              onStateChange={handleStateChange}
+              onDistrictsChange={handleDistrictsChange}
+              onSubDistrictsChange={handleSubDistrictsChange}
+            />
+          ) : (
+            <DrainLocationSelector
+              onConfirm={handleRiverConfirm}
+              onReset={handleReset}
+              onRiverChange={handleRiverChange}
+              onStretchChange={handleStretchChange}
+              onDrainsChange={handleDrainsChange}
+            />
+          )}
+        </div>
+        <div className="w-1/2 ml-2 mb-5 rounded-md">
+          {viewMode === 'admin' ? (
+            <Map
+              selectedState={selectedStateCode}
+              selectedDistricts={selectedDistricts}
+              selectedSubDistricts={selectedSubDistricts}
+            />
+          ) : (
+            <DrainMap
+              selectedRiver={selectedRiver}
+              selectedStretch={selectedStretch}
+              selectedDrains={selectedDrainIds}
+            />
+          )}
+        </div>
+      </div>
+
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 animate-fade-in-out">
+          <div className="bg-green-100 text-green-800 px-6 py-4 rounded-2xl shadow-xl border border-green-300 flex items-center space-x-3 max-w-sm w-full mx-4">
+            <svg
+              className="w-6 h-6 text-green-600 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-sm font-medium">
+              All Calculation has been completed now you can download the report
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Step Content with view mode awareness */}
+      <div className="transition-all duration-300 transform px-4">
+        <div className={currentStep === 0 ? 'block' : 'hidden'}>
+          {selectedLocationData && viewMode === 'admin' && (
+            <Population
+              villages_props={selectedLocationData.villages}
+              subDistricts_props={selectedLocationData.subDistricts}
+              totalPopulation_props={selectedLocationData.totalPopulation}
+            />
+          )}
+          {selectedRiverData && viewMode === 'drain' && (
+            <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+              <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Analysis</h3>
+              <p className="text-sm text-gray-700">
+                Total Flow Rate: {selectedRiverData.totalFlowRate.toLocaleString()} m³/s
+              </p>
+              <p className="text-sm text-gray-700">
+                Selected Drains: {selectedRiverData.drains.map(d => d.name).join(', ')}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className={currentStep === 1 ? 'block' : 'hidden'}>
+          {viewMode === 'admin' && <Water_Demand />}
+          {viewMode === 'drain' && (
+            <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+              <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Demand</h3>
+              <p className="text-sm text-gray-700">
+                Placeholder for drain-specific water demand calculations.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className={currentStep === 2 ? 'block' : 'hidden'}>
+          {viewMode === 'admin' && <Water_Supply />}
+          {viewMode === 'drain' && (
+            <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+              <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Supply</h3>
+              <p className="text-sm text-gray-700">
+                Placeholder for drain-specific water supply calculations.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className={currentStep === 3 ? 'block' : 'hidden'}>
+          {viewMode === 'admin' && <Sewage />}
+          {viewMode === 'drain' && (
+            <div className="p-4 bg-gray-100 rounded-lg shadow-md">
+              <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Sewage</h3>
+              <p className="text-sm text-gray-700">
+                Placeholder for drain-specific sewage calculations.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Navigation buttons */}
+      {((selectedLocationData && viewMode === 'admin') || (selectedRiverData && viewMode === 'drain')) && (
+        <div className="mt-6 mb-6 mx-4 border border-gray-300 rounded-xl shadow-md p-4 hover:shadow-lg transition-shadow duration-300">
+          <div className="flex justify-between items-center">
+            <div className="flex space-x-4">
+              <button
+                className={`${
+                  currentStep === 0 || currentStep === 3
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
+                disabled={currentStep === 0 || currentStep === 3}
+                onClick={handleSkip}
+              >
+                Skip
+              </button>
+
+              {currentStep > 0 && (
+                <button
+                  className="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50"
+                  onClick={handlePrevious}
+                >
+                  Previous
+                </button>
+              )}
+            </div>
+
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+              onClick={currentStep === 3 ? handleFinish : handleNext}
+              disabled={currentStep === 3 && completedSteps.includes(3)}
+            >
+              {currentStep === 3 ? 'Finish' : 'Save and Next'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  </div>
+)
 }
 
 export default Basic

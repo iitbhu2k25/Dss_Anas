@@ -32,9 +32,17 @@ interface Stretch extends LocationItem {
 }
 
 interface Drain extends LocationItem {
+  id: number;
   stretchId: number;
   stretchName?: string;
 }
+
+interface IntersectedVillage {
+  shapeID: string;
+  shapeName: string;
+  drainNo: number;
+}
+
 
 interface TruncatedListProps {
   content: string;
@@ -43,10 +51,10 @@ interface TruncatedListProps {
 
 const TruncatedList: React.FC<TruncatedListProps> = ({ content, maxLength = 100 }) => {
   const [expanded, setExpanded] = useState<boolean>(false);
-  
+
   if (!content || content === 'None') return <span>None</span>;
   if (content.length <= maxLength) return <span>{content}</span>;
-  
+
   return (
     <span>
       {expanded ? (
@@ -97,12 +105,19 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   const [selectedStretch, setSelectedStretch] = useState<string>('');
   const [selectedDrains, setSelectedDrains] = useState<string[]>([]);
   const [selectionsLocked, setSelectionsLocked] = useState<boolean>(false);
-  
+
+
+  // State for intersected villages
+  const [intersectedVillages, setIntersectedVillages] = useState<IntersectedVillage[]>([]);
+  const [loadingVillages, setLoadingVillages] = useState<boolean>(false);
+  const [villageError, setVillageError] = useState<string | null>(null);
+
+
   // Loading states
   const [loadingRivers, setLoadingRivers] = useState<boolean>(false);
   const [loadingStretches, setLoadingStretches] = useState<boolean>(false);
   const [loadingDrains, setLoadingDrains] = useState<boolean>(false);
-  
+
   // Error states
   const [error, setError] = useState<string | null>(null);
   const [riverError, setRiverError] = useState<string | null>(null);
@@ -118,14 +133,14 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
         setSelectedDrains([]);
       }
     };
-    
+
     window.resetDrainSelectionsInDrainLocationsSelector = () => {
       if (!selectionsLocked) {
         console.log('DrainLocationsSelector resetting drain selections');
         setSelectedDrains([]);
       }
     };
-    
+
     return () => {
       window.resetStretchSelectionsInDrainLocationsSelector = undefined;
       window.resetDrainSelectionsInDrainLocationsSelector = undefined;
@@ -139,22 +154,22 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
         setLoadingRivers(true);
         setRiverError(null);
         setError(null);
-        
+
         const response = await fetch('http://localhost:9000/api/basic/rivers/');
         if (!response.ok) {
           throw new Error(`Failed to fetch rivers (Status: ${response.status})`);
         }
-        
+
         const data: GeoJSONFeatureCollection = await response.json();
         if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
           throw new Error('Invalid river data format received');
         }
-        
+
         const riverData: LocationItem[] = data.features.map(feature => ({
           id: feature.properties.River_Code,
           name: feature.properties.River_Name,
         }));
-        
+
         setRivers(riverData);
       } catch (error: any) {
         console.error('Error fetching rivers:', error);
@@ -165,7 +180,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
         setLoadingRivers(false);
       }
     };
-    
+
     fetchRivers();
   }, []);
 
@@ -177,30 +192,34 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           setLoadingStretches(true);
           setStretchError(null);
           setError(null);
-          
+
           const response = await fetch('http://localhost:9000/api/basic/river-stretched/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ River_Code: parseInt(selectedRiver) }),
           });
-          
+
           if (!response.ok) {
             throw new Error(`Failed to fetch stretches (Status: ${response.status})`);
           }
-          
+
           const data: GeoJSONFeatureCollection = await response.json();
-          
+
           if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
             throw new Error('Invalid stretch data format received');
           }
-          
+
           const stretchData: Stretch[] = data.features.map(feature => ({
             id: feature.properties.Stretch_ID,
             name: feature.properties.River_Name,
             riverId: parseInt(selectedRiver),
           }));
-          
-          const sortedStretches = [...stretchData].sort((a, b) => a.name.localeCompare(b.name));
+
+          const sortedStretches = [...stretchData].sort((a, b) => {
+            const aName = a.name || '';  // Default to empty string if name is undefined
+            const bName = b.name || '';  // Default to empty string if name is undefined
+            return aName.localeCompare(bName);
+          });
           setStretches(sortedStretches);
           setSelectedStretch('');
         } catch (error: any) {
@@ -212,7 +231,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           setLoadingStretches(false);
         }
       };
-      
+
       fetchStretches();
     } else {
       setStretches([]);
@@ -230,23 +249,23 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           setLoadingDrains(true);
           setDrainError(null);
           setError(null);
-          
+
           const response = await fetch('http://localhost:9000/api/basic/drain/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ Stretch_ID: parseInt(selectedStretch) }),
           });
-          
+
           if (!response.ok) {
             throw new Error(`Failed to fetch drains (Status: ${response.status})`);
           }
-          
+
           const data: GeoJSONFeatureCollection = await response.json();
-          
+
           if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
             throw new Error('Invalid drain data format received');
           }
-          
+
           // Corrected property name: Drain_No instead of Drain_NO
           const stretchMap = new Map(stretches.map(stretch => [stretch.id.toString(), stretch.name]));
           const drainData: Drain[] = data.features.map(feature => ({
@@ -255,7 +274,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
             stretchId: feature.properties.Stretch_ID,
             stretchName: stretchMap.get(feature.properties.Stretch_ID.toString()) || 'Unknown Stretch',
           }));
-          
+
           const sortedDrains = [...drainData].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
           setDrains(sortedDrains);
           setSelectedDrains([]);
@@ -268,7 +287,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           setLoadingDrains(false);
         }
       };
-      
+
       fetchDrains();
     } else {
       setDrains([]);
@@ -276,12 +295,55 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     }
   }, [selectedStretch, stretches]);
 
+  // Fetch intersected villages when drains are selected
+  useEffect(() => {
+    if (selectedDrains.length > 0) {
+      const fetchIntersectedVillages = async (): Promise<void> => {
+        try {
+          setLoadingVillages(true);
+          setVillageError(null);
+          setError(null);
+
+          const response = await fetch('http://localhost:9000/api/basic/catchment_village/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              Drain_No: selectedDrains.map(id => parseInt(id))
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch intersected villages (Status: ${response.status})`);
+          }
+
+          const data = await response.json();
+          setIntersectedVillages(data.intersected_villages || []);
+          console.log('Intersected villages:', data.intersected_villages);
+        } catch (error: any) {
+          console.error('Error fetching intersected villages:', error);
+          setVillageError(error.message);
+          // Don't set the main error for this, as it's supplementary data
+          setIntersectedVillages([]);
+        } finally {
+          setLoadingVillages(false);
+        }
+      };
+
+      fetchIntersectedVillages();
+    } else {
+      setIntersectedVillages([]);
+    }
+  }, [selectedDrains]);
+
+
+
+
   // Event handlers
   const handleRiverChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     if (!selectionsLocked) {
       const riverId = e.target.value;
       setSelectedRiver(riverId);
-      
+
       if (onRiverChange) {
         onRiverChange(riverId);
       }
@@ -292,7 +354,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     if (!selectionsLocked) {
       const stretchId = e.target.value;
       setSelectedStretch(stretchId);
-      
+
       if (onStretchChange) {
         onStretchChange(stretchId);
       }
@@ -301,10 +363,13 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
 
   const handleDrainsChange = (newSelectedDrains: string[]) => {
     if (!selectionsLocked) {
-      setSelectedDrains(newSelectedDrains);
-      
+      // Make sure these are properly formatted as strings
+      const formattedDrainIds = newSelectedDrains.map(id => id.toString());
+      setSelectedDrains(formattedDrainIds);
+  
       if (onDrainsChange) {
-        onDrainsChange(newSelectedDrains);
+        // Pass the correctly formatted IDs
+        onDrainsChange(formattedDrainIds);
       }
     }
   };
@@ -318,7 +383,8 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     setRiverError(null);
     setStretchError(null);
     setDrainError(null);
-    
+    setVillageError(null);
+
     if (onReset) {
       onReset();
     }
@@ -327,23 +393,23 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   const formatSelectedDrains = (items: Drain[], selectedIds: string[]): string => {
     if (selectedIds.length === 0) return 'None';
     if (selectedIds.length === items.length) return 'All Drains';
-    
+
     const selectedItems = items.filter(item => selectedIds.includes(item.id.toString()));
     if (selectedItems.length === 0) return 'None';
-    
+
     const groupedByStretch: { [key: string]: Drain[] } = {};
     selectedItems.forEach(item => {
       const stretchName = item.stretchName || 'Unknown';
       if (!groupedByStretch[stretchName]) groupedByStretch[stretchName] = [];
       groupedByStretch[stretchName].push(item);
     });
-    
+
     const stretchDrainCount = drains.reduce((acc: { [key: string]: number }, drain) => {
       const stretchName = drain.stretchName || 'Unknown';
       acc[stretchName] = (acc[stretchName] || 0) + 1;
       return acc;
     }, {});
-    
+
     return Object.entries(groupedByStretch)
       .map(([stretch, drains]) => {
         if (drains.length === (stretchDrainCount[stretch] || 0)) {
@@ -354,46 +420,68 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
       .join('; ');
   };
 
+
+const formatIntersectedVillages = (): string => {
+    if (intersectedVillages.length === 0) return 'None';
+    
+    const groupedByDrain: { [key: string]: string[] } = {};
+    intersectedVillages.forEach(v => {
+        const drainKey = v.drainNo ? `Drain ${v.drainNo}` : 'Unknown Drain';
+        if (!groupedByDrain[drainKey]) groupedByDrain[drainKey] = [];
+        groupedByDrain[drainKey].push(v.shapeName);
+    });
+    
+    const formatted = Object.entries(groupedByDrain)
+        .map(([drain, villages]) => {
+            const uniqueVillages = [...new Set(villages)];
+            return `${drain}: ${uniqueVillages.join(', ')}`;
+        })
+        .join('; ');
+    
+    return formatted || 'None';
+};
+
+
+
+
   const handleConfirm = (): void => {
     if (selectedDrains.length > 0) {
       setSelectionsLocked(true);
-      
+        
       const selectedDrainObjects = drains.filter(drain =>
         selectedDrains.includes(drain.id.toString())
       );
-      
-      const selectedStretchObject = stretches.find(stretch =>
-        stretch.id.toString() === selectedStretch
-      );
-      
-      const selectedRiverObject = rivers.find(river =>
-        river.id.toString() === selectedRiver
-      );
-      
+        
+      console.log('Selected drain objects:', selectedDrainObjects);
+      console.log('Selected drain IDs:', selectedDrains);
+        
       const riverData = {
         river: selectedRiverObject?.name || '',
         stretch: selectedStretchObject?.name || '',
         drains: selectedDrainObjects.map(d => d.name),
         allDrains: selectedDrainObjects.map(d => ({
           name: d.name,
+          id: d.id.toString(), // Make sure IDs are strings
           stretch: d.stretchName,
         })),
       };
-      
+        
       window.selectedRiverData = riverData;
       console.log('River data stored in window object:', riverData);
-      
+        
       if (onConfirm) {
         onConfirm({
           drains: selectedDrainObjects,
         });
       }
     }
-  };
+  }; // End of function - remove all code after this closing brace and semicolon
+  
 
   const formatDrainDisplay = (drain: Drain): string => {
-    return drain.name;
-  };
+    // Ensure IDs are correctly captured and formatted
+    return `${drain.name} (ID: ${drain.id})`;
+};
 
   const groupDrainsByStretch = (drains: Drain[]): { [key: string]: Drain[] } => {
     return drains.reduce((groups: { [key: string]: Drain[] }, item) => {
@@ -412,7 +500,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           {error}
         </div>
       )}
-      
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         {/* River Dropdown */}
         <div>
@@ -442,7 +530,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           </div>
           {riverError && <p className="mt-1 text-xs text-red-500">{riverError}</p>}
         </div>
-        
+
         {/* Stretch Dropdown */}
         <div>
           <label htmlFor="stretch-dropdown" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -471,16 +559,14 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           </div>
           {stretchError && <p className="mt-1 text-xs text-red-500">{stretchError}</p>}
         </div>
-        
+
         {/* Drain MultiSelect */}
         <div>
-          <label htmlFor="drain-multiselect" className="block text-sm font-semibold text-gray-700 mb-2">
-            Drain {loadingDrains && <span className="text-gray-500 text-xs">(Loading...)</span>}
-          </label>
+
           <MultiSelect
             items={drains}
             selectedItems={selectedDrains}
-            onSelectionChange={selectionsLocked ? () => {} : handleDrainsChange}
+            onSelectionChange={selectionsLocked ? () => { } : handleDrainsChange}
             label="Drain"
             placeholder="--Choose Drains--"
             disabled={!selectedStretch || selectionsLocked || loadingDrains}
@@ -492,7 +578,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           {drainError && <p className="mt-1 text-xs text-red-500">{drainError}</p>}
         </div>
       </div>
-      
+
       {/* Selected Data Summary */}
       <div className="mt-6 p-4 px-5 bg-gray-50 rounded-lg border border-gray-200">
         <h3 className="text-md font-medium text-gray-800 mb-2">Selected River Data</h3>
@@ -503,26 +589,40 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           </p>
           <p>
             <span className="font-medium">Stretch:</span>{' '}
-            {stretches.find(s => s.id.toString() === selectedStretch)?.name || 'None'}
+            {stretches.find(s => s.id.toString() === selectedStretch)?.id || 'None'}
           </p>
           <p>
             <span className="font-medium">Drains:</span>{' '}
             <TruncatedList content={formatSelectedDrains(drains, selectedDrains)} maxLength={80} />
           </p>
+
+
+{/* Display intersected villages */}
+          <p>
+            <span className="font-medium">Basin Villages:</span>{' '}
+            {loadingVillages ? (
+              <span className="italic text-gray-500">Loading villages...</span>
+            ) : (
+              <TruncatedList content={formatIntersectedVillages()} maxLength={80} />
+            )}
+          </p>
+          
+          {villageError && <p className="text-xs text-red-500 mt-1">{villageError}</p>}
+
+
           {selectionsLocked && (
             <p className="mt-2 text-green-600 font-medium">Selections confirmed and locked</p>
           )}
         </div>
       </div>
-      
+
       {/* Action Buttons */}
       <div className="flex space-x-4 mt-4">
         <button
-          className={`${
-            selectedDrains.length > 0 && !selectionsLocked
+          className={`${selectedDrains.length > 0 && !selectionsLocked
               ? 'bg-blue-500 hover:bg-blue-700'
               : 'bg-gray-400 cursor-not-allowed'
-          } text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200`}
+            } text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200`}
           onClick={handleConfirm}
           disabled={selectedDrains.length === 0 || selectionsLocked}
         >

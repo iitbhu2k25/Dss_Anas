@@ -1,5 +1,6 @@
+
 'use client'
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -40,17 +41,22 @@ const DrainMap: React.FC<DrainMapProps> = ({
     const stretchLayerRef = useRef<L.GeoJSON | null>(null);
     const drainLayerRef = useRef<L.GeoJSON | null>(null);
     const labelLayersRef = useRef<L.Marker[]>([]);
+    const catchmentLayerRef = useRef<L.GeoJSON | null>(null);
+    const villageLayerRef = useRef<L.GeoJSON | null>(null);
 
     const [basinData, setBasinData] = useState<GeoJSONFeatureCollection | null>(null);
     const [riversData, setRiversData] = useState<GeoJSONFeatureCollection | null>(null);
     const [stretchesData, setStretchesData] = useState<GeoJSONFeatureCollection | null>(null);
     const [drainsData, setDrainsData] = useState<GeoJSONFeatureCollection | null>(null);
-
+    const [catchmentData, setCatchmentData] = useState<GeoJSONFeatureCollection | null>(null);
+    const [villageData, setVillageData] = useState<GeoJSONFeatureCollection | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [debug, setDebug] = useState<boolean>(false);
-    const [showLabels, setShowLabels] = useState<boolean>(true);
+    const [showLabels, setShowLabels] = useState<boolean>(false);
+    const [initialZoomDone, setInitialZoomDone] = useState<boolean>(false);
 
+    // Initialize map
     useEffect(() => {
         if (mapContainerRef.current && !mapRef.current) {
             console.log("Initializing map...");
@@ -85,15 +91,66 @@ const DrainMap: React.FC<DrainMapProps> = ({
         };
     }, []);
 
-    // Fetch river-specific stretches when selectedRiver changes
+    // Trigger initial zoom when all data is loaded
     useEffect(() => {
-        if (selectedRiver && mapRef.current) {
-            fetchStretchesByRiver(selectedRiver);
+        if (mapRef.current && !initialZoomDone && basinData && riversData && stretchesData && drainsData) {
+            console.log("Initial data loaded, triggering zoomToAllLayers");
+            zoomToAllLayers();
+            setInitialZoomDone(true);
         }
-    }, [selectedRiver]);
+    }, [basinData, riversData, stretchesData, drainsData, initialZoomDone, zoomToAllLayers]);
 
-    
-    // Toggle labels visibility
+    // Handle river selection
+    useEffect(() => {
+        if (mapRef.current) {
+            console.log(`River selection changed to: ${selectedRiver}`);
+            if (riversData && riverLayerRef.current) {
+                highlightSelectedRiver(selectedRiver);
+            }
+            if (selectedRiver) {
+                fetchStretchesByRiver(selectedRiver);
+                zoomToSelectedLayer('river');
+            } else {
+                resetAllStretchStyles();
+                zoomToAllLayers();
+            }
+        }
+    }, [selectedRiver, riversData, zoomToSelectedLayer, zoomToAllLayers]);
+
+    // Handle stretch selection
+    useEffect(() => {
+        if (selectedStretch && mapRef.current) {
+            console.log(`Stretch selection changed to: ${selectedStretch}`);
+            if (stretchesData && stretchLayerRef.current) {
+                highlightSelectedStretch(selectedStretch);
+                zoomToSelectedLayer('stretch');
+            }
+        }
+    }, [selectedStretch, stretchesData, zoomToSelectedLayer]);
+
+    // Handle drains selection
+    useEffect(() => {
+        if (selectedDrains.length > 0 && mapRef.current) {
+            console.log(`Drains selection changed to: ${selectedDrains.join(', ')}`);
+            if (drainsData && drainLayerRef.current) {
+                highlightSelectedDrains();
+                fetchCatchmentsByDrains(selectedDrains);
+                zoomToSelectedLayer('drains');
+            }
+        } else {
+            if (catchmentLayerRef.current && mapRef.current) {
+                mapRef.current.removeLayer(catchmentLayerRef.current);
+                catchmentLayerRef.current = null;
+            }
+            if (villageLayerRef.current && mapRef.current) {
+                mapRef.current.removeLayer(villageLayerRef.current);
+                villageLayerRef.current = null;
+            }
+            zoomToAllLayers();
+        }
+    }, [selectedDrains, drainsData, zoomToSelectedLayer, zoomToAllLayers]);
+
+    // Toggle labels
     useEffect(() => {
         if (stretchesData) {
             if (showLabels) {
@@ -104,6 +161,98 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     }, [showLabels, stretchesData]);
 
+    const highlightSelectedRiver = (riverId: string) => {
+        if (!mapRef.current || !riverLayerRef.current || !riversData) {
+            console.log("Cannot highlight river: map, layer or data missing");
+            return;
+        }
+        try {
+            riverLayerRef.current.eachLayer((layer: any) => {
+                if (layer.feature?.properties) {
+                    const riverCode = layer.feature.properties.River_Code?.toString();
+                    if (riverCode === riverId) {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                color: '#FF4500',
+                                weight: 5,
+                                opacity: 1.0,
+                            });
+                        }
+                        if (layer.bringToFront) {
+                            layer.bringToFront();
+                        }
+                    } else {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                color: 'orange',
+                                weight: 3,
+                                opacity: 0.7,
+                            });
+                        }
+                    }
+                }
+            });
+            console.log("Highlighted river:", riverId);
+        } catch (err) {
+            console.error("Error highlighting river:", err);
+        }
+    };
+
+    const highlightSelectedStretch = (stretchId: string) => {
+        if (!mapRef.current || !stretchLayerRef.current) {
+            console.log("Cannot highlight stretch: map, layer or data missing");
+            return;
+        }
+        try {
+            stretchLayerRef.current.eachLayer((layer: any) => {
+                if (layer.feature?.properties) {
+                    const stretch = layer.feature.properties.Stretch_ID?.toString();
+                    if (stretch === stretchId) {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                color: '#FF0066',
+                                weight: 6,
+                                opacity: 1.0,
+                            });
+                        }
+                        if (layer.bringToFront) {
+                            layer.bringToFront();
+                        }
+                    }
+                }
+            });
+            console.log("Highlighted stretch:", stretchId);
+        } catch (err) {
+            console.error("Error highlighting stretch:", err);
+        }
+    };
+
+    const resetAllStretchStyles = () => {
+        if (!mapRef.current || !stretchLayerRef.current) {
+            console.log("Cannot reset stretch styles: map or layer missing");
+            return;
+        }
+        try {
+            console.log("Resetting all stretch styles to default");
+            stretchLayerRef.current.eachLayer((layer: any) => {
+                if (layer.feature?.properties) {
+                    if (layer.setStyle) {
+                        layer.setStyle({
+                            color: 'green',
+                            weight: 2,
+                            opacity: 0.4,
+                        });
+                    }
+                }
+            });
+            if (selectedStretch) {
+                highlightSelectedStretch(selectedStretch);
+            }
+        } catch (err) {
+            console.error("Error resetting stretch styles:", err);
+        }
+    };
+
     const fetchAllData = async () => {
         setLoading(true);
         setError(null);
@@ -112,17 +261,10 @@ const DrainMap: React.FC<DrainMapProps> = ({
             await Promise.all([
                 fetchBasin(),
                 fetchRivers(),
-                fetchAllDrains()
+                fetchAllDrains(),
+                fetchAllStretches()
             ]);
-
-            if (selectedRiver) {
-                await fetchStretchesByRiver(selectedRiver);
-            }
-
-            console.log("All data fetched, zooming to layers...");
-            if (mapRef.current) {
-                zoomToAllLayers();
-            }
+            console.log("All data fetched and layers updated");
         } catch (err) {
             console.error("Error fetching data:", err);
             setError("Failed to load map data");
@@ -181,13 +323,53 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     };
 
+    const highlightRiverStretches = (riverId: string, riverStretchIds: string[]) => {
+        if (!mapRef.current || !stretchLayerRef.current) {
+            console.log("Cannot highlight river stretches: map or layer missing");
+            return;
+        }
+        try {
+            console.log(`Highlighting ${riverStretchIds.length} stretches for river ${riverId}`);
+            stretchLayerRef.current.eachLayer((layer: any) => {
+                if (layer.feature?.properties) {
+                    const stretchId = layer.feature.properties.Stretch_ID?.toString();
+                    if (riverStretchIds.includes(stretchId)) {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                color: '#0066FF',
+                                weight: 4,
+                                opacity: 0.9,
+                            });
+                        }
+                        if (layer.bringToFront) {
+                            layer.bringToFront();
+                        }
+                    } else {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                color: 'green',
+                                weight: 2,
+                                opacity: 0.4,
+                            });
+                        }
+                    }
+                }
+            });
+            if (selectedStretch) {
+                highlightSelectedStretch(selectedStretch);
+            }
+        } catch (err) {
+            console.error("Error highlighting river stretches:", err);
+        }
+    };
+
     const fetchStretchesByRiver = async (riverId: string) => {
         try {
             console.log(`Fetching stretches for river ${riverId}...`);
             const response = await fetch('http://localhost:9000/api/basic/river-stretched/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ river_id: riverId })
+                body: JSON.stringify({ River_ID: riverId })
             });
             console.log("Stretches response status:", response.status);
             if (!response.ok) {
@@ -200,13 +382,10 @@ const DrainMap: React.FC<DrainMapProps> = ({
             } else {
                 console.warn("No stretch features received for selected river");
             }
-            setStretchesData(data);
-            if (mapRef.current) {
-                updateStretchesLayer(data);
-                if (showLabels) {
-                    createStretchLabels(data);
-                }
-            }
+            const riverStretchIds = data.features.map(feature =>
+                feature.properties.Stretch_ID?.toString()
+            );
+            highlightRiverStretches(riverId, riverStretchIds);
         } catch (error: any) {
             console.error("Error fetching stretches:", error);
             setError(`Stretches: ${error.message}`);
@@ -242,11 +421,131 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     };
 
+    const fetchAllStretches = async () => {
+        try {
+            console.log("Fetching all stretches...");
+            const response = await fetch('http://localhost:9000/api/basic/all-stretches/');
+            console.log("All stretches response status:", response.status);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch stretches: ${response.statusText}`);
+            }
+            const data = await response.json();
+            console.log("All stretches data:", data);
+            if (data.features?.length > 0) {
+                console.log(`Received ${data.features.length} stretch features`);
+            } else {
+                console.warn("No stretch features received");
+            }
+            setStretchesData(data);
+            if (mapRef.current) {
+                updateStretchesLayer(data);
+                try {
+                    if (showLabels) {
+                        createStretchLabels(data);
+                    }
+                } catch (labelError) {
+                    console.error("Error creating stretch labels:", labelError);
+                }
+            }
+        } catch (error: any) {
+            console.error("Error fetching all stretches:", error);
+            setError(`Stretches: ${error.message}`);
+        }
+    };
+
+    const fetchCatchmentsByDrains = async (drainIds: string[]) => {
+        try {
+            console.log(`Fetching catchments and villages for drains: ${drainIds}...`);
+            const response = await fetch('http://localhost:9000/api/basic/catchment_village/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    Drain_No: drainIds.map(id => parseInt(id, 10))
+                })
+            });
+            console.log("Catchments and villages response status:", response.status);
+            if (!response.ok) {
+                throw new Error(`Failed to fetch catchments and villages: ${response.statusText}`);
+            }
+            const data = await response.json();
+            console.log("Catchments and villages data:", data);
+
+            if (data.village_geojson?.features?.length > 0) {
+                console.log(`Received ${data.village_geojson.features.length} village features`);
+                setVillageData(data.village_geojson);
+                if (mapRef.current) {
+                    updateVillageLayer(data.village_geojson);
+                }
+            } else {
+                console.warn("No village features received for selected drains");
+                setVillageData(null);
+                if (villageLayerRef.current && mapRef.current) {
+                    mapRef.current.removeLayer(villageLayerRef.current);
+                    villageLayerRef.current = null;
+                }
+            }
+
+            if (data.catchment_geojson?.features?.length > 0) {
+                console.log(`Received ${data.catchment_geojson.features.length} catchment features`);
+                setCatchmentData(data.catchment_geojson);
+                if (mapRef.current) {
+                    updateCatchmentsLayer(data.catchment_geojson);
+                }
+            } else {
+                console.warn("No catchment features received for selected drains");
+                setCatchmentData(null);
+                if (catchmentLayerRef.current && mapRef.current) {
+                    mapRef.current.removeLayer(catchmentLayerRef.current);
+                    catchmentLayerRef.current = null;
+                }
+            }
+        } catch (error: any) {
+            console.error("Error fetching catchments and villages:", error);
+            setError(`Catchments and Villages: ${error.message}`);
+        }
+    };
+
     const clearLabelLayers = () => {
         if (mapRef.current && labelLayersRef.current.length > 0) {
             labelLayersRef.current.forEach(layer => mapRef.current?.removeLayer(layer));
             labelLayersRef.current = [];
             console.log("Cleared label layers");
+        }
+    };
+
+    const updateCatchmentsLayer = (data: GeoJSONFeatureCollection) => {
+        if (!mapRef.current) return;
+        console.log("Updating catchment layer...");
+        if (catchmentLayerRef.current) {
+            mapRef.current.removeLayer(catchmentLayerRef.current);
+            catchmentLayerRef.current = null;
+        }
+        if (!data?.features?.length) {
+            console.warn("No catchment features to display");
+            return;
+        }
+        try {
+            catchmentLayerRef.current = L.geoJSON(data, {
+                style: () => ({
+                    color: '#800080',
+                    weight: 2,
+                    opacity: 0.8,
+                    fillColor: '#E6E6FA',
+                    fillOpacity: 0.3,
+                }),
+                onEachFeature: (feature, layer) => {
+                    const catchmentName = feature.properties.Catchment_Name || 'Unknown';
+                    const drainNo = feature.properties.Drain_No || 'N/A';
+                    layer.bindPopup(`Catchment: ${catchmentName}<br>Drain No: ${drainNo}`);
+                },
+            }).addTo(mapRef.current);
+            console.log(`Catchment layer added with ${data.features.length} features`);
+            if (villageLayerRef.current) {
+                villageLayerRef.current.bringToFront();
+            }
+        } catch (error) {
+            console.error("Error updating catchment layer:", error);
+            setError("Failed to display catchments");
         }
     };
 
@@ -264,21 +563,18 @@ const DrainMap: React.FC<DrainMapProps> = ({
         try {
             basinLayerRef.current = L.geoJSON(data, {
                 style: () => ({
-                    color: 'red',  // Changed from '#999' to a bluish color
-                    weight: 3,         // Reduced from 20 to 5 for lighter weight
-                    opacity: 0.8,      // Increased from 0.5 for better visibility
-                    fillColor: 'white', // Changed from '#eee' to a light purple/reddish color
+                    color: 'red',
+                    weight: 3,
+                    opacity: 0.8,
+                    fillColor: 'white',
                     fillOpacity: 0,
                 }),
                 onEachFeature: (feature, layer) => {
                     const basinName = feature.properties.Basin_Name || 'Unknown';
                     layer.bindPopup(`Basin: ${basinName}`);
                 },
-                // Ensure the basin layer stays at the bottom so other layers appear on top
                 pane: 'tilePane',
             }).addTo(mapRef.current);
-      
-            // Make sure basin is at the back of all layers
             basinLayerRef.current.bringToBack();
             console.log(`Basin layer added with ${data.features.length} features`);
         } catch (error) {
@@ -334,7 +630,11 @@ const DrainMap: React.FC<DrainMapProps> = ({
             mapRef.current.removeLayer(stretchLayerRef.current);
             stretchLayerRef.current = null;
         }
-        clearLabelLayers();
+        try {
+            clearLabelLayers();
+        } catch (error) {
+            console.error("Error clearing label layers:", error);
+        }
         if (!data?.features?.length) {
             console.warn("No stretch features to display");
             return;
@@ -343,8 +643,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
             stretchLayerRef.current = L.geoJSON(data, {
                 style: () => ({
                     color: 'green',
-                    weight: 4,
-                    opacity: 0.6,
+                    weight: 2,
+                    opacity: 0.4,
                 }),
                 pointToLayer: (feature, latlng) => {
                     return L.circleMarker(latlng, {
@@ -358,13 +658,23 @@ const DrainMap: React.FC<DrainMapProps> = ({
                 },
                 onEachFeature: (feature, layer) => {
                     const stretchId = feature.properties.Stretch_ID || 'N/A';
-                    layer.bindPopup(`Stretch: ${stretchId}`);
+                    const riverName = feature.properties.River_Name || 'Unknown River';
+                    layer.bindPopup(`Stretch: ${stretchId}<br>River: ${riverName}`);
                 },
             }).addTo(mapRef.current);
             console.log(`Stretches layer added with ${data.features.length} features`);
-
-            if (showLabels) {
-                createStretchLabels(data);
+            try {
+                if (showLabels) {
+                    createStretchLabels(data);
+                }
+            } catch (labelError) {
+                console.error("Error creating stretch labels:", labelError);
+            }
+            if (selectedRiver) {
+                fetchStretchesByRiver(selectedRiver);
+            }
+            if (selectedStretch) {
+                highlightSelectedStretch(selectedStretch);
             }
         } catch (error) {
             console.error("Error updating stretches layer:", error);
@@ -376,24 +686,18 @@ const DrainMap: React.FC<DrainMapProps> = ({
         if (!mapRef.current) return;
         console.log("Creating stretch labels...");
         clearLabelLayers();
-
         if (!data?.features?.length) {
             console.warn("No stretch features for labeling");
             return;
         }
-
         try {
             data.features.forEach(feature => {
                 const stretchId = feature.properties.Stretch_ID || 'N/A';
-
-                // For point features
                 if (feature.geometry.type === 'Point') {
                     const coords = feature.geometry.coordinates;
                     const latlng = L.latLng(coords[1], coords[0]);
                     addLabel(latlng, stretchId);
-                }
-                // For LineString features - add label at midpoint
-                else if (feature.geometry.type === 'LineString') {
+                } else if (feature.geometry.type === 'LineString') {
                     const coords = feature.geometry.coordinates;
                     if (coords.length > 0) {
                         const midIndex = Math.floor(coords.length / 2);
@@ -401,9 +705,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
                         const latlng = L.latLng(midCoord[1], midCoord[0]);
                         addLabel(latlng, stretchId);
                     }
-                }
-                // For MultiLineString features - add label at midpoint of first line
-                else if (feature.geometry.type === 'MultiLineString') {
+                } else if (feature.geometry.type === 'MultiLineString') {
                     const lines = feature.geometry.coordinates;
                     if (lines.length > 0 && lines[0].length > 0) {
                         const midIndex = Math.floor(lines[0].length / 2);
@@ -413,7 +715,6 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     }
                 }
             });
-
             console.log(`Created ${labelLayersRef.current.length} stretch labels`);
         } catch (error) {
             console.error("Error creating stretch labels:", error);
@@ -422,22 +723,52 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
     const addLabel = (latlng: L.LatLng, text: string) => {
         if (!mapRef.current) return;
-
-        // Create a custom icon with text
         const icon = L.divIcon({
             html: `<div style="background: none; border: none; color: #000; font-weight: bold; text-shadow: 0px 0px 3px white;">${text}</div>`,
             className: 'stretch-label',
             iconSize: [100, 20],
             iconAnchor: [50, 10]
         });
-
         const marker = L.marker(latlng, {
             icon: icon,
             interactive: false,
             zIndexOffset: 1000
         }).addTo(mapRef.current);
-
         labelLayersRef.current.push(marker);
+    };
+
+    const updateVillageLayer = (data: GeoJSONFeatureCollection) => {
+        if (!mapRef.current) return;
+        console.log("Updating village layer...");
+        if (villageLayerRef.current) {
+            mapRef.current.removeLayer(villageLayerRef.current);
+            villageLayerRef.current = null;
+        }
+        if (!data?.features?.length) {
+            console.warn("No village features to display");
+            return;
+        }
+        try {
+            villageLayerRef.current = L.geoJSON(data, {
+                style: () => ({
+                    color: '#FFA500',
+                    weight: 2,
+                    opacity: 0.8,
+                    fillColor: '#FFD700',
+                    fillOpacity: 0.3,
+                }),
+                onEachFeature: (feature, layer) => {
+                    const villageName = feature.properties.shapeName || 'Unknown';
+                    const shapeID = feature.properties.shapeID || 'N/A';
+                    layer.bindPopup(`Village: ${villageName}<br>ID: ${shapeID}`);
+                },
+            }).addTo(mapRef.current);
+            console.log(`Village layer added with ${data.features.length} features`);
+            villageLayerRef.current.bringToFront();
+        } catch (error) {
+            console.error("Error updating village layer:", error);
+            setError("Failed to display villages");
+        }
     };
 
     const updateDrainsLayer = (data: GeoJSONFeatureCollection) => {
@@ -495,14 +826,23 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     if (selectedDrains.includes(drainNo)) {
                         if (layer.setStyle) {
                             layer.setStyle({
-                                color: '#555',
-                                weight: 2,
-                                opacity: 0.8,
-                                fillOpacity: 0.5,
+                                color: '#1E90FF',
+                                weight: 5,
+                                opacity: 1.0,
+                                fillOpacity: 0.8,
                             });
                         }
                         if (layer.bringToFront) {
                             layer.bringToFront();
+                        }
+                    } else {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                color: 'blue',
+                                weight: 3,
+                                opacity: 0.8,
+                                fillOpacity: 0.3,
+                            });
                         }
                     }
                 }
@@ -513,78 +853,178 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     };
 
-    const zoomToAllLayers = () => {
-        if (!mapRef.current) return;
-        console.log("Zooming to all layers...");
+    const zoomToSelectedLayer = useCallback((layerType: 'river' | 'stretch' | 'drains') => {
+        if (!mapRef.current) {
+            console.warn("Map not initialized, cannot zoom to selected layer");
+            return;
+        }
+        console.log(`Zooming to selected layer: ${layerType}`);
 
-        // Create new bounds
         const bounds = L.latLngBounds([]);
         let anyValidBounds = false;
 
-        // Add basin bounds if available
-        if (basinData?.features?.length) {
-            try {
-                const tempLayer = L.geoJSON(basinData);
-                if (tempLayer.getBounds().isValid()) {
-                    bounds.extend(tempLayer.getBounds());
-                    anyValidBounds = true;
+        if (layerType === 'river' && selectedRiver && stretchesData) {
+            const riverStretches = stretchesData.features.filter(feature =>
+                feature.properties.River_Code?.toString() === selectedRiver
+            );
+            if (riverStretches.length > 0) {
+                try {
+                    const tempLayer = L.geoJSON({ type: 'FeatureCollection', features: riverStretches });
+                    const layerBounds = tempLayer.getBounds();
+                    if (layerBounds.isValid()) {
+                        bounds.extend(layerBounds);
+                        anyValidBounds = true;
+                        console.log(`River stretches: Extended bounds with ${riverStretches.length} features`);
+                    } else {
+                        console.warn("River stretches: Invalid bounds");
+                    }
+                } catch (err) {
+                    console.error("River stretches: Error processing bounds", err);
                 }
-            } catch (err) {
-                console.error("Error processing basin bounds:", err);
+            } else {
+                console.warn("No stretches found for selected river");
+            }
+        } else if (layerType === 'stretch' && selectedStretch && stretchesData) {
+            const stretchFeature = stretchesData.features.find(feature =>
+                feature.properties.Stretch_ID?.toString() === selectedStretch
+            );
+            if (stretchFeature) {
+                try {
+                    const tempLayer = L.geoJSON(stretchFeature);
+                    const layerBounds = tempLayer.getBounds();
+                    if (layerBounds.isValid()) {
+                        bounds.extend(layerBounds);
+                        anyValidBounds = true;
+                        console.log("Selected stretch: Extended bounds");
+                    } else {
+                        console.warn("Selected stretch: Invalid bounds");
+                    }
+                } catch (err) {
+                    console.error("Selected stretch: Error processing bounds", err);
+                }
+            } else {
+                console.warn("Selected stretch not found in data");
+            }
+        } else if (layerType === 'drains' && selectedDrains.length > 0 && drainsData) {
+            const drainFeatures = drainsData.features.filter(feature =>
+                selectedDrains.includes(feature.properties.Drain_No?.toString())
+            );
+            if (drainFeatures.length > 0) {
+                try {
+                    const tempLayer = L.geoJSON({ type: 'FeatureCollection', features: drainFeatures });
+                    const layerBounds = tempLayer.getBounds();
+                    if (layerBounds.isValid()) {
+                        bounds.extend(layerBounds);
+                        anyValidBounds = true;
+                        console.log(`Selected drains: Extended bounds with ${drainFeatures.length} features`);
+                    } else {
+                        console.warn("Selected drains: Invalid bounds");
+                    }
+                } catch (err) {
+                    console.error("Selected drains: Error processing bounds", err);
+                }
+            }
+            if (catchmentData?.features?.length > 0) {
+                try {
+                    const tempLayer = L.geoJSON(catchmentData);
+                    const layerBounds = tempLayer.getBounds();
+                    if (layerBounds.isValid()) {
+                        bounds.extend(layerBounds);
+                        anyValidBounds = true;
+                        console.log(`Catchments: Extended bounds with ${catchmentData.features.length} features`);
+                    } else {
+                        console.warn("Catchments: Invalid bounds");
+                    }
+                } catch (err) {
+                    console.error("Catchments: Error processing bounds", err);
+                }
             }
         }
 
-        // Add river bounds if available
-        if (riversData?.features?.length) {
-            try {
-                const tempLayer = L.geoJSON(riversData);
-                if (tempLayer.getBounds().isValid()) {
-                    bounds.extend(tempLayer.getBounds());
-                    anyValidBounds = true;
-                }
-            } catch (err) {
-                console.error("Error processing river bounds:", err);
-            }
-        }
-
-        // Add stretch bounds if available
-        if (stretchesData?.features?.length) {
-            try {
-                const tempLayer = L.geoJSON(stretchesData);
-                if (tempLayer.getBounds().isValid()) {
-                    bounds.extend(tempLayer.getBounds());
-                    anyValidBounds = true;
-                }
-            } catch (err) {
-                console.error("Error processing stretch bounds:", err);
-            }
-        }
-
-        // Add drain bounds if available
-        if (drainsData?.features?.length) {
-            try {
-                const tempLayer = L.geoJSON(drainsData);
-                if (tempLayer.getBounds().isValid()) {
-                    bounds.extend(tempLayer.getBounds());
-                    anyValidBounds = true;
-                }
-            } catch (err) {
-                console.error("Error processing drain bounds:", err);
-            }
-        }
-
-        // If no valid bounds found at all, add a fallback point
-        if (!anyValidBounds) {
-            console.warn("No valid bounds at all, trying a fallback approach");
-            // Add a single point to ensure we have valid bounds
-            const center = [23.5937, 80.9629]; // Center of India
-            bounds.extend(L.latLng(center));
-            mapRef.current.setView(center, 5);
+        if (!anyValidBounds || !bounds.isValid()) {
+            console.warn(`No valid bounds for ${layerType}, falling back to all layers`);
+            zoomToAllLayers();
         } else {
-            console.log("Zooming to bounds:", bounds);
-            mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+            console.log(`Zooming to ${layerType} bounds:`, bounds.toBBoxString());
+            try {
+                const ne = bounds.getNorthEast();
+                const sw = bounds.getSouthWest();
+                if (Math.abs(ne.lat - sw.lat) < 0.0001 && Math.abs(ne.lng - sw.lng) < 0.0001) {
+                    mapRef.current.setView(bounds.getCenter(), 14);
+                } else {
+                    mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+                }
+            } catch (err) {
+                console.error(`Error zooming to ${layerType} bounds:`, err);
+                zoomToAllLayers();
+            }
         }
-    };
+    }, [selectedRiver, selectedStretch, selectedDrains, stretchesData, drainsData, catchmentData, zoomToAllLayers]);
+
+    const zoomToAllLayers = useCallback(() => {
+        if (!mapRef.current) {
+            console.warn("Map not initialized, cannot zoom");
+            return;
+        }
+        console.log("Zooming to all layers...");
+
+        const bounds = L.latLngBounds([]);
+        let anyValidBounds = false;
+
+        // Process each layer's data
+        const layers = [
+            { name: 'Basin', data: basinData },
+            { name: 'Rivers', data: riversData },
+            { name: 'Stretches', data: stretchesData },
+            { name: 'Drains', data: drainsData },
+            { name: 'Catchment', data: catchmentData },
+        ];
+
+        layers.forEach(({ name, data }) => {
+            if (data?.features?.length > 0) {
+                try {
+                    const tempLayer = L.geoJSON(data, {
+                        filter: feature => {
+                            if (!feature.geometry || !feature.geometry.type) {
+                                console.warn(`${name}: Skipping feature with invalid geometry`, feature);
+                                return false;
+                            }
+                            return true;
+                        },
+                    });
+                    const layerBounds = tempLayer.getBounds();
+                    if (layerBounds.isValid()) {
+                        bounds.extend(layerBounds);
+                        anyValidBounds = true;
+                        console.log(`${name}: Extended bounds with ${data.features.length} features`);
+                    } else {
+                        console.warn(`${name}: Invalid bounds for dataset`);
+                    }
+                } catch (err) {
+                    console.error(`${name}: Error processing bounds`, err);
+                }
+            }
+        });
+
+        if (!anyValidBounds || !bounds.isValid()) {
+            console.warn("No valid bounds found, using default view");
+            mapRef.current.setView([23.5937, 80.9629], 5); // Center of India
+        } else {
+            console.log("Zooming to combined bounds:", bounds.toBBoxString());
+            try {
+                const ne = bounds.getNorthEast();
+                const sw = bounds.getSouthWest();
+                if (Math.abs(ne.lat - sw.lat) < 0.0001 && Math.abs(ne.lng - sw.lng) < 0.0001) {
+                    mapRef.current.setView(bounds.getCenter(), 12);
+                } else {
+                    mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+                }
+            } catch (err) {
+                console.error("Error fitting bounds:", err);
+                mapRef.current.setView([23.5937, 80.9629], 5);
+            }
+        }
+    }, [basinData, riversData, stretchesData, drainsData, catchmentData]);
 
     const toggleDebug = () => {
         setDebug(!debug);
@@ -618,12 +1058,33 @@ const DrainMap: React.FC<DrainMapProps> = ({
                         Rivers
                     </div>
                     <div className="flex items-center">
-                        <span className="w-4 h-4 bg-green-600 inline-block mr-1 border border-black-800"></span>
-                        Stretches
+                        <span className="w-4 h-4 bg-green-600 inline-block mr-1 border"
+                            style={{ opacity: 0.4 }}></span>
+                        All Stretches
+                    </div>
+                    <div className="flex items-center">
+                        <span className="w-4 h-4 inline-block mr-1 border"
+                            style={{ backgroundColor: '#0066FF', borderColor: '#0033CC' }}></span>
+                        River's Stretches
+                    </div>
+                    <div className="flex items-center">
+                        <span className="w-4 h-4 inline-block mr-1 border"
+                            style={{ backgroundColor: '#FF0066', borderColor: '#CC0033' }}></span>
+                        Selected Stretch
                     </div>
                     <div className="flex items-center">
                         <span className="w-4 h-4 bg-blue-900 inline-block mr-1 border border-blue-700"></span>
                         Drains
+                    </div>
+                    <div className="flex items-center">
+                        <span className="w-4 h-4 inline-block mr-1 border"
+                            style={{ backgroundColor: '#E6E6FA', borderColor: '#800080' }}></span>
+                        Catchments
+                    </div>
+                    <div className="flex items-center">
+                        <span className="w-4 h-4 inline-block mr-1 border"
+                            style={{ backgroundColor: '#FFD700', borderColor: '#FFA500' }}></span>
+                        Villages
                     </div>
                     <button
                         className="text-xs bg-gray-200 hover:bg-gray-300 py-1 px-2 rounded"
@@ -648,11 +1109,16 @@ const DrainMap: React.FC<DrainMapProps> = ({
                 <div className="bg-gray-100 border-t border-gray-300 p-2 text-xs font-mono overflow-auto max-h-32">
                     <div>Debug Info:</div>
                     <div>Map: {mapRef.current ? 'Initialized' : 'Not initialized'}</div>
+                    <div>Initial Zoom: {initialZoomDone ? 'Done' : 'Pending'}</div>
                     <div>Basin: {basinData ? `${basinData.features.length} features` : 'None'}</div>
                     <div>Rivers: {riversData ? `${riversData.features.length} features` : 'None'}</div>
                     <div>Stretches: {stretchesData ? `${stretchesData.features.length} features` : 'None'}</div>
                     <div>Selected River: {selectedRiver || 'None'}</div>
                     <div>Drains: {drainsData ? `${drainsData.features.length} features` : 'None'}</div>
+                    <div>Selected Stretch: {selectedStretch || 'None'}</div>
+                    <div>Selected Drains: {selectedDrains.length > 0 ? selectedDrains.join(', ') : 'None'}</div>
+                    <div>Catchments: {catchmentData ? `${catchmentData.features.length} features` : 'None'}</div>
+                    <div>Villages: {villageData ? `${villageData.features.length} features` : 'None'}</div>
                     <div>Labels: {showLabels ? `Visible (${labelLayersRef.current.length})` : 'Hidden'}</div>
                 </div>
             )}
