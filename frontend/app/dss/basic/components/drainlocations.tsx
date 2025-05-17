@@ -41,8 +41,8 @@ interface IntersectedVillage {
   shapeID: string;
   shapeName: string;
   drainNo: number;
+  selected?: boolean;
 }
-
 
 interface TruncatedListProps {
   content: string;
@@ -88,6 +88,7 @@ interface DrainLocationsSelectorProps {
   onRiverChange?: (riverId: string) => void;
   onStretchChange?: (stretchId: string) => void;
   onDrainsChange?: (drains: string[]) => void;
+  villages?: IntersectedVillage[]; // Add villages prop
 }
 
 const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
@@ -96,6 +97,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   onRiverChange,
   onStretchChange,
   onDrainsChange,
+  villages = [], // Default to empty array
 }) => {
   // Main state
   const [rivers, setRivers] = useState<LocationItem[]>([]);
@@ -106,12 +108,10 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   const [selectedDrains, setSelectedDrains] = useState<string[]>([]);
   const [selectionsLocked, setSelectionsLocked] = useState<boolean>(false);
 
-
   // State for intersected villages
   const [intersectedVillages, setIntersectedVillages] = useState<IntersectedVillage[]>([]);
   const [loadingVillages, setLoadingVillages] = useState<boolean>(false);
   const [villageError, setVillageError] = useState<string | null>(null);
-
 
   // Loading states
   const [loadingRivers, setLoadingRivers] = useState<boolean>(false);
@@ -317,8 +317,14 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           }
 
           const data = await response.json();
-          setIntersectedVillages(data.intersected_villages || []);
-          console.log('Intersected villages:', data.intersected_villages);
+          // Add selected property to each village (default to selected=true)
+          const villagesWithSelection = (data.intersected_villages || []).map(village => ({
+            ...village,
+            selected: true
+          }));
+          
+          setIntersectedVillages(villagesWithSelection);
+          console.log('Intersected villages with selection:', villagesWithSelection);
         } catch (error: any) {
           console.error('Error fetching intersected villages:', error);
           setVillageError(error.message);
@@ -335,8 +341,13 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     }
   }, [selectedDrains]);
 
-
-
+  // Update intersectedVillages when the villages prop changes
+  useEffect(() => {
+    if (villages && villages.length > 0) {
+      console.log('Villages prop received in DrainLocationsSelector:', villages);
+      setIntersectedVillages(villages);
+    }
+  }, [villages]);
 
   // Event handlers
   const handleRiverChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
@@ -384,6 +395,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     setStretchError(null);
     setDrainError(null);
     setVillageError(null);
+    setIntersectedVillages([]);
 
     if (onReset) {
       onReset();
@@ -420,12 +432,15 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
       .join('; ');
   };
 
-
-const formatIntersectedVillages = (): string => {
-    if (intersectedVillages.length === 0) return 'None';
+  const formatIntersectedVillages = (): string => {
+    console.log('Formatting intersected villages:', intersectedVillages);
+    const selectedVillages = intersectedVillages.filter(v => v.selected !== false);
+    console.log('Selected villages to display:', selectedVillages);
+    
+    if (selectedVillages.length === 0) return 'None';
     
     const groupedByDrain: { [key: string]: string[] } = {};
-    intersectedVillages.forEach(v => {
+    selectedVillages.forEach(v => {
         const drainKey = v.drainNo ? `Drain ${v.drainNo}` : 'Unknown Drain';
         if (!groupedByDrain[drainKey]) groupedByDrain[drainKey] = [];
         groupedByDrain[drainKey].push(v.shapeName);
@@ -439,10 +454,13 @@ const formatIntersectedVillages = (): string => {
         .join('; ');
     
     return formatted || 'None';
-};
+  };
 
-
-
+  // Get the currently selected river object
+  const selectedRiverObject = rivers.find(r => r.id.toString() === selectedRiver);
+  
+  // Get the currently selected stretch object
+  const selectedStretchObject = stretches.find(s => s.id.toString() === selectedStretch);
 
   const handleConfirm = (): void => {
     if (selectedDrains.length > 0) {
@@ -454,6 +472,10 @@ const formatIntersectedVillages = (): string => {
         
       console.log('Selected drain objects:', selectedDrainObjects);
       console.log('Selected drain IDs:', selectedDrains);
+      
+      // Filter to only include selected villages
+      const selectedVillages = intersectedVillages.filter(v => v.selected !== false);
+      console.log('Selected villages for confirmation:', selectedVillages);
         
       const riverData = {
         river: selectedRiverObject?.name || '',
@@ -464,6 +486,7 @@ const formatIntersectedVillages = (): string => {
           id: d.id.toString(), // Make sure IDs are strings
           stretch: d.stretchName,
         })),
+        selectedVillages: selectedVillages
       };
         
       window.selectedRiverData = riverData;
@@ -475,13 +498,12 @@ const formatIntersectedVillages = (): string => {
         });
       }
     }
-  }; // End of function - remove all code after this closing brace and semicolon
-  
+  };
 
   const formatDrainDisplay = (drain: Drain): string => {
     // Ensure IDs are correctly captured and formatted
     return `${drain.name} (ID: ${drain.id})`;
-};
+  };
 
   const groupDrainsByStretch = (drains: Drain[]): { [key: string]: Drain[] } => {
     return drains.reduce((groups: { [key: string]: Drain[] }, item) => {
@@ -562,7 +584,6 @@ const formatIntersectedVillages = (): string => {
 
         {/* Drain MultiSelect */}
         <div>
-
           <MultiSelect
             items={drains}
             selectedItems={selectedDrains}
@@ -596,8 +617,7 @@ const formatIntersectedVillages = (): string => {
             <TruncatedList content={formatSelectedDrains(drains, selectedDrains)} maxLength={80} />
           </p>
 
-
-{/* Display intersected villages */}
+          {/* Display intersected villages */}
           <p>
             <span className="font-medium">Basin Villages:</span>{' '}
             {loadingVillages ? (
@@ -609,6 +629,12 @@ const formatIntersectedVillages = (): string => {
           
           {villageError && <p className="text-xs text-red-500 mt-1">{villageError}</p>}
 
+          {intersectedVillages.length > 0 && !loadingVillages && (
+            <div className="mt-2 text-xs text-blue-600">
+              <p>Click on village polygons in the map to toggle selection</p>
+              <p className="mt-1">Selected: {intersectedVillages.filter(v => v.selected !== false).length} of {intersectedVillages.length} villages</p>
+            </div>
+          )}
 
           {selectionsLocked && (
             <p className="mt-2 text-green-600 font-medium">Selections confirmed and locked</p>

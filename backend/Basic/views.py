@@ -1152,6 +1152,108 @@ class MultipleSubdistrictsAPI(APIView):
             )
         
 
+class MultipleVillagesAPI(APIView):
+    def post(self, request, format=None):
+        villages_data = request.data.get('villages')
+        
+        print(f"Received request with villages data: {villages_data}")
+        
+        if not villages_data or not isinstance(villages_data, list):
+            return Response(
+                {"error": "villages must be provided as a list of objects containing village_code."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Path to the village shapefile
+        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_villages')
+        
+        print(f"Looking for shapefile at: {shapefile_path}")
+        
+        if not os.path.exists(shapefile_path):
+            print(f"Directory not found: {shapefile_path}")
+            return Response(
+                {"error": f"Shapefile directory not found at {shapefile_path}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        try:
+            # Read the shapefile using geopandas
+            shapefile_full_path = os.path.join(shapefile_path, 'basin_village.shp')
+            print(f"Attempting to read shapefile from: {shapefile_full_path}")
+            
+            gdf = gpd.read_file(shapefile_full_path)
+            print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
+            
+            # Ensure all code columns are strings for consistent comparison 
+            gdf['VILLAGE_CODE'] = gdf['VILLAGE_CODE'].astype(str)
+             
+            # Initialize a list to store matching rows
+            matched_rows = []
+            
+            for village_entry in villages_data:
+                village_code = str(village_entry.get('village_code', '')).upper()  # Convert to uppercase
+                
+                if not village_code:
+                    print(f"Skipping entry missing required code: {village_entry}")
+                    continue
+                
+                # Try with original code
+                village_match = gdf[gdf['VILLAGE_CODE'] == village_code]
+                
+                # Try with padded code if needed
+                if village_match.empty and village_code.isdigit():
+                    # Try different padding lengths (assuming it could be various formats)
+                    for pad_length in [4, 6, 8, 10]:
+                        padded_code = village_code.zfill(pad_length)
+                        potential_match = gdf[gdf['VILLAGE_CODE'] == padded_code]
+                        if not potential_match.empty:
+                            village_match = potential_match
+                            break
+                
+                # Try with unpadded code if needed
+                if village_match.empty:
+                    unpadded_code = village_code.lstrip('0') or '0' if village_code.startswith('0') else village_code
+                    village_match = gdf[gdf['VILLAGE_CODE'] == unpadded_code]
+                
+                if not village_match.empty:
+                    # Append the matched rows to our list
+                    matched_rows.append(village_match)
+                    print(f"Found match for village_code: {village_code}")
+                else:
+                    print(f"No match found for village_code: {village_code}")
+            
+            if not matched_rows:
+                print("No matching villages found.")
+                return Response(
+                    {"error": "No matching villages found for the provided criteria."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Import pandas explicitly to avoid the 'pd is not defined' error
+            import pandas as pd
+            
+            # Concatenate all matched rows into a single GeoDataFrame
+            matched_villages = gpd.GeoDataFrame(pd.concat(matched_rows, ignore_index=True))
+            matched_villages = matched_villages.to_crs(epsg=4326)
+            
+            # Convert to GeoJSON format
+            geojson_data = json.loads(matched_villages.to_json())
+            
+            print(f"Total villages found: {len(matched_villages)}")
+            print(f"GeoJSON features: {len(geojson_data['features'])}")
+            
+            return Response(geojson_data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            import traceback
+            print(f"Error processing villages: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {"error": f"Error processing villages: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+###########
 
 
 #Below code for Drain based approach 

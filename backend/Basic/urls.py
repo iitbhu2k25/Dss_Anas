@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import  VillagesCatchmentIntersection, AllStretches, Catchments, BasinAPI, RiverMapAPI, RiverStretched, Drain, CohortView, DefaultBaseMapAPI, StateShapefileAPI, MultipleDistrictsAPI,MultipleSubdistrictsAPI, Locations_stateAPI,Locations_districtAPI,Locations_subdistrictAPI,Locations_villageAPI,Time_series,Demographic,SewageCalculation,WaterSupplyCalculationAPI,DomesticWaterDemandCalculationAPIView,FloatingWaterDemandCalculationAPIView,InstitutionalWaterDemandCalculationAPIView,FirefightingWaterDemandCalculationAPIView
+from .views import MultipleVillagesAPI, VillagesCatchmentIntersection, AllStretches, Catchments, BasinAPI, RiverMapAPI, RiverStretched, Drain, CohortView, DefaultBaseMapAPI, StateShapefileAPI, MultipleDistrictsAPI,MultipleSubdistrictsAPI, Locations_stateAPI,Locations_districtAPI,Locations_subdistrictAPI,Locations_villageAPI,Time_series,Demographic,SewageCalculation,WaterSupplyCalculationAPI,DomesticWaterDemandCalculationAPIView,FloatingWaterDemandCalculationAPIView,InstitutionalWaterDemandCalculationAPIView,FirefightingWaterDemandCalculationAPIView
 urlpatterns = [
     path("",Locations_stateAPI.as_view(),name="states"),
     path("district/",Locations_districtAPI.as_view(),name="districts"),
@@ -25,5 +25,6 @@ urlpatterns = [
     path('basin/', BasinAPI.as_view(), name='basin'),
     path('catchment/', Catchments.as_view(), name='catchment'),
     path('all-stretches/', AllStretches.as_view(), name='all-stretches'),
-    path('catchment_village/', VillagesCatchmentIntersection.as_view(),name='catchment_village')
+    path('catchment_village/', VillagesCatchmentIntersection.as_view(),name='catchment_village'),
+    path('multiple-villages/', MultipleVillagesAPI.as_view(), name='multiple-villages-api')
 ]

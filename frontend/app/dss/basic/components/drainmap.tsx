@@ -22,16 +22,25 @@ interface GeoJSONFeatureCollection {
     features: GeoJSONFeature[];
 }
 
+interface IntersectedVillage {
+    shapeID: string;
+    shapeName: string;
+    drainNo: number;
+    selected?: boolean; // Add selected property
+}
+
 interface DrainMapProps {
     selectedRiver: string;
     selectedStretch: string;
     selectedDrains: string[];
+    onVillagesChange?: (villages: IntersectedVillage[]) => void; // Add callback for village changes
 }
 
 const DrainMap: React.FC<DrainMapProps> = ({
     selectedRiver,
     selectedStretch,
-    selectedDrains
+    selectedDrains,
+    onVillagesChange
 }) => {
     const mapRef = useRef<L.Map | null>(null);
     const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +64,10 @@ const DrainMap: React.FC<DrainMapProps> = ({
     const [showLabels, setShowLabels] = useState<boolean>(false);
     const [showCatchment, setShowCatchment] = useState<boolean>(false);
     const [showVillage, setShowVillage] = useState<boolean>(false);
+
+    // New state for managing selected villages
+    const [intersectedVillages, setIntersectedVillages] = useState<IntersectedVillage[]>([]);
+    const [selectedVillageIds, setSelectedVillageIds] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         if (mapContainerRef.current && !mapRef.current) {
@@ -90,7 +103,6 @@ const DrainMap: React.FC<DrainMapProps> = ({
         };
     }, []);
 
-    // Fetch river-specific stretches when selectedRiver changes
     useEffect(() => {
         if (mapRef.current) {
             console.log(`River selection changed to: ${selectedRiver}`);
@@ -100,14 +112,15 @@ const DrainMap: React.FC<DrainMapProps> = ({
                 highlightSelectedRiver(selectedRiver);
 
             }
-          //  this is commneted out because when we select river it will highlight but then disappear and go back so it is fix 
-            // if (selectedRiver) {
-            //     // Fetch and highlight stretches for the selected river
-            //     fetchStretchesByRiver(selectedRiver);
-            // } 
+            //  this is commneted out because when we select river it will highlight but then disappear and go back so it is fix 
+            if (selectedRiver) {
+                // Fetch and highlight stretches for the selected river
+                fetchStretchesByRiver(selectedRiver);
+            }
             else {
                 // If no river is selected, reset all stretch styles
                 resetAllStretchStyles();
+                // fetchAllStretches();
             }
         }
     }, [selectedRiver]);
@@ -147,8 +160,42 @@ const DrainMap: React.FC<DrainMapProps> = ({
             // Reset data
             setCatchmentData(null);
             setVillageData(null);
+            setIntersectedVillages([]);
+            setSelectedVillageIds(new Set());
         }
     }, [selectedDrains]);
+
+    useEffect(() => {
+        if (intersectedVillages.length > 0) {
+            console.log("Received updated intersectedVillages from parent:", intersectedVillages);
+
+            // Update selectedVillageIds based on parent's intersectedVillages
+            const incomingSelectedIds = new Set(
+                intersectedVillages
+                    .filter(v => v.selected !== false)
+                    .map(v => v.shapeID)
+            );
+
+            // Only update if the selection has actually changed to avoid infinite loops
+            if (
+                incomingSelectedIds.size !== selectedVillageIds.size ||
+                ![...incomingSelectedIds].every(id => selectedVillageIds.has(id))
+            ) {
+                console.log("Updating selectedVillageIds from parent:", Array.from(incomingSelectedIds));
+                setSelectedVillageIds(incomingSelectedIds);
+
+                // Update village layer styling
+                if (villageLayerRef.current) {
+                    villageLayerRef.current.eachLayer((layer: any) => {
+                        const layerShapeId = layer.feature?.properties?.shapeID?.toString();
+                        if (layerShapeId) {
+                            updateVillageStyle(layer, incomingSelectedIds.has(layerShapeId));
+                        }
+                    });
+                }
+            }
+        }
+    }, [intersectedVillages]);  // Keep the dependency on intersectedVillages
 
     // Add effects to handle layer visibility toggles
     useEffect(() => {
@@ -157,7 +204,14 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
     useEffect(() => {
         toggleVillageVisibility();
-    }, [showVillage, villageData]);
+    }, [showVillage, villageData, selectedVillageIds]);
+
+    // Notify parent component when intersected villages change
+    useEffect(() => {
+        if (onVillagesChange) {
+            onVillagesChange(intersectedVillages);
+        }
+    }, [intersectedVillages, onVillagesChange]);
 
     // Toggle catchment layer visibility
     const toggleCatchmentVisibility = () => {
@@ -175,17 +229,26 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     };
 
+
+    const clearLabelLayers = () => {
+        if (mapRef.current && labelLayersRef.current.length > 0) {
+            labelLayersRef.current.forEach(layer => mapRef.current?.removeLayer(layer));
+            labelLayersRef.current = [];
+            console.log("Cleared label layers");
+        }
+    };
+
     // Toggle village layer visibility
     const toggleVillageVisibility = () => {
         if (!mapRef.current) return;
 
         if (villageData && showVillage) {
-            // Show village layer
-            if (!villageLayerRef.current) {
-                updateVillageLayer(villageData);
-            }
+            // Show village layer by calling updateVillageLayer
+            console.log("Showing village layer...");
+            updateVillageLayer(villageData);
         } else if (villageLayerRef.current) {
-            // Hide village layer
+            // Hide village layer but preserve selection state
+            console.log("Hiding village layer, preserving selection state:", Array.from(selectedVillageIds));
             mapRef.current.removeLayer(villageLayerRef.current);
             villageLayerRef.current = null;
         }
@@ -202,7 +265,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     }, [showLabels, stretchesData]);
 
-    // New function to zoom to specific features when they're selected
+    
+       // New function to zoom to specific features when they're selected
     const zoomToFeature = (featureType: 'river' | 'stretch' | 'drain' | 'catchment', featureId: string) => {
         if (!mapRef.current) return;
 
@@ -265,6 +329,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
     };
 
     // Add this function to highlight the selected river
+    
     const highlightSelectedRiver = (riverId: string) => {
         if (!mapRef.current || !riverLayerRef.current || !riversData) {
             console.log("Cannot highlight river: map, layer or data missing");
@@ -453,15 +518,15 @@ const DrainMap: React.FC<DrainMapProps> = ({
         try {
             console.log(`Highlighting ${riverStretchIds.length} stretches for river ${riverId}`);
 
-            // Update styling of all stretches
             stretchLayerRef.current.eachLayer((layer: any) => {
                 if (layer.feature?.properties) {
                     const stretchId = layer.feature.properties.Stretch_ID?.toString();
-                    if (riverStretchIds.includes(stretchId)) {
-                        // This stretch belongs to the selected river - highlight in blue
+                    const featureRiverId = layer.feature.properties.River_Code?.toString();
+                    if (featureRiverId === riverId && riverStretchIds.includes(stretchId)) {
+                        // Highlight stretches belonging to the selected river
                         if (layer.setStyle) {
                             layer.setStyle({
-                                color: '#0066FF',  // Blue for river's stretches
+                                color: '#0066FF', // Blue for river's stretches
                                 weight: 4,
                                 opacity: 0.9,
                             });
@@ -470,19 +535,19 @@ const DrainMap: React.FC<DrainMapProps> = ({
                             layer.bringToFront();
                         }
                     } else {
-                        // This stretch belongs to other rivers - use muted style
+                        // Hide or mute stretches not belonging to the selected river
                         if (layer.setStyle) {
                             layer.setStyle({
                                 color: 'green',
                                 weight: 2,
-                                opacity: 0.4,
+                                opacity: 0.2, // Lower opacity for non-selected stretches
                             });
                         }
                     }
                 }
             });
 
-            // If a specific stretch is selected, make sure it's highlighted properly
+            // If a specific stretch is selected, ensure it stands out
             if (selectedStretch) {
                 highlightSelectedStretch(selectedStretch);
             }
@@ -495,7 +560,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
                 stretchLayerRef.current.eachLayer((layer: any) => {
                     if (layer.feature?.properties) {
                         const stretchId = layer.feature.properties.Stretch_ID?.toString();
-                        if (riverStretchIds.includes(stretchId) && layer.getBounds) {
+                        const featureRiverId = layer.feature.properties.River_Code?.toString();
+                        if (featureRiverId === riverId && riverStretchIds.includes(stretchId) && layer.getBounds) {
                             const layerBounds = layer.getBounds();
                             if (layerBounds.isValid()) {
                                 bounds.extend(layerBounds);
@@ -513,19 +579,19 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     });
                 }
             }
-
         } catch (err) {
             console.error("Error highlighting river stretches:", err);
         }
     };
 
-    const fetchStretchesByRiver = async (riverId: number) => {
+
+    const fetchStretchesByRiver = async (riverId: string) => {
         try {
             console.log(`Fetching stretches for river ${riverId}...`);
             const response = await fetch('http://localhost:9000/api/basic/river-stretched/', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ River_ID: riverId })
+                body: JSON.stringify({ River_ID: parseInt(riverId, 10) })
             });
             console.log("Stretches response status:", response.status);
             if (!response.ok) {
@@ -535,18 +601,25 @@ const DrainMap: React.FC<DrainMapProps> = ({
             console.log("Stretches data:", data);
             if (data.features?.length > 0) {
                 console.log(`Received ${data.features.length} stretch features`);
+                // Update stretchesData with river-specific stretches
+                setStretchesData(data);
+                // Update the stretch layer with the new data
+                if (mapRef.current) {
+                    updateStretchesLayer(data);
+                }
+                // Highlight the river's stretches
+                const riverStretchIds = data.features.map(feature =>
+                    feature.properties.Stretch_ID?.toString()
+                );
+                highlightRiverStretches(riverId, riverStretchIds);
             } else {
                 console.warn("No stretch features received for selected river");
+                setStretchesData(null);
+                if (stretchLayerRef.current && mapRef.current) {
+                    mapRef.current.removeLayer(stretchLayerRef.current);
+                    stretchLayerRef.current = null;
+                }
             }
-
-            // Store the river's stretch IDs for highlighting
-            const riverStretchIds = data.features.map(feature =>
-                feature.properties.Stretch_ID?.toString()
-            );
-
-            // Highlight the river's stretches within the existing layer
-            highlightRiverStretches(riverId, riverStretchIds);
-
         } catch (error: any) {
             console.error("Error fetching stretches:", error);
             setError(`Stretches: ${error.message}`);
@@ -616,6 +689,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
     };
 
     // Add this function to the component to fetch catchment data
+    // Updated fetchCatchmentsByDrains function
     const fetchCatchmentsByDrains = async (drainIds: string[]) => {
         try {
             console.log(`Fetching catchments and villages for drains: ${drainIds}...`);
@@ -633,12 +707,33 @@ const DrainMap: React.FC<DrainMapProps> = ({
             const data = await response.json();
             console.log("Catchments and villages data:", data);
 
+            // Initialize all villages as selected by default
+            const villages = data.intersected_villages || [];
+            const villagesWithSelection = villages.map((v: IntersectedVillage) => ({
+                ...v,
+                selected: true
+            }));
+
+            setIntersectedVillages(villagesWithSelection);
+            const villageIds = new Set(villagesWithSelection.map(v => v.shapeID));
+            setSelectedVillageIds(villageIds);
+
+            console.log("Initialized village selection state:", Array.from(villageIds));
+
             // Handle village data
             if (data.village_geojson?.features?.length > 0) {
                 console.log(`Received ${data.village_geojson.features.length} village features`);
+
+                // CHANGE 1: First set the village data without updating the layer
                 setVillageData(data.village_geojson);
+
+                // CHANGE 2: Then check if we should display it and update the layer
                 if (mapRef.current && showVillage) {
-                    updateVillageLayer(data.village_geojson);
+                    // This will be handled by the useEffect hook monitoring villageData and showVillage
+                    // Don't call updateVillageLayer directly here
+                    console.log("Village layer will be created via useEffect");
+                } else {
+                    console.log("Village data stored but layer not shown (showVillage is false)");
                 }
             } else {
                 console.warn("No village features received for selected drains");
@@ -679,14 +774,6 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     };
 
-    const clearLabelLayers = () => {
-        if (mapRef.current && labelLayersRef.current.length > 0) {
-            labelLayersRef.current.forEach(layer => mapRef.current?.removeLayer(layer));
-            labelLayersRef.current = [];
-            console.log("Cleared label layers");
-        }
-    };
-
     // Add this function to update the catchment layer
     const updateCatchmentsLayer = (data: GeoJSONFeatureCollection) => {
         if (!mapRef.current) return;
@@ -703,7 +790,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
             catchmentLayerRef.current = L.geoJSON(data, {
                 style: () => ({
                     color: 'black', // Purple border for catchments
-                    weight: 2,
+                    weight: 3,
                     opacity: 0.8,
                     fillColor: '#E6E6FA', // Light purple fill
                     fillOpacity: 0.3,
@@ -751,8 +838,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
         try {
             basinLayerRef.current = L.geoJSON(data, {
                 style: () => ({
-                    color: 'red',  // Changed from '#999' to a bluish color
-                    weight: 3,         // Reduced from 20 to 5 for lighter weight
+                    color: 'rgb(121, 0, 151)',  // Changed from '#999' to a bluish color
+                    weight: 2,         // Reduced from 20 to 5 for lighter weight
                     opacity: 0.8,      // Increased from 0.5 for better visibility
                     fillColor: 'white', // Changed from '#eee' to a light purple/reddish color
                     fillOpacity: 0,
@@ -861,11 +948,22 @@ const DrainMap: React.FC<DrainMapProps> = ({
         try {
             // Create the layer with initial styling
             stretchLayerRef.current = L.geoJSON(data, {
-                style: () => ({
-                    color: 'green',
-                    weight: 2,
-                    opacity: 0.4,
-                }),
+                style: (feature) => {
+                    const stretchId = feature?.properties.Stretch_ID?.toString();
+                    const riverId = feature?.properties.River_Code?.toString();
+                    if (selectedRiver && riverId === selectedRiver) {
+                        return {
+                            color: 'blue', // Blue for selected river's stretches
+                            weight: 1,
+                            opacity: 0.3,
+                        };
+                    }
+                    return {
+                        color: 'green',
+                        weight: 1,
+                        opacity: 2, // Muted for non-selected stretches
+                    };
+                },
                 pointToLayer: (feature, latlng) => {
                     return L.circleMarker(latlng, {
                         radius: 6,
@@ -893,17 +991,12 @@ const DrainMap: React.FC<DrainMapProps> = ({
                 console.error("Error creating stretch labels:", labelError);
             }
 
-            // If a river is already selected, highlight its stretches
-            if (selectedRiver) {
-                fetchStretchesByRiver(selectedRiver);
-            }
-
             // If a specific stretch is already selected, highlight it
             if (selectedStretch) {
                 highlightSelectedStretch(selectedStretch);
             }
 
-            // Zoom to stretches layer if rivers and basin are not available
+            // Zoom to stretches layer if no other layers are prioritized
             if (mapRef.current && stretchLayerRef.current && !riverLayerRef.current && !basinLayerRef.current) {
                 const bounds = stretchLayerRef.current.getBounds();
                 if (bounds.isValid()) {
@@ -913,7 +1006,6 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     });
                 }
             }
-
         } catch (error) {
             console.error("Error updating stretches layer:", error);
             setError("Failed to display stretches");
@@ -989,32 +1081,126 @@ const DrainMap: React.FC<DrainMapProps> = ({
         labelLayersRef.current.push(marker);
     };
 
+    // Helper function to update village style based on selection state
+    const updateVillageStyle = (layer: L.Layer, isSelected: boolean) => {
+        if (layer.setStyle) {
+            layer.setStyle({
+                color: isSelected ? 'skyblue' : '#999',
+                weight: 2,
+                opacity: 0.8,
+                fillColor: isSelected ? 'skyblue' : 'white',
+                fillOpacity: isSelected ? 0.3 : 0.1,
+            });
+        }
+    };
+
+  
+    // Toggle village selection - Updated function
+    const toggleVillageSelection = (shapeId: string) => {
+        console.log("Toggle village selection for ID:", shapeId);
+        console.log("Before toggle - selected IDs:", Array.from(selectedVillageIds));
+
+        // Create a new Set from the current selection state
+        const newSelectedVillageIds = new Set(selectedVillageIds);
+
+        // Toggle the selection status for the clicked village
+        if (newSelectedVillageIds.has(shapeId)) {
+            console.log("Removing village ID from selection:", shapeId);
+            newSelectedVillageIds.delete(shapeId);
+        } else {
+            console.log("Adding village ID to selection:", shapeId);
+            newSelectedVillageIds.add(shapeId);
+        }
+
+        console.log("After toggle - selected IDs:", Array.from(newSelectedVillageIds));
+
+        // Update the selected villages Set state
+        setSelectedVillageIds(newSelectedVillageIds);
+
+        // Create a completely new array with updated selection states
+        const updatedVillages = intersectedVillages.map(village => ({
+            ...village,
+            selected: newSelectedVillageIds.has(village.shapeID)
+        }));
+
+        // Update the internal state and notify parent component
+        setIntersectedVillages(updatedVillages);
+
+        // Notify parent component about the changes
+        if (onVillagesChange) {
+            onVillagesChange(updatedVillages);
+        }
+
+        // Update the village layer styling if it exists
+        if (villageLayerRef.current) {
+            villageLayerRef.current.eachLayer((layer: any) => {
+                const layerShapeId = layer.feature?.properties?.shapeID?.toString();
+                if (layerShapeId) {
+                    const isSelected = newSelectedVillageIds.has(layerShapeId);
+                    console.log(`Updating style for ${layerShapeId} to ${isSelected ? 'selected' : 'unselected'}`);
+                    updateVillageStyle(layer, isSelected);
+                }
+            });
+        }
+    };
+
+    // Fix for DrainMap - Updated updateVillageLayer function
+
+
+
+
     const updateVillageLayer = (data: GeoJSONFeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating village layer...");
+        console.log("Current selection state:", Array.from(selectedVillageIds));
+
+        // Remove the existing layer from the map
         if (villageLayerRef.current) {
             mapRef.current.removeLayer(villageLayerRef.current);
-            villageLayerRef.current = null;
         }
+
         if (!data?.features?.length) {
             console.warn("No village features to display");
+            villageLayerRef.current = null;
             return;
         }
+
         try {
+            // Create a new GeoJSON layer with current selection state
             villageLayerRef.current = L.geoJSON(data, {
-                style: () => ({
-                    color: 'skyblue', // Orange for village boundaries
-                    weight: 2,
-                    opacity: 0.8,
-                    fillColor: 'hollow', // Gold fill
-                    fillOpacity: 0.3,
-                }),
+                style: (feature) => {
+                    const shapeId = feature?.properties?.shapeID?.toString();
+                    const isSelected = selectedVillageIds.has(shapeId);
+                    console.log(`Styling village ${shapeId}, selected=${isSelected}`);
+                    return {
+                        color: isSelected ? 'skyblue' : '#999',
+                        weight: 2,
+                        opacity: 0.8,
+                        fillColor: isSelected ? 'skyblue' : 'white',
+                        fillOpacity: isSelected ? 0.3 : 0.1,
+                    };
+                },
                 onEachFeature: (feature, layer) => {
                     const villageName = feature.properties.shapeName || 'Unknown';
                     const shapeID = feature.properties.shapeID || 'N/A';
+
+                    // Add popup
                     layer.bindPopup(`Village: ${villageName}<br>ID: ${shapeID}`);
+
+                    // Add click handler for selection toggle
+                    layer.on('click', function (e) {
+                        // Stop the click from propagating to the map and other layers
+                        L.DomEvent.stopPropagation(e);
+
+                        const villageId = feature.properties.shapeID;
+                        if (villageId) {
+                            console.log(`Village clicked: ${villageId}`);
+                            toggleVillageSelection(villageId);
+                        }
+                    });
                 },
             }).addTo(mapRef.current);
+
             console.log(`Village layer added with ${data.features.length} features`);
             villageLayerRef.current.bringToFront(); // Ensure villages are on top
 
@@ -1033,7 +1219,6 @@ const DrainMap: React.FC<DrainMapProps> = ({
             setError("Failed to display villages");
         }
     };
-
     const updateDrainsLayer = (data: GeoJSONFeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating drains layer...");
@@ -1049,16 +1234,16 @@ const DrainMap: React.FC<DrainMapProps> = ({
             drainLayerRef.current = L.geoJSON(data, {
                 style: () => ({
                     color: 'blue',
-                    weight: 3,
+                    weight: 1,
                     opacity: 0.8,
                 }),
                 pointToLayer: (feature, latlng) => {
                     return L.circleMarker(latlng, {
-                        radius: 4,
+                        radius: 2,
                         fillColor: 'blue',
-                        color: 'violet',
+                        // color: 'violet',
                         weight: 1,
-                        opacity: 0.5,
+                        opacity: 0.1,
                         fillOpacity: 0.3,
                     });
                 },
@@ -1101,10 +1286,10 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     if (selectedDrains.includes(drainNo)) {
                         if (layer.setStyle) {
                             layer.setStyle({
-                                color: 'blue',  // DodgerBlue for highlighted drains
-                                weight: 10,
-                                opacity: 1.0,
-                                fillOpacity: 0.8,
+                                color: 'black',  // DodgerBlue for highlighted drains
+                                weight: 25,
+                                opacity: .5,
+                                fillOpacity: 0.1,
                             });
                         }
                         if (layer.bringToFront) {
@@ -1148,7 +1333,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
     const toggleCatchment = () => {
         setShowCatchment(!showCatchment);
-        if (showCatchment) {
+        if (!showCatchment) {
             setShowVillage(false); // Uncheck village checkbox when catchment is unchecked
         }
     };
@@ -1248,11 +1433,16 @@ const DrainMap: React.FC<DrainMapProps> = ({
                             <label htmlFor="village-toggle" className="flex items-center cursor-pointer">
                                 <span
                                     className="w-4 h-4 inline-block mr-1 border"
-                                    style={{ backgroundColor: 'hollow', borderColor: 'skyblue' }}
+                                    style={{ backgroundColor: 'skyblue', borderColor: 'skyblue' }}
                                 ></span>
                                 Show Villages of Selected Drains
                             </label>
                         </div>
+                        {showVillage && (
+                            <div className="bg-white p-2 text-xs rounded border border-gray-300">
+                                Click on village polygons to toggle their selection
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
@@ -1269,12 +1459,12 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     <div>Selected Drains: {selectedDrains.length > 0 ? selectedDrains.join(', ') : 'None'}</div>
                     <div>Catchments: {catchmentData ? `${catchmentData.features.length} features${showCatchment ? '' : ' (hidden)'}` : 'None'}</div>
                     <div>Villages: {villageData ? `${villageData.features.length} features${showVillage ? '' : ' (hidden)'}` : 'None'}</div>
+                    <div>Selected Villages: {selectedVillageIds.size} / {intersectedVillages.length}</div>
                     <div>Labels: {showLabels ? `Visible (${labelLayersRef.current.length})` : 'Hidden'}</div>
                 </div>
             )}
         </div>
     );
-
 };
 
 export default DrainMap;
