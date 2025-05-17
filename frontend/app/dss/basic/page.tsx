@@ -260,8 +260,7 @@ const Basic: React.FC = () => {
       setCurrentStep(newStep);
     }
   };
-
-  // Complete reset handler
+ // Complete reset handler
   const handleReset = (): void => {
     console.log('FULL RESET triggered');
     setCurrentStep(0);
@@ -434,11 +433,13 @@ return (
               selectedSubDistricts={selectedSubDistricts}
             />
           ) : (
+            <div className="flex w-full  ml-2 mb-5 border border-blue ">
             <DrainMap
               selectedRiver={selectedRiver}
               selectedStretch={selectedStretch}
               selectedDrains={selectedDrainIds}
             />
+            </div>
           )}
         </div>
       </div>
