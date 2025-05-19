@@ -1296,8 +1296,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     if (selectedDrains.includes(drainNo)) {
                         if (layer.setStyle) {
                             layer.setStyle({
-                                color: 'black',  // DodgerBlue for highlighted drains
-                                weight: 25,
+                                color: 'yellow',  // DodgerBlue for highlighted drains
+                                weight: 10,
                                 opacity: .5,
                                 fillOpacity: 0.1,
                             });

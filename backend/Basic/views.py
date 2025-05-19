@@ -1019,8 +1019,146 @@ class MultipleDistrictsAPI(APIView):
                 {"error": f"Error processing districts: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-
+#
+class MultipleVillagesAPI(APIView):
+    def post(self, request, format=None):
+        villages_data = request.data.get('villages')
+        
+        print(f"Received request with villages data: {villages_data}")
+        
+        # Accept both 'villages' and direct list of shapeIDs for flexibility
+        if not villages_data:
+            # Check if shapeIDs are provided directly
+            shape_ids = request.data.get('shapeIDs')
+            if shape_ids and isinstance(shape_ids, list):
+                villages_data = [{'shapeID': shape_id} for shape_id in shape_ids]
+            else:
+                return Response(
+                    {"error": "villages must be provided as a list of objects containing shapeID, or provide shapeIDs as a direct list."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        if not isinstance(villages_data, list):
+            return Response(
+                {"error": "villages must be provided as a list of objects containing shapeID."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Path to the village shapefile (adjust the path according to your structure)
+        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_villages')
+        
+        print(f"Looking for shapefile at: {shapefile_path}")
+        
+        if not os.path.exists(shapefile_path):
+            print(f"Directory not found: {shapefile_path}")
+            return Response(
+                {"error": f"Shapefile directory not found at {shapefile_path}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        try:
+            # Read the shapefile using geopandas
+            shapefile_full_path = os.path.join(shapefile_path, 'basin_village.shp')
+            print(f"Attempting to read shapefile from: {shapefile_full_path}")
+            
+            gdf = gpd.read_file(shapefile_full_path)
+            print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
+            
+            # Ensure shapeID column exists and is string type for consistent comparison
+            # Adjust the column name based on your actual shapefile structure
+            shape_id_column = None
+            possible_columns = ['shapeID', 'SHAPE_ID', 'ID', 'OBJECTID', 'FID', 'VILLAGE_ID']
+            
+            for col in possible_columns:
+                if col in gdf.columns:
+                    shape_id_column = col
+                    break
+            
+            if shape_id_column is None:
+                print(f"Shape ID column not found. Available columns: {gdf.columns.tolist()}")
+                return Response(
+                    {"error": f"Shape ID column not found. Available columns: {gdf.columns.tolist()}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            gdf[shape_id_column] = gdf[shape_id_column].astype(str)
+            
+            # Initialize a list to store matching rows
+            matched_rows = []
+            requested_shape_ids = []
+            
+            for village_entry in villages_data:
+                shape_id = str(village_entry.get('shapeID', '')).strip()
+                
+                if not shape_id:
+                    print(f"Skipping entry missing shapeID: {village_entry}")
+                    continue
+                
+                requested_shape_ids.append(shape_id)
+                
+                # Try exact match first
+                village_match = gdf[gdf[shape_id_column] == shape_id]
+                
+                # Try with different variations if no exact match
+                if village_match.empty:
+                    # Try case-insensitive match
+                    village_match = gdf[gdf[shape_id_column].str.upper() == shape_id.upper()]
+                
+                # Try with padded zeros if the shape_id is numeric
+                if village_match.empty and shape_id.isdigit():
+                    padded_shape_id = shape_id.zfill(6)  # Pad to 6 digits
+                    village_match = gdf[gdf[shape_id_column] == padded_shape_id]
+                
+                # Try with unpadded if the shape_id starts with zero
+                if village_match.empty and shape_id.startswith('0'):
+                    unpadded_shape_id = shape_id.lstrip('0') or '0'
+                    village_match = gdf[gdf[shape_id_column] == unpadded_shape_id]
+                
+                if not village_match.empty:
+                    # Append the matched rows to our list
+                    matched_rows.append(village_match)
+                    print(f"Found match for shapeID: {shape_id}")
+                else:
+                    print(f"No match found for shapeID: {shape_id}")
+            
+            if not matched_rows:
+                print("No matching villages found.")
+                return Response(
+                    {"error": "No matching villages found for the provided shapeIDs.",
+                     "requested_ids": requested_shape_ids},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Concatenate all matched rows into a single GeoDataFrame
+            matched_villages = pd.concat(matched_rows, ignore_index=True)
+            
+            # Convert to GeoJSON format
+            geojson_data = json.loads(matched_villages.to_json())
+            
+            print(f"Total villages found: {len(matched_villages)}")
+            print(f"GeoJSON features: {len(geojson_data['features'])}")
+            
+            # Add metadata to response
+            response_data = {
+                "type": "FeatureCollection",
+                "features": geojson_data['features'],
+                "metadata": {
+                    "total_requested": len(requested_shape_ids),
+                    "total_found": len(matched_villages),
+                    "requested_ids": requested_shape_ids
+                }
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            import traceback
+            print(f"Error processing villages: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {"error": f"Error processing villages: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 
@@ -1296,7 +1434,7 @@ class MultipleVillagesAPI(APIView):
                 {"error": f"Error processing villages: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-#
+
 ###########
 
 #####

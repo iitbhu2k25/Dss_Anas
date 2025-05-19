@@ -136,25 +136,25 @@ const Basic: React.FC = () => {
 
   // Handler for villages change from the map
 
-const handleVillagesChange = (villages: IntersectedVillage[]) => {
-  console.log("Villages selection changed:", villages);
-  
-  // Update the state with the new villages selection
-  setIntersectedVillages(villages);
-  
-  // Update the global data if it exists (this part is OK)
-  if (window.selectedRiverData) {
-    window.selectedRiverData = {
-      ...window.selectedRiverData,
-      selectedVillages: villages.filter(v => v.selected !== false)
-    };
-  }
-  
-  // Remove the attempt to access DOM elements directly
-  // The DrainLocationSelector component will receive updated villages through props
-  // since we're already passing them in the JSX:
-  // <DrainLocationSelector villages={intersectedVillages} ... />
-};
+  const handleVillagesChange = (villages: IntersectedVillage[]) => {
+    console.log("Villages selection changed:", villages);
+
+    // Update the state with the new villages selection
+    setIntersectedVillages(villages);
+
+    // Update the global data if it exists (this part is OK)
+    if (window.selectedRiverData) {
+      window.selectedRiverData = {
+        ...window.selectedRiverData,
+        selectedVillages: villages.filter(v => v.selected !== false)
+      };
+    }
+
+    // Remove the attempt to access DOM elements directly
+    // The DrainLocationSelector component will receive updated villages through props
+    // since we're already passing them in the JSX:
+    // <DrainLocationSelector villages={intersectedVillages} ... />
+  };
 
 
   // Handle confirm for RiverSelector
@@ -391,8 +391,8 @@ const handleVillagesChange = (villages: IntersectedVillage[]) => {
           <div className="inline-flex rounded-full bg-gray-100 p-1 shadow-md">
             <button
               className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-in-out flex items-center space-x-2 ${viewMode === 'admin'
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               onClick={() => handleViewModeChange('admin')}
             >
@@ -413,8 +413,8 @@ const handleVillagesChange = (villages: IntersectedVillage[]) => {
             </button>
             <button
               className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ease-in-out flex items-center space-x-2 ${viewMode === 'drain'
-                  ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg'
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-lg'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
               onClick={() => handleViewModeChange('drain')}
             >
@@ -454,12 +454,13 @@ const handleVillagesChange = (villages: IntersectedVillage[]) => {
                 onRiverChange={handleRiverChange}
                 onStretchChange={handleStretchChange}
                 onDrainsChange={handleDrainsChange}
-                villages={intersectedVillages} // Pass the villages directly
+                onVillagesChange={handleVillagesChange} // Add this
+                villages={intersectedVillages}
                 data-component="DrainLocationsSelector"
               />
             )}
           </div>
-          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6">
+          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6 rounded-xl shadow-xl border-2 border-green-500">
             {viewMode === 'admin' ? (
               <Map
                 selectedState={selectedStateCode}
@@ -467,14 +468,12 @@ const handleVillagesChange = (villages: IntersectedVillage[]) => {
                 selectedSubDistricts={selectedSubDistricts}
               />
             ) : (
-              <div className="  mr-6 ml-4 mb-5 border border-gray-900">
               <DrainMap
                 selectedRiver={selectedRiver}
                 selectedStretch={selectedStretch}
                 selectedDrains={selectedDrainIds}
                 onVillagesChange={handleVillagesChange}
               />
-              </div>
             )}
           </div>
         </div>
@@ -565,8 +564,8 @@ const handleVillagesChange = (villages: IntersectedVillage[]) => {
               <div className="flex space-x-4">
                 <button
                   className={`${currentStep === 0 || currentStep === 3
-                      ? 'bg-gray-600 cursor-not-allowed'
-                      : 'bg-blue-600 hover:bg-blue-700'
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700'
                     } text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50`}
                   disabled={currentStep === 0 || currentStep === 3}
                   onClick={handleSkip}

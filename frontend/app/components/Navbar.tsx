@@ -18,25 +18,25 @@ const navItems = [
       {
         label: 'Groundwater Potential Assessment',
         nestedMenu: [
-          { label: 'Pumping Location Identification', href: '#' },
-          { label: 'GW Potential Zone', href: '#' }
+          { label: 'Pumping Location Identification', href: '/underconstruct' },
+          { label: 'GW Potential Zone', href: '/underconstruct' }
         ]
       },
       {
         label: 'Resource Estimation',
         nestedMenu: [
-          { label: 'Regional Scale Quantification', href: '#' },
-          { label: 'Water Quality Assessment', href: '#' },
-          { label: 'Identification Of Vulnerable zones', href: '#' }
+          { label: 'Regional Scale Quantification', href: '/underconstruct' },
+          { label: 'Water Quality Assessment', href: '/underconstruct' },
+          { label: 'Identification Of Vulnerable zones', href: '/underconstruct' }
         ]
       },
       {
         label: 'Managed Aquifer Recharge',
         nestedMenu: [
-          { label: 'Ground Water Assessment', href: '#' },
-          { label: 'Surface Water Assessment', href: '#' },
-          { label: ' Climate Change', href: '#' },
-          { label: 'Optimized Solution', href: '#' }
+          { label: 'Ground Water Assessment', href: '/underconstruct' },
+          { label: 'Surface Water Assessment', href: '/underconstruct' },
+          { label: ' Climate Change', href: '/underconstruct' },
+          { label: 'Optimized Solution', href: '/underconstruct' }
         ]
       }
     ]
@@ -48,36 +48,36 @@ const navItems = [
       {
         label: 'Resource Estimation',
         nestedMenu: [
-          { label: 'Water Availability', href: '#' },
-          { label: 'Water Flow and Storage Estimation', href: '#' },
-          { label: 'Water Quality Assessment', href: '#' },
-          { label: 'Vulnerability Assessment', href: '#' },
-          { label: 'Contamination Risk Assessment', href: '#' }
+          { label: 'Water Availability', href: '/underconstruct' },
+          { label: 'Water Flow and Storage Estimation', href: '/underconstruct' },
+          { label: 'Water Quality Assessment', href: '/underconstruct' },
+          { label: 'Vulnerability Assessment', href: '/underconstruct' },
+          { label: 'Contamination Risk Assessment', href: '/underconstruct' }
         ]
       },
       {
         label: 'Flood Forecasting and Managment',
         nestedMenu: [
-          { label: 'Flood Simulation', href: '#' },
-          { label: 'River Routing', href: '#' },
-          { label: 'Contamination Transport Modelling', href: '#' }
+          { label: 'Flood Simulation', href: '/underconstruct' },
+          { label: 'River Routing', href: '/underconstruct' },
+          { label: 'Contamination Transport Modelling', href: '/underconstruct' }
         ]
       },
       {
         label: 'Water Bodies Management',
         nestedMenu: [
-          { label: 'Storage and Forecasting', href: '#' },
-          { label: 'Climate Change', href: '#' },
-          { label: 'Reservoir Operation', href: '#' },
-          { label: 'Water Quality and Monitoring', href: '#' }
+          { label: 'Storage and Forecasting', href: '/underconstruct' },
+          { label: 'Climate Change', href: '/underconstruct' },
+          { label: 'Reservoir Operation', href: '/underconstruct' },
+          { label: 'Water Quality and Monitoring', href: '/underconstruct' }
         ]
       },
       {
         label: 'Waste Water Treatment',
         nestedMenu: [
-          { label: 'Water Pollution and Inventory', href: '#' },
-          { label: 'Site Priority and Suitability', href: '#' },
-          { label: 'Treatment Technology', href: '#' }
+          { label: 'Water Pollution and Inventory', href: '/underconstruct' },
+          { label: 'Site Priority and Suitability', href: '/underconstruct' },
+          { label: 'Treatment Technology', href: '/underconstruct' }
         ]
       }
     ]
@@ -89,15 +89,15 @@ const navItems = [
       {
         label: 'Demand Forecasting',
         nestedMenu: [
-          { label: 'Current Consumption Pattern', href: '#' },
-          { label: 'Future Demand Projection', href: '#' }
+          { label: 'Current Consumption Pattern', href: '/underconstruct' },
+          { label: 'Future Demand Projection', href: '/underconstruct' }
         ]
       },
       {
         label: 'Resource Allocation',
         nestedMenu: [
-          { label: 'Source Sustainability', href: '#' },
-          { label: 'Source Demarcation', href: '#' }
+          { label: 'Source Sustainability', href: '/underconstruct' },
+          { label: 'Source Demarcation', href: '/underconstruct' }
         ]
       }
     ]
@@ -109,16 +109,16 @@ const navItems = [
       {
         label: 'Resource Management',
         nestedMenu: [
-          { label: 'Optimum and Sustainable Management', href: '#' },
-          { label: 'Sensitive Socio-Economic Factors', href: '#' },
-          { label: 'System Dynamics Modelling', href: '#' },
+          { label: 'Optimum and Sustainable Management', href: '/underconstruct' },
+          { label: 'Sensitive Socio-Economic Factors', href: '/underconstruct' },
+          { label: 'System Dynamics Modelling', href: '/underconstruct' },
         ]
       },
       {
         label: 'Impact Assessment',
         nestedMenu: [
-          { label: 'Plant Solutions', href: '#' },
-          { label: 'Optimization Framework', href: '#' }
+          { label: 'Plant Solutions', href: '/underconstruct' },
+          { label: 'Optimization Framework', href: '/underconstruct' }
         ]
       }
     ]
@@ -126,15 +126,15 @@ const navItems = [
   {
     label: 'Activities',
     submenu: [
-      { label: 'Training and Workshop', href: '/activities/training' },
-      { label: 'Gallery', href: '/activities/gallery' }
+      { label: 'Training and Workshop', href: '/underconstruct' },
+      { label: 'Gallery', href: '/underconstruct' }
     ]
   },
   {
     label: 'Report and Publication',
     submenu: [
-      { label: 'Newsletter', href: '/reports/newsletter' },
-      { label: 'Brochure', href: '/reports/brochure' }
+      { label: 'Newsletter', href: '/underconstruct' },
+      { label: 'Brochure', href: '/underconstruct' }
     ]
   },
   {
@@ -327,7 +327,7 @@ export default function ResponsiveNavbar() {
                   className="relative py-1 group lg:mx-1 "
                   onMouseEnter={() => typeof window !== 'undefined' && window.innerWidth >= 1024 && setActiveDropdown(item.label)}
                   onMouseLeave={() => typeof window !== 'undefined' && window.innerWidth >= 1024 && setActiveDropdown(null)}
-                  onClick={() => item.submenu && toggleDropdown(item.label)}
+                  onClick={() => item.submenu && setActiveDropdown(item.label)}
                 >
                   <div className="tooltip-container relative inline-block px-2 py-1  ">
                     <Textfit
