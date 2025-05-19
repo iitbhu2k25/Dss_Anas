@@ -1151,7 +1151,6 @@ class MultipleSubdistrictsAPI(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
-
 class MultipleVillagesAPI(APIView):
     def post(self, request, format=None):
         villages_data = request.data.get('villages')
@@ -1184,36 +1183,81 @@ class MultipleVillagesAPI(APIView):
             gdf = gpd.read_file(shapefile_full_path)
             print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
             
+            # Find the village code column (case insensitive)
+            village_code_column = None
+            possible_column_names = ['VILLAGE_CODE', 'village_code', 'VillageCode', 'VILLAGECODE', 'Village_Code', 'CODE', 'code', 'Code']
+            
+            for col_name in possible_column_names:
+                if col_name in gdf.columns:
+                    village_code_column = col_name
+                    break
+            
+            # If exact match not found, try case-insensitive search
+            if village_code_column is None:
+                for col in gdf.columns:
+                    if 'village' in col.lower() and 'code' in col.lower():
+                        village_code_column = col
+                        break
+                    elif col.lower() == 'code':
+                        village_code_column = col
+                        break
+            
+            if village_code_column is None:
+                print(f"Available columns: {gdf.columns.tolist()}")
+                return Response(
+                    {"error": f"Village code column not found. Available columns: {gdf.columns.tolist()}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+            print(f"Using village code column: {village_code_column}")
+            
             # Ensure all code columns are strings for consistent comparison 
-            gdf['VILLAGE_CODE'] = gdf['VILLAGE_CODE'].astype(str)
+            gdf[village_code_column] = gdf[village_code_column].astype(str)
              
             # Initialize a list to store matching rows
             matched_rows = []
             
             for village_entry in villages_data:
-                village_code = str(village_entry.get('village_code', '')).upper()  # Convert to uppercase
+                village_code = village_entry.get('village_code', '')
                 
                 if not village_code:
                     print(f"Skipping entry missing required code: {village_entry}")
                     continue
                 
-                # Try with original code
-                village_match = gdf[gdf['VILLAGE_CODE'] == village_code]
+                # Convert to string and handle both numeric and string inputs
+                village_code = str(village_code).strip()
                 
-                # Try with padded code if needed
-                if village_match.empty and village_code.isdigit():
-                    # Try different padding lengths (assuming it could be various formats)
-                    for pad_length in [4, 6, 8, 10]:
-                        padded_code = village_code.zfill(pad_length)
-                        potential_match = gdf[gdf['VILLAGE_CODE'] == padded_code]
-                        if not potential_match.empty:
-                            village_match = potential_match
-                            break
-                
-                # Try with unpadded code if needed
-                if village_match.empty:
-                    unpadded_code = village_code.lstrip('0') or '0' if village_code.startswith('0') else village_code
-                    village_match = gdf[gdf['VILLAGE_CODE'] == unpadded_code]
+                # If it's a number, try various formats
+                try:
+                    # Try to convert to int to check if it's numeric
+                    numeric_code = int(village_code)
+                    village_code_str = str(numeric_code)
+                    
+                    # Try with original numeric code
+                    village_match = gdf[gdf[village_code_column].str.strip() == village_code_str]
+                    
+                    # Try with padded code if needed
+                    if village_match.empty:
+                        # Try different padding lengths
+                        for pad_length in [4, 6, 8, 10]:
+                            padded_code = village_code_str.zfill(pad_length)
+                            potential_match = gdf[gdf[village_code_column].str.strip() == padded_code]
+                            if not potential_match.empty:
+                                village_match = potential_match
+                                break
+                    
+                    # Try with zero-padded original input
+                    if village_match.empty:
+                        for pad_length in [4, 6, 8, 10]:
+                            padded_input = village_code.zfill(pad_length)
+                            potential_match = gdf[gdf[village_code_column].str.strip() == padded_input]
+                            if not potential_match.empty:
+                                village_match = potential_match
+                                break
+                    
+                except ValueError:
+                    # If it's not numeric, try exact string match (case insensitive)
+                    village_match = gdf[gdf[village_code_column].str.strip().str.upper() == village_code.upper()]
                 
                 if not village_match.empty:
                     # Append the matched rows to our list
@@ -1252,7 +1296,7 @@ class MultipleVillagesAPI(APIView):
                 {"error": f"Error processing villages: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
+#
 ###########
 
 

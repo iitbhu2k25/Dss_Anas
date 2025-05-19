@@ -68,6 +68,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
     // New state for managing selected villages
     const [intersectedVillages, setIntersectedVillages] = useState<IntersectedVillage[]>([]);
     const [selectedVillageIds, setSelectedVillageIds] = useState<Set<string>>(new Set());
+    const [catchmentLoading, setCatchmentLoading] = useState<boolean>(false);
 
     useEffect(() => {
         if (mapContainerRef.current && !mapRef.current) {
@@ -265,8 +266,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     }, [showLabels, stretchesData]);
 
-    
-       // New function to zoom to specific features when they're selected
+
+    // New function to zoom to specific features when they're selected
     const zoomToFeature = (featureType: 'river' | 'stretch' | 'drain' | 'catchment', featureId: string) => {
         if (!mapRef.current) return;
 
@@ -329,7 +330,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
     };
 
     // Add this function to highlight the selected river
-    
+
     const highlightSelectedRiver = (riverId: string) => {
         if (!mapRef.current || !riverLayerRef.current || !riversData) {
             console.log("Cannot highlight river: map, layer or data missing");
@@ -438,6 +439,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
     const fetchAllData = async () => {
         setLoading(true);
+        setCatchmentLoading(true);
         setError(null);
         try {
             console.log("Starting data fetch...");
@@ -456,6 +458,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
             setError("Failed to load map data");
         } finally {
             setLoading(false);
+            setCatchmentLoading(false);
         }
     };
 
@@ -586,6 +589,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
 
     const fetchStretchesByRiver = async (riverId: string) => {
+        setCatchmentLoading(true);
         try {
             console.log(`Fetching stretches for river ${riverId}...`);
             const response = await fetch('http://localhost:9000/api/basic/river-stretched/', {
@@ -623,6 +627,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
         } catch (error: any) {
             console.error("Error fetching stretches:", error);
             setError(`Stretches: ${error.message}`);
+        } finally {
+            setCatchmentLoading(false);
         }
     };
 
@@ -691,6 +697,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
     // Add this function to the component to fetch catchment data
     // Updated fetchCatchmentsByDrains function
     const fetchCatchmentsByDrains = async (drainIds: string[]) => {
+        setCatchmentLoading(true); // Start loading
         try {
             console.log(`Fetching catchments and villages for drains: ${drainIds}...`);
             const response = await fetch('http://localhost:9000/api/basic/catchment_village/', {
@@ -771,6 +778,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
         } catch (error: any) {
             console.error("Error fetching catchments and villages:", error);
             setError(`Catchments and Villages: ${error.message}`);
+        } finally {
+            setCatchmentLoading(false); // Stop loading
         }
     };
 
@@ -1095,7 +1104,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     };
 
-  
+
     // Toggle village selection - Updated function
     const toggleVillageSelection = (shapeId: string) => {
         console.log("Toggle village selection for ID:", shapeId);
@@ -1333,15 +1342,21 @@ const DrainMap: React.FC<DrainMapProps> = ({
     };
 
     const toggleCatchment = () => {
+        setCatchmentLoading(true); // Start loading
         setShowCatchment(!showCatchment);
         if (!showCatchment) {
             setShowVillage(false); // Uncheck village checkbox when catchment is unchecked
         }
+        // Delay to simulate layer update (remove if updateCatchmentsLayer is fast)
+        setTimeout(() => setCatchmentLoading(false), 500); // Adjust delay as needed
     };
 
     const toggleVillage = () => {
+        setCatchmentLoading(true); // Start loading
         setShowVillage(!showVillage);
-    };
+        // Delay to simulate layer update (remove if updateVillageLayer is fast)
+        setTimeout(() => setCatchmentLoading(false), 500); // Adjust delay as needed
+    };;
 
     return (
         <div className="flex flex-col h-full relative" style={{ height: '60vh' }}>
@@ -1404,6 +1419,34 @@ const DrainMap: React.FC<DrainMapProps> = ({
                 className="flex-grow w-full relative"
                 style={{ height: '100%', minHeight: '400px' }}
             >
+                {catchmentLoading && (
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-[1000]">
+                        <div className="flex items-center bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg animate-pulse">
+                            <svg
+                                className="animate-spin h-5 w-5 mr-2 text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                ></circle>
+                                <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                            </svg>
+                            Loading .......
+                            Please be patient
+                        </div>
+                    </div>
+                )}
                 {selectedDrains.length > 0 && (
                     <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-[1000]">
                         <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
@@ -1413,6 +1456,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
                                 checked={showCatchment}
                                 onChange={toggleCatchment}
                                 className="mr-1"
+                                disabled={catchmentLoading} // Disable during loading
                             />
                             <label htmlFor="catchment-toggle" className="flex items-center cursor-pointer">
                                 <span
@@ -1429,7 +1473,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
                                 checked={showVillage}
                                 onChange={toggleVillage}
                                 className="mr-1"
-                                disabled={!showCatchment} // Disable village checkbox if showCatchment is false
+                                disabled={!showCatchment || catchmentLoading} // Disable if catchment is not shown or loading
                             />
                             <label htmlFor="village-toggle" className="flex items-center cursor-pointer">
                                 <span
