@@ -843,6 +843,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     opacity: 0.8,      // Increased from 0.5 for better visibility
                     fillColor: 'white', // Changed from '#eee' to a light purple/reddish color
                     fillOpacity: 0,
+                    dashArray: '5 5',
                 }),
                 onEachFeature: (feature, layer) => {
                     const basinName = feature.properties.Basin_Name || 'Unknown';
