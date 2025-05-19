@@ -9,7 +9,7 @@ const TimeMethods = () => {
             <div className="flex gap-14 flex-wrap">
                 <span>1. Arithmetic Increase Method</span>
                 <span>2. Geometric Increase Method</span>
-                <span>3. Logistic Method</span>
+                {/* <span>3. Logistic Method</span> */}
                 <span>4. Exponential Method</span>
                 <span>5. Incremental Method</span>
             </div>

@@ -71,6 +71,7 @@ const Basic: React.FC = () => {
   const [selectedStateCode, setSelectedStateCode] = useState<string>('');
   const [selectedDistricts, setSelectedDistricts] = useState<string[]>([]);
   const [selectedSubDistricts, setSelectedSubDistricts] = useState<string[]>([]);
+  const [selectedVillages, setSelectedVillages] = useState<string[]>([]); // Add this line
 
   // State for RiverSelector
   const [selectedRiver, setSelectedRiver] = useState<string>('');
@@ -82,7 +83,7 @@ const Basic: React.FC = () => {
   const stateRef = useRef<string>('');
   const districtsRef = useRef<string[]>([]);
   const subDistrictsRef = useRef<string[]>([]);
-
+  const villagesRef = useRef<string[]>([]); // Add this line
   // Refs for RiverSelector
   const riverRef = useRef<string>('');
   const stretchRef = useRef<string>('');
@@ -100,6 +101,11 @@ const Basic: React.FC = () => {
   useEffect(() => {
     subDistrictsRef.current = [...selectedSubDistricts];
   }, [selectedSubDistricts]);
+
+  // Add this effect
+  useEffect(() => {
+    villagesRef.current = [...selectedVillages];
+  }, [selectedVillages]);
 
   // Sync refs with state for RiverSelector
   useEffect(() => {
@@ -200,6 +206,14 @@ const Basic: React.FC = () => {
     setSelectedStateCode(stateCode);
   };
 
+
+
+  // Handle villages selection for LocationSelector
+  const handleVillagesChangeAdmin = (villages: string[]): void => {
+    console.log('Villages changed to:', villages);
+    setSelectedVillages([...villages]);
+  };
+
   // Handle river selection for RiverSelector
   const handleRiverChange = (riverId: string): void => {
     console.log('River changed to:', riverId);
@@ -294,6 +308,7 @@ const Basic: React.FC = () => {
   };
 
   // Complete reset handler
+  // Complete reset handler
   const handleReset = (): void => {
     console.log('FULL RESET triggered');
     setCurrentStep(0);
@@ -311,9 +326,11 @@ const Basic: React.FC = () => {
     setSelectedStateCode('');
     setSelectedDistricts([]);
     setSelectedSubDistricts([]);
+    setSelectedVillages([]); // Add this line
     stateRef.current = '';
     districtsRef.current = [];
     subDistrictsRef.current = [];
+    villagesRef.current = []; // Add this line
 
     // Reset RiverSelector data
     setSelectedRiverData(null);
@@ -438,7 +455,7 @@ const Basic: React.FC = () => {
 
         {/* Selector and Map Layout */}
         <div className="flex w-full px-4">
-          <div className="w-2/3 mt-3">
+          <div className="w-2/3 mt-3 mb-2">
             {viewMode === 'admin' ? (
               <LocationSelector
                 onConfirm={handleLocationConfirm}
@@ -446,6 +463,7 @@ const Basic: React.FC = () => {
                 onStateChange={handleStateChange}
                 onDistrictsChange={handleDistrictsChange}
                 onSubDistrictsChange={handleSubDistrictsChange}
+                onVillagesChange={handleVillagesChangeAdmin} // Add this line
               />
             ) : (
               <DrainLocationSelector
@@ -460,20 +478,23 @@ const Basic: React.FC = () => {
               />
             )}
           </div>
-          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6 rounded-xl shadow-xl border-2 border-green-500">
+          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6">
             {viewMode === 'admin' ? (
               <Map
                 selectedState={selectedStateCode}
                 selectedDistricts={selectedDistricts}
                 selectedSubDistricts={selectedSubDistricts}
+                selectedVillages={selectedVillages} // Add this line
               />
             ) : (
-              <DrainMap
-                selectedRiver={selectedRiver}
-                selectedStretch={selectedStretch}
-                selectedDrains={selectedDrainIds}
-                onVillagesChange={handleVillagesChange}
-              />
+              <div className="  mr-6 ml-4 mb-5 border border-gray-900">
+                <DrainMap
+                  selectedRiver={selectedRiver}
+                  selectedStretch={selectedStretch}
+                  selectedDrains={selectedDrainIds}
+                  onVillagesChange={handleVillagesChange}
+                />
+              </div>
             )}
           </div>
         </div>

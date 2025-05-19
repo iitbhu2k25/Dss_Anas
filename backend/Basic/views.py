@@ -1019,147 +1019,6 @@ class MultipleDistrictsAPI(APIView):
                 {"error": f"Error processing districts: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-#
-class MultipleVillagesAPI(APIView):
-    def post(self, request, format=None):
-        villages_data = request.data.get('villages')
-        
-        print(f"Received request with villages data: {villages_data}")
-        
-        # Accept both 'villages' and direct list of shapeIDs for flexibility
-        if not villages_data:
-            # Check if shapeIDs are provided directly
-            shape_ids = request.data.get('shapeIDs')
-            if shape_ids and isinstance(shape_ids, list):
-                villages_data = [{'shapeID': shape_id} for shape_id in shape_ids]
-            else:
-                return Response(
-                    {"error": "villages must be provided as a list of objects containing shapeID, or provide shapeIDs as a direct list."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        
-        if not isinstance(villages_data, list):
-            return Response(
-                {"error": "villages must be provided as a list of objects containing shapeID."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Path to the village shapefile (adjust the path according to your structure)
-        shapefile_path = os.path.join(settings.MEDIA_ROOT, 'basic_shape', 'B_villages')
-        
-        print(f"Looking for shapefile at: {shapefile_path}")
-        
-        if not os.path.exists(shapefile_path):
-            print(f"Directory not found: {shapefile_path}")
-            return Response(
-                {"error": f"Shapefile directory not found at {shapefile_path}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
-        try:
-            # Read the shapefile using geopandas
-            shapefile_full_path = os.path.join(shapefile_path, 'basin_village.shp')
-            print(f"Attempting to read shapefile from: {shapefile_full_path}")
-            
-            gdf = gpd.read_file(shapefile_full_path)
-            print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
-            
-            # Ensure shapeID column exists and is string type for consistent comparison
-            # Adjust the column name based on your actual shapefile structure
-            shape_id_column = None
-            possible_columns = ['shapeID', 'SHAPE_ID', 'ID', 'OBJECTID', 'FID', 'VILLAGE_ID']
-            
-            for col in possible_columns:
-                if col in gdf.columns:
-                    shape_id_column = col
-                    break
-            
-            if shape_id_column is None:
-                print(f"Shape ID column not found. Available columns: {gdf.columns.tolist()}")
-                return Response(
-                    {"error": f"Shape ID column not found. Available columns: {gdf.columns.tolist()}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-            
-            gdf[shape_id_column] = gdf[shape_id_column].astype(str)
-            
-            # Initialize a list to store matching rows
-            matched_rows = []
-            requested_shape_ids = []
-            
-            for village_entry in villages_data:
-                shape_id = str(village_entry.get('shapeID', '')).strip()
-                
-                if not shape_id:
-                    print(f"Skipping entry missing shapeID: {village_entry}")
-                    continue
-                
-                requested_shape_ids.append(shape_id)
-                
-                # Try exact match first
-                village_match = gdf[gdf[shape_id_column] == shape_id]
-                
-                # Try with different variations if no exact match
-                if village_match.empty:
-                    # Try case-insensitive match
-                    village_match = gdf[gdf[shape_id_column].str.upper() == shape_id.upper()]
-                
-                # Try with padded zeros if the shape_id is numeric
-                if village_match.empty and shape_id.isdigit():
-                    padded_shape_id = shape_id.zfill(6)  # Pad to 6 digits
-                    village_match = gdf[gdf[shape_id_column] == padded_shape_id]
-                
-                # Try with unpadded if the shape_id starts with zero
-                if village_match.empty and shape_id.startswith('0'):
-                    unpadded_shape_id = shape_id.lstrip('0') or '0'
-                    village_match = gdf[gdf[shape_id_column] == unpadded_shape_id]
-                
-                if not village_match.empty:
-                    # Append the matched rows to our list
-                    matched_rows.append(village_match)
-                    print(f"Found match for shapeID: {shape_id}")
-                else:
-                    print(f"No match found for shapeID: {shape_id}")
-            
-            if not matched_rows:
-                print("No matching villages found.")
-                return Response(
-                    {"error": "No matching villages found for the provided shapeIDs.",
-                     "requested_ids": requested_shape_ids},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            # Concatenate all matched rows into a single GeoDataFrame
-            matched_villages = pd.concat(matched_rows, ignore_index=True)
-            
-            # Convert to GeoJSON format
-            geojson_data = json.loads(matched_villages.to_json())
-            
-            print(f"Total villages found: {len(matched_villages)}")
-            print(f"GeoJSON features: {len(geojson_data['features'])}")
-            
-            # Add metadata to response
-            response_data = {
-                "type": "FeatureCollection",
-                "features": geojson_data['features'],
-                "metadata": {
-                    "total_requested": len(requested_shape_ids),
-                    "total_found": len(matched_villages),
-                    "requested_ids": requested_shape_ids
-                }
-            }
-            
-            return Response(response_data, status=status.HTTP_200_OK)
-        
-        except Exception as e:
-            import traceback
-            print(f"Error processing villages: {str(e)}")
-            print(traceback.format_exc())
-            return Response(
-                {"error": f"Error processing villages: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
 
 
 class MultipleSubdistrictsAPI(APIView):
@@ -1170,7 +1029,7 @@ class MultipleSubdistrictsAPI(APIView):
         
         if not subdistricts_data or not isinstance(subdistricts_data, list):
             return Response(
-                {"error": "subdistricts must be provided as a list of objects containing district_c and subdis_cod."},
+                {"error": "subdistricts must be provided as a list of objects containing subdis_cod."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -1194,70 +1053,38 @@ class MultipleSubdistrictsAPI(APIView):
             gdf = gpd.read_file(shapefile_full_path)
             print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
             
-            # Ensure all code columns are strings for consistent comparison
-            gdf['DISTRICT_C'] = gdf['DISTRICT_C'].astype(str)
+            # Ensure subdistrict code column is string for consistent comparison
             gdf['SUBDIS_COD'] = gdf['SUBDIS_COD'].astype(str)
             
             # Initialize a list to store matching rows
             matched_rows = []
             
             for subdistrict_entry in subdistricts_data:
-                district_c = str(subdistrict_entry.get('district_c', '')).upper()  # Convert to uppercase
                 subdis_cod = str(subdistrict_entry.get('subdis_cod', '')).upper()  # Convert to uppercase
                 
-                if not district_c or not subdis_cod:
-                    print(f"Skipping entry missing required codes: {subdistrict_entry}")
+                if not subdis_cod:
+                    print(f"Skipping entry missing subdistrict code: {subdistrict_entry}")
                     continue
                 
-                # Try with original codes
-                subdistrict_match = gdf[(gdf['DISTRICT_C'] == district_c) &
-                                      (gdf['SUBDIS_COD'] == subdis_cod)]
+                # Try with original code
+                subdistrict_match = gdf[gdf['SUBDIS_COD'] == subdis_cod]
                 
-                # Try with padded codes if needed
-                if subdistrict_match.empty:
-                    padded_district = district_c
-                    padded_subdis = subdis_cod
-                    
-                    if district_c.isdigit():
-                        padded_district = district_c.zfill(2)
-                        
-                    if subdis_cod.isdigit():
-                        padded_subdis = subdis_cod.zfill(4)
-                    
-                    # Try with all combinations of padded codes
-                    subdistrict_match = gdf[(gdf['DISTRICT_C'] == padded_district) &
-                                          (gdf['SUBDIS_COD'] == padded_subdis)]
-                    
-                    # If still not found, try other combinations
-                    if subdistrict_match.empty:
-                        for d_code in [district_c, padded_district]:
-                            for sd_code in [subdis_cod, padded_subdis]:
-                                potential_match = gdf[(gdf['DISTRICT_C'] == d_code) &
-                                                   (gdf['SUBDIS_COD'] == sd_code)]
-                                if not potential_match.empty:
-                                    subdistrict_match = potential_match
-                                    break
+                # Try with padded code if needed
+                if subdistrict_match.empty and subdis_cod.isdigit():
+                    padded_subdis = subdis_cod.zfill(4)
+                    subdistrict_match = gdf[gdf['SUBDIS_COD'] == padded_subdis]
                 
-                # Try with unpadded codes if needed
+                # Try with unpadded code if needed
                 if subdistrict_match.empty:
-                    unpadded_district = district_c.lstrip('0') or '0' if district_c.startswith('0') else district_c
                     unpadded_subdis = subdis_cod.lstrip('0') or '0' if subdis_cod.startswith('0') else subdis_cod
-                    
-                    # Try with all combinations of unpadded codes
-                    for d_code in [district_c, unpadded_district]:
-                        for sd_code in [subdis_cod, unpadded_subdis]:
-                            potential_match = gdf[(gdf['DISTRICT_C'] == d_code) &
-                                               (gdf['SUBDIS_COD'] == sd_code)]
-                            if not potential_match.empty:
-                                subdistrict_match = potential_match
-                                break
+                    subdistrict_match = gdf[gdf['SUBDIS_COD'] == unpadded_subdis]
                 
                 if not subdistrict_match.empty:
                     # Append the matched rows to our list
                     matched_rows.append(subdistrict_match)
-                    print(f"Found match for district_c: {district_c}, subdis_cod: {subdis_cod}")
+                    print(f"Found match anas for subdis_cod: {subdis_cod}")
                 else:
-                    print(f"No match found for district_c: {district_c}, subdis_cod: {subdis_cod}")
+                    print(f"No match found anas for subdis_cod: {subdis_cod}")
             
             if not matched_rows:
                 print("No matching subdistricts found.")
@@ -1288,7 +1115,7 @@ class MultipleSubdistrictsAPI(APIView):
                 {"error": f"Error processing subdistricts: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
+
 class MultipleVillagesAPI(APIView):
     def post(self, request, format=None):
         villages_data = request.data.get('villages')
@@ -1297,7 +1124,7 @@ class MultipleVillagesAPI(APIView):
         
         if not villages_data or not isinstance(villages_data, list):
             return Response(
-                {"error": "villages must be provided as a list of objects containing village_code."},
+                {"error": "villages must be provided as a list of objects containing shape_id."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
@@ -1321,88 +1148,42 @@ class MultipleVillagesAPI(APIView):
             gdf = gpd.read_file(shapefile_full_path)
             print(f"Shapefile loaded. Columns: {gdf.columns.tolist()}")
             
-            # Find the village code column (case insensitive)
-            village_code_column = None
-            possible_column_names = ['VILLAGE_CODE', 'village_code', 'VillageCode', 'VILLAGECODE', 'Village_Code', 'CODE', 'code', 'Code']
+            # Ensure shapeID column is string for consistent comparison
+            gdf['shapeID'] = gdf['shapeID'].astype(str)
             
-            for col_name in possible_column_names:
-                if col_name in gdf.columns:
-                    village_code_column = col_name
-                    break
-            
-            # If exact match not found, try case-insensitive search
-            if village_code_column is None:
-                for col in gdf.columns:
-                    if 'village' in col.lower() and 'code' in col.lower():
-                        village_code_column = col
-                        break
-                    elif col.lower() == 'code':
-                        village_code_column = col
-                        break
-            
-            if village_code_column is None:
-                print(f"Available columns: {gdf.columns.tolist()}")
-                return Response(
-                    {"error": f"Village code column not found. Available columns: {gdf.columns.tolist()}"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-            
-            print(f"Using village code column: {village_code_column}")
-            
-            # Ensure all code columns are strings for consistent comparison 
-            gdf[village_code_column] = gdf[village_code_column].astype(str)
-             
             # Initialize a list to store matching rows
             matched_rows = []
             
             for village_entry in villages_data:
-                village_code = village_entry.get('village_code', '')
+                shape_id = str(village_entry.get('shape_id', '')).upper()  # Convert to uppercase
                 
-                if not village_code:
-                    print(f"Skipping entry missing required code: {village_entry}")
+                if not shape_id:
+                    print(f"Skipping entry missing shape_id: {village_entry}")
                     continue
                 
-                # Convert to string and handle both numeric and string inputs
-                village_code = str(village_code).strip()
+                # Try with original shape ID
+                village_match = gdf[gdf['shapeID'] == shape_id]
                 
-                # If it's a number, try various formats
-                try:
-                    # Try to convert to int to check if it's numeric
-                    numeric_code = int(village_code)
-                    village_code_str = str(numeric_code)
-                    
-                    # Try with original numeric code
-                    village_match = gdf[gdf[village_code_column].str.strip() == village_code_str]
-                    
-                    # Try with padded code if needed
-                    if village_match.empty:
-                        # Try different padding lengths
-                        for pad_length in [4, 6, 8, 10]:
-                            padded_code = village_code_str.zfill(pad_length)
-                            potential_match = gdf[gdf[village_code_column].str.strip() == padded_code]
-                            if not potential_match.empty:
-                                village_match = potential_match
-                                break
-                    
-                    # Try with zero-padded original input
-                    if village_match.empty:
-                        for pad_length in [4, 6, 8, 10]:
-                            padded_input = village_code.zfill(pad_length)
-                            potential_match = gdf[gdf[village_code_column].str.strip() == padded_input]
-                            if not potential_match.empty:
-                                village_match = potential_match
-                                break
-                    
-                except ValueError:
-                    # If it's not numeric, try exact string match (case insensitive)
-                    village_match = gdf[gdf[village_code_column].str.strip().str.upper() == village_code.upper()]
+                # Try with padded shape ID if needed and if it's a number
+                if village_match.empty and shape_id.isdigit():
+                    # Try different padding lengths (2, 3, 4, 6 digits)
+                    for pad_length in [2, 3, 4, 6]:
+                        padded_shape_id = shape_id.zfill(pad_length)
+                        village_match = gdf[gdf['shapeID'] == padded_shape_id]
+                        if not village_match.empty:
+                            break
+                
+                # Try with unpadded shape ID if needed
+                if village_match.empty and shape_id.startswith('0'):
+                    unpadded_shape_id = shape_id.lstrip('0') or '0' if shape_id == '0' else shape_id.lstrip('0')
+                    village_match = gdf[gdf['shapeID'] == unpadded_shape_id]
                 
                 if not village_match.empty:
                     # Append the matched rows to our list
                     matched_rows.append(village_match)
-                    print(f"Found match for village_code: {village_code}")
+                    print(f"Found match for shape_id: {shape_id}")
                 else:
-                    print(f"No match found for village_code: {village_code}")
+                    print(f"No match found for shape_id: {shape_id}")
             
             if not matched_rows:
                 print("No matching villages found.")
@@ -1417,9 +1198,13 @@ class MultipleVillagesAPI(APIView):
             # Concatenate all matched rows into a single GeoDataFrame
             matched_villages = gpd.GeoDataFrame(pd.concat(matched_rows, ignore_index=True))
             matched_villages = matched_villages.to_crs(epsg=4326)
-            
             # Convert to GeoJSON format
             geojson_data = json.loads(matched_villages.to_json())
+            
+            # Print information about the found villages
+            if 'Village' in matched_villages.columns:
+                villages_found = matched_villages['Village'].tolist()
+                print(f"Villages found: {villages_found}")
             
             print(f"Total villages found: {len(matched_villages)}")
             print(f"GeoJSON features: {len(geojson_data['features'])}")
@@ -1434,10 +1219,8 @@ class MultipleVillagesAPI(APIView):
                 {"error": f"Error processing villages: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
 ###########
 
-#####
 
 #Below code for Drain based approach 
 class BasinAPI(APIView):

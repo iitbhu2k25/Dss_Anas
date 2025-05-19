@@ -709,14 +709,16 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           </p>
 
           {/* Display intersected villages */}
-          <p>
-            <span className="font-medium">Cachement Villages:</span>{' '}
+          <div>
+            <span className="font-medium">Basin Villages:</span>{' '}
             {loadingVillages ? (
               <span className="italic text-gray-500">Loading villages...</span>
             ) : (
-              <TruncatedList content={formatIntersectedVillages()} maxLength={80} />
+              <div className="max-h-32 overflow-y-auto border border-gray-200 rounded p-2 mt-2">
+                <TruncatedList content={formatIntersectedVillages()} maxLength={80} />
+              </div>
             )}
-          </p>
+          </div>
 
           {villageError && <p className="text-xs text-red-500 mt-1">{villageError}</p>}
 

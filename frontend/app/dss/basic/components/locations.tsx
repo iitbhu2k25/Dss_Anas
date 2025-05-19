@@ -83,8 +83,9 @@ interface LocationSelectorProps {
   onStateChange?: (stateCode: string) => void;
   onDistrictsChange?: (districts: string[]) => void;
   onSubDistrictsChange?: (subDistricts: string[]) => void;
+  onVillagesChange?: (villages: string[]) => void; // Add this line
 }
-const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset, onStateChange, onDistrictsChange, onSubDistrictsChange }) => {
+const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset, onStateChange, onDistrictsChange, onSubDistrictsChange, onVillagesChange }) => {
 
   // States for dropdown data
   const [states, setStates] = useState<LocationItem[]>([]);
@@ -208,6 +209,7 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
   }, [selectedState]);
 
   // Fetch sub-districts when districts change
+  // Fetch sub-districts when districts change
   useEffect(() => {
     if (selectedDistricts.length > 0) {
       const fetchSubDistricts = async (): Promise<void> => {
@@ -241,12 +243,10 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
 
           // Sort sub-districts first by district name, then by sub-district name
           const sortedSubDistricts = [...subDistrictData].sort((a, b) => {
-            // First compare by district name
             const districtComparison = a.districtName.localeCompare(b.districtName);
             if (districtComparison !== 0) {
               return districtComparison;
             }
-            // If same district, then compare by sub-district name
             return a.name.localeCompare(b.name);
           });
 
@@ -268,6 +268,7 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
     setTotalPopulation(0);
   }, [selectedDistricts, districts]);
 
+  // Fetch villages when sub-districts change
   // Fetch villages when sub-districts change
   useEffect(() => {
     if (selectedSubDistricts.length > 0) {
@@ -309,19 +310,16 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
 
           // Sort villages first by district, then by sub-district, then by village name
           const sortedVillages = [...villageData].sort((a, b) => {
-            // First compare by district
             const districtComparison = a.districtName.localeCompare(b.districtName);
             if (districtComparison !== 0) {
               return districtComparison;
             }
 
-            // Then by sub-district
             const subDistrictComparison = a.subDistrictName.localeCompare(b.subDistrictName);
             if (subDistrictComparison !== 0) {
               return subDistrictComparison;
             }
 
-            // Finally by village name
             return a.name.localeCompare(b.name);
           });
 
@@ -371,6 +369,17 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
       if (onStateChange) {
         onStateChange(stateCode);
       }
+    }
+  };
+
+
+  // Handle villages selection change
+  const handleVillagesChangeInternal = (newSelectedVillages: string[]) => {
+    setSelectedVillages(newSelectedVillages);
+
+    // Call the callback to notify parent component
+    if (onVillagesChange) {
+      onVillagesChange(newSelectedVillages);
     }
   };
 
@@ -659,10 +668,12 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
         />
 
         {/* Village Multiselect with district and sub-district grouping */}
+        {/* Village Multiselect with district and sub-district grouping */}
+        {/* Village Multiselect with district and sub-district grouping */}
         <MultiSelect
           items={villages}
           selectedItems={selectedVillages}
-          onSelectionChange={selectionsLocked ? () => { } : setSelectedVillages}
+          onSelectionChange={selectionsLocked ? () => { } : handleVillagesChangeInternal} // Updated function name here
           label="Village/Town (Population 2011)"
           placeholder="--Choose Villages--"
           disabled={selectedSubDistricts.length === 0 || selectionsLocked}
@@ -703,14 +714,15 @@ const LocationSelector: React.FC<LocationSelectorProps> = ({ onConfirm, onReset,
               />
             }
           </p>
-          <p>
-            <span className="font-medium">Villages:</span> {
+          <div className="text-base leading-relaxed">
+            <span className="font-medium">Villages:</span>
+            <div className="max-h-32 overflow-y-auto border border-gray-200 rounded p-2 mt-2">
               <TruncatedList
                 content={formatSelectedItems(villages, selectedVillages)}
                 maxLength={80}
               />
-            }
-          </p>
+            </div>
+          </div>
           <p>
             <span className="font-medium">Total Population:</span> {totalPopulation.toLocaleString()}
           </p>

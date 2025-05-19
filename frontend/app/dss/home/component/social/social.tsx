@@ -99,7 +99,7 @@ export default function SocialGridSection() {
     return () => {
       // Cleanup if component unmounts
     };
-  }, []);
+  }, []); 
 
   return (
     <section className="py-8 flex justify-center items-center max-w-[80%] mx-auto">
