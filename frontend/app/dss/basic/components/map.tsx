@@ -701,6 +701,7 @@ function MapLayers({
         });
 
         if (!response.ok) {
+          alert('due to unavailability of the JSON data, the map will not be displayed for the selected village.Continue Please');
           console.error('Failed to fetch village data:', response.status);
           setIsLoadingVillages(false);
           return;
