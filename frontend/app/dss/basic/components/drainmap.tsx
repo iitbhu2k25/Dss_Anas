@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import isEqual from 'lodash/isEqual';
 
 // Fix Leaflet icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -11,6 +12,17 @@ L.Icon.Default.mergeOptions({
     shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png',
 });
 
+declare global {
+  interface Window {
+    villageChangeSource?: 'map' | 'dropdown' | null;
+    dropdownLockUntil?: number;
+    finalDropdownSelection?: { // Add this
+      villages: any[];
+      selectedIds: string[];
+      timestamp: number;
+    };
+  }
+}
 interface GeoJSONFeature {
     type: string;
     properties: any;
@@ -33,14 +45,16 @@ interface DrainMapProps {
     selectedRiver: string;
     selectedStretch: string;
     selectedDrains: string[];
-    onVillagesChange?: (villages: IntersectedVillage[]) => void; // Add callback for village changes
+    onVillagesChange?: (villages: IntersectedVillage[]) => void;
+    villageChangeSource?: 'map' | 'dropdown' | null;// Add callback for village changes
 }
 
 const DrainMap: React.FC<DrainMapProps> = ({
     selectedRiver,
     selectedStretch,
     selectedDrains,
-    onVillagesChange
+    onVillagesChange,
+    villageChangeSource,
 }) => {
     const mapRef = useRef<L.Map | null>(null);
     const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -104,6 +118,88 @@ const DrainMap: React.FC<DrainMapProps> = ({
         };
     }, []);
 
+
+
+useEffect(() => {
+  console.log('DrainMap useEffect triggered with:', { 
+    villageChangeSource, 
+    globalVillageChangeSource: window.villageChangeSource,
+    dropdownLockUntil: window.dropdownLockUntil,
+    finalDropdownSelection: window.finalDropdownSelection,
+    intersectedVillagesLength: intersectedVillages.length 
+  });
+
+  // Check for dropdown lock first
+  if (window.dropdownLockUntil && Date.now() < window.dropdownLockUntil) {
+    console.log('Skipping DrainMap useEffect - dropdown lock is active');
+    return;
+  }
+
+  // If there's a final dropdown selection and it's recent, don't process map changes
+  if (window.finalDropdownSelection && Date.now() - window.finalDropdownSelection.timestamp < 3000) {
+    console.log('Skipping DrainMap useEffect - final dropdown selection exists');
+    
+    // But still update the map visualization to match the dropdown selection
+    const finalSelectedIds = new Set(window.finalDropdownSelection.selectedIds);
+    if (villageLayerRef.current) {
+      villageLayerRef.current.eachLayer((layer: any) => {
+        const layerShapeId = layer.feature?.properties?.shapeID?.toString();
+        if (layerShapeId) {
+          const isSelected = finalSelectedIds.has(layerShapeId);
+          updateVillageStyle(layer, isSelected);
+        }
+      });
+    }
+    setSelectedVillageIds(finalSelectedIds);
+    return;
+  }
+
+  // Skip if the change source was dropdown
+  if (villageChangeSource === 'dropdown') {
+    console.log('Skipping DrainMap useEffect - source was dropdown');
+    return;
+  }
+
+  // Skip if we're in the middle of processing dropdown changes
+  if (window.villageChangeSource === 'dropdown') {
+    console.log('Skipping DrainMap useEffect - global source is dropdown');
+    return;
+  }
+
+  if (intersectedVillages && intersectedVillages.length > 0) {
+    console.log("DrainMap processing intersectedVillages from map source");
+
+    const incomingSelectedIds = new Set(
+      intersectedVillages
+        .filter(v => v.selected !== false)
+        .map(v => v.shapeID)
+    );
+
+    // Only update if the selection has actually changed
+    if (!isEqual([...incomingSelectedIds].sort(), [...selectedVillageIds].sort())) {
+      console.log("Updating DrainMap selectedVillageIds:", Array.from(incomingSelectedIds).length);
+      setSelectedVillageIds(incomingSelectedIds);
+
+      // Update village layer styling if it exists
+      if (villageLayerRef.current) {
+        console.log("Updating village layer styling in DrainMap");
+        villageLayerRef.current.eachLayer((layer: any) => {
+          const layerShapeId = layer.feature?.properties?.shapeID?.toString();
+          if (layerShapeId) {
+            const isSelected = incomingSelectedIds.has(layerShapeId);
+            updateVillageStyle(layer, isSelected);
+          }
+        });
+      }
+    } else {
+      console.log("DrainMap village selection unchanged, skipping update");
+    }
+  } else if (intersectedVillages && intersectedVillages.length === 0) {
+    console.log("Clearing village selection in DrainMap");
+    setSelectedVillageIds(new Set());
+  }
+}, [intersectedVillages, villageChangeSource]);
+
     useEffect(() => {
         if (mapRef.current) {
             console.log(`River selection changed to: ${selectedRiver}`);
@@ -166,37 +262,52 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     }, [selectedDrains]);
 
-    useEffect(() => {
-        if (intersectedVillages.length > 0) {
-            console.log("Received updated intersectedVillages from parent:", intersectedVillages);
+    // useEffect(() => {
+    //     if (window.villageChangeSource === 'dropdown') {
+    //       console.log('Skipping intersectedVillages useEffect because source is dropdown');
+    //       return;
+    //     }
 
-            // Update selectedVillageIds based on parent's intersectedVillages
-            const incomingSelectedIds = new Set(
-                intersectedVillages
-                    .filter(v => v.selected !== false)
-                    .map(v => v.shapeID)
-            );
+    //     if (intersectedVillages && intersectedVillages.length > 0) {
+    //       console.log("DrainMap received updated intersectedVillages:", intersectedVillages);
 
-            // Only update if the selection has actually changed to avoid infinite loops
-            if (
-                incomingSelectedIds.size !== selectedVillageIds.size ||
-                ![...incomingSelectedIds].every(id => selectedVillageIds.has(id))
-            ) {
-                console.log("Updating selectedVillageIds from parent:", Array.from(incomingSelectedIds));
-                setSelectedVillageIds(incomingSelectedIds);
+    //       console.log('Checking selectedVillageIds for update (source is not dropdown)');
+    //       const incomingSelectedIds = new Set(
+    //         intersectedVillages
+    //           .filter(v => v.selected !== false)
+    //           .map(v => v.shapeID)
+    //       );
 
-                // Update village layer styling
-                if (villageLayerRef.current) {
-                    villageLayerRef.current.eachLayer((layer: any) => {
-                        const layerShapeId = layer.feature?.properties?.shapeID?.toString();
-                        if (layerShapeId) {
-                            updateVillageStyle(layer, incomingSelectedIds.has(layerShapeId));
-                        }
-                    });
-                }
-            }
-        }
-    }, [intersectedVillages]);  // Keep the dependency on intersectedVillages
+    //       // Deep compare to avoid unnecessary updates
+    //       if (!isEqual([...incomingSelectedIds].sort(), [...selectedVillageIds].sort())) {
+    //         console.log("Updating selectedVillageIds in DrainMap:", Array.from(incomingSelectedIds));
+    //         setSelectedVillageIds(incomingSelectedIds);
+
+    //         // Update village layer styling if the layer exists
+    //         if (villageLayerRef.current) {
+    //           console.log("Updating village layer styling...");
+    //           villageLayerRef.current.eachLayer((layer: any) => {
+    //             const layerShapeId = layer.feature?.properties?.shapeID?.toString();
+    //             if (layerShapeId) {
+    //               const isSelected = incomingSelectedIds.has(layerShapeId);
+    //               console.log(`Updating village ${layerShapeId} style, selected: ${isSelected}`);
+    //               updateVillageStyle(layer, isSelected);
+    //             }
+    //           });
+    //         } else {
+    //           console.log("Village layer not available for styling update");
+    //         }
+    //       } else {
+    //         console.log("selectedVillageIds unchanged, skipping update");
+    //       }
+    //     } else if (intersectedVillages && intersectedVillages.length === 0) {
+    //       // Handle the case where villages are explicitly cleared
+    //       console.log("Clearing village selection in DrainMap");
+    //       if (selectedVillageIds.size > 0) {
+    //         setSelectedVillageIds(new Set());
+    //       }
+    //     }
+    //   }, [intersectedVillages, selectedVillageIds]);// Keep the dependency on intersectedVillages
 
     // Add effects to handle layer visibility toggles
     useEffect(() => {
@@ -1108,52 +1219,49 @@ const DrainMap: React.FC<DrainMapProps> = ({
     // Toggle village selection - Updated function
     const toggleVillageSelection = (shapeId: string) => {
         console.log("Toggle village selection for ID:", shapeId);
-        console.log("Before toggle - selected IDs:", Array.from(selectedVillageIds));
 
-        // Create a new Set from the current selection state
+        // Set global flag to indicate this is a map change
+        window.villageChangeSource = 'map';
+
         const newSelectedVillageIds = new Set(selectedVillageIds);
+        const willBeSelected = !newSelectedVillageIds.has(shapeId);
 
-        // Toggle the selection status for the clicked village
-        if (newSelectedVillageIds.has(shapeId)) {
-            console.log("Removing village ID from selection:", shapeId);
-            newSelectedVillageIds.delete(shapeId);
-        } else {
-            console.log("Adding village ID to selection:", shapeId);
+        if (willBeSelected) {
             newSelectedVillageIds.add(shapeId);
+        } else {
+            newSelectedVillageIds.delete(shapeId);
         }
 
-        console.log("After toggle - selected IDs:", Array.from(newSelectedVillageIds));
-
-        // Update the selected villages Set state
-        setSelectedVillageIds(newSelectedVillageIds);
-
-        // Create a completely new array with updated selection states
         const updatedVillages = intersectedVillages.map(village => ({
             ...village,
-            selected: newSelectedVillageIds.has(village.shapeID)
+            selected: newSelectedVillageIds.has(village.shapeID),
         }));
 
-        // Update the internal state and notify parent component
+        // Update local state immediately
         setIntersectedVillages(updatedVillages);
+        setSelectedVillageIds(newSelectedVillageIds);
 
-        // Notify parent component about the changes
-        if (onVillagesChange) {
-            onVillagesChange(updatedVillages);
-        }
-
-        // Update the village layer styling if it exists
+        // Update village layer styling immediately
         if (villageLayerRef.current) {
             villageLayerRef.current.eachLayer((layer: any) => {
                 const layerShapeId = layer.feature?.properties?.shapeID?.toString();
                 if (layerShapeId) {
-                    const isSelected = newSelectedVillageIds.has(layerShapeId);
-                    console.log(`Updating style for ${layerShapeId} to ${isSelected ? 'selected' : 'unselected'}`);
-                    updateVillageStyle(layer, isSelected);
+                    updateVillageStyle(layer, newSelectedVillageIds.has(layerShapeId));
                 }
             });
         }
-    };
 
+        // Notify parent component
+        if (onVillagesChange) {
+            console.log('DrainMap calling onVillagesChange with map source');
+            onVillagesChange(updatedVillages);
+        }
+
+        // Clear the global flag after a delay
+        setTimeout(() => {
+            window.villageChangeSource = null;
+        }, 100);
+    };
     // Fix for DrainMap - Updated updateVillageLayer function
 
 
@@ -1161,8 +1269,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
     const updateVillageLayer = (data: GeoJSONFeatureCollection) => {
         if (!mapRef.current) return;
-        console.log("Updating village layer...");
-        console.log("Current selection state:", Array.from(selectedVillageIds));
+        console.log("Updating village layer with data:", data);
+        console.log("Current selectedVillageIds:", Array.from(selectedVillageIds));
 
         // Remove the existing layer from the map
         if (villageLayerRef.current) {
@@ -1296,8 +1404,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     if (selectedDrains.includes(drainNo)) {
                         if (layer.setStyle) {
                             layer.setStyle({
-                                color: 'yellow',  // DodgerBlue for highlighted drains
-                                weight: 10,
+                                color: 'black',  // DodgerBlue for highlighted drains
+                                weight: 25,
                                 opacity: .5,
                                 fillOpacity: 0.1,
                             });

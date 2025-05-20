@@ -1,5 +1,6 @@
 'use client'
-import React, { useEffect, useState, useRef } from "react"
+import React, { useEffect, useState, useRef, useMemo } from "react"
+import isEqual from 'lodash/isEqual';
 import dynamic from "next/dynamic";
 import StatusBar from "./components/statusbar"
 import LocationSelector from "./components/locations"
@@ -79,6 +80,7 @@ const Basic: React.FC = () => {
   const [selectedDrainIds, setSelectedDrainIds] = useState<string[]>([]);
   const [selectedDrains, setSelectedDrains] = useState<string[]>([]);
   const [intersectedVillages, setIntersectedVillages] = useState<IntersectedVillage[]>([]);
+  const [villageChangeSource, setVillageChangeSource] = useState<'map' | 'dropdown' | null>(null);
   // Refs for LocationSelector
   const stateRef = useRef<string>('');
   const districtsRef = useRef<string[]>([]);
@@ -102,8 +104,7 @@ const Basic: React.FC = () => {
     subDistrictsRef.current = [...selectedSubDistricts];
   }, [selectedSubDistricts]);
 
-  // Add this effect
-  useEffect(() => {
+    useEffect(() => {
     villagesRef.current = [...selectedVillages];
   }, [selectedVillages]);
 
@@ -119,6 +120,22 @@ const Basic: React.FC = () => {
   useEffect(() => {
     drainsRef.current = [...selectedDrains];
   }, [selectedDrains]);
+
+
+  useEffect(() => {
+    if (villageChangeSource) {
+      const timer = setTimeout(() => {
+        console.log('Clearing villageChangeSource in page.tsx:', villageChangeSource);
+        setVillageChangeSource(null);
+
+        // Also clear global flag if it matches
+        if (window.villageChangeSource === villageChangeSource) {
+          window.villageChangeSource = null;
+        }
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [villageChangeSource]);
 
   // Update current step based on view mode
   useEffect(() => {
@@ -140,37 +157,46 @@ const Basic: React.FC = () => {
     setSelectedRiverData(null); // Clear RiverSelector data
   };
 
+  const memoizedIntersectedVillages = useMemo(() => intersectedVillages, [intersectedVillages]);
+
+
   // Handler for villages change from the map
+  const handleVillagesChange = (villages: IntersectedVillage[], source: 'map' | 'dropdown' | null = null) => {
+    // Determine the actual source with priority:
+    // 1. Explicit source parameter
+    // 2. Global window flag
+    // 3. Default to 'unknown'
+    let actualSource: 'map' | 'dropdown' | null = source;
 
-  const handleVillagesChange = (villages: IntersectedVillage[]) => {
-    console.log("Villages selection changed:", villages);
-
-    // Update the state with the new villages selection
-    setIntersectedVillages(villages);
-
-    // Update the global data if it exists (this part is OK)
-    if (window.selectedRiverData) {
-      window.selectedRiverData = {
-        ...window.selectedRiverData,
-        selectedVillages: villages.filter(v => v.selected !== false)
-      };
+    if (!actualSource && window.villageChangeSource) {
+      actualSource = window.villageChangeSource;
     }
 
-    // Remove the attempt to access DOM elements directly
-    // The DrainLocationSelector component will receive updated villages through props
-    // since we're already passing them in the JSX:
-    // <DrainLocationSelector villages={intersectedVillages} ... />
+    console.log(`Villages selection changed in page.tsx (source: ${actualSource || 'unknown'}):`,
+      villages.filter(v => v.selected !== false).length, 'selected out of', villages.length);
+    console.log(`Source determination: param=${source}, global=${window.villageChangeSource}, final=${actualSource}`);
+
+    // Always update if villages are different
+    if (!isEqual(villages, intersectedVillages)) {
+      console.log('Villages have changed, updating state with source:', actualSource);
+      setIntersectedVillages([...villages]);
+
+      // Set the village change source
+      setVillageChangeSource(actualSource);
+
+      // Update global data
+      if (window.selectedRiverData) {
+        window.selectedRiverData = {
+          ...window.selectedRiverData,
+          selectedVillages: villages.filter(v => v.selected !== false),
+        };
+        console.log('Updated window.selectedRiverData');
+      }
+    } else {
+      console.log('Villages unchanged, skipping update');
+    }
   };
 
-
-  // Handle confirm for RiverSelector
-  const handleRiverConfirm = (data: SelectedRiverData): void => {
-    console.log('Received confirmed river data:', data);
-    setSelectedRiverData(data);
-    setSelectedLocationData(null); // Clear LocationSelector data
-  };
-
-  // Handle district selection for LocationSelector
   const handleDistrictsChange = (districts: string[]): void => {
     console.log('Districts changed to:', districts);
     if (JSON.stringify(districts) !== JSON.stringify(districtsRef.current)) {
@@ -183,12 +209,19 @@ const Basic: React.FC = () => {
     setSelectedDistricts([...districts]);
   };
 
+
   // Handle subdistrict selection for LocationSelector
   const handleSubDistrictsChange = (subdistricts: string[]): void => {
     console.log('Sub-districts changed to:', subdistricts);
     setSelectedSubDistricts([...subdistricts]);
   };
 
+
+  const handleRiverConfirm = (data: SelectedRiverData): void => {
+    console.log('Received confirmed river data:', data);
+    setSelectedRiverData(data);
+    setSelectedLocationData(null); // Clear LocationSelector data
+  };
   // Handle state selection for LocationSelector
   const handleStateChange = (stateCode: string): void => {
     console.log('State changed to:', stateCode);
@@ -206,9 +239,6 @@ const Basic: React.FC = () => {
     setSelectedStateCode(stateCode);
   };
 
-
-
-  // Handle villages selection for LocationSelector
   const handleVillagesChangeAdmin = (villages: string[]): void => {
     console.log('Villages changed to:', villages);
     setSelectedVillages([...villages]);
@@ -307,7 +337,6 @@ const Basic: React.FC = () => {
     }
   };
 
-  // Complete reset handler
   // Complete reset handler
   const handleReset = (): void => {
     console.log('FULL RESET triggered');
@@ -455,7 +484,7 @@ const Basic: React.FC = () => {
 
         {/* Selector and Map Layout */}
         <div className="flex w-full px-4">
-          <div className="w-2/3 mt-3 mb-2">
+          <div className="w-2/3 mt-3">
             {viewMode === 'admin' ? (
               <LocationSelector
                 onConfirm={handleLocationConfirm}
@@ -472,13 +501,14 @@ const Basic: React.FC = () => {
                 onRiverChange={handleRiverChange}
                 onStretchChange={handleStretchChange}
                 onDrainsChange={handleDrainsChange}
-                onVillagesChange={handleVillagesChange} // Add this
+                onVillagesChange={(villages) => handleVillagesChange(villages, 'dropdown')}
                 villages={intersectedVillages}
+                villageChangeSource={villageChangeSource}
                 data-component="DrainLocationsSelector"
               />
             )}
           </div>
-          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6">
+            <div className="w-1/2 mt-3 mr-6 ml-4 mb-6">
             {viewMode === 'admin' ? (
               <Map
                 selectedState={selectedStateCode}
@@ -488,12 +518,13 @@ const Basic: React.FC = () => {
               />
             ) : (
               <div className="  mr-6 ml-4 mb-5 border border-gray-900">
-                <DrainMap
-                  selectedRiver={selectedRiver}
-                  selectedStretch={selectedStretch}
-                  selectedDrains={selectedDrainIds}
-                  onVillagesChange={handleVillagesChange}
-                />
+              <DrainMap
+                selectedRiver={selectedRiver}
+                selectedStretch={selectedStretch}
+                selectedDrains={selectedDrainIds}
+                onVillagesChange={(villages) => handleVillagesChange(villages)} // No source param
+                villageChangeSource={villageChangeSource}
+              />
               </div>
             )}
           </div>

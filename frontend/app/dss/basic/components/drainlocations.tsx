@@ -1,6 +1,7 @@
 'use client'
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MultiSelect } from './Multiselect';
+import isEqual from 'lodash/isEqual';
 
 // Define global interface for window
 declare global {
@@ -8,6 +9,13 @@ declare global {
     resetStretchSelectionsInDrainLocationsSelector?: () => void;
     resetDrainSelectionsInDrainLocationsSelector?: () => void;
     selectedRiverData?: any;
+    villageChangeSource?: 'map' | 'dropdown' | null;
+    dropdownLockUntil?: number;
+    finalDropdownSelection?: { // Add this
+      villages: IntersectedVillage[];
+      selectedIds: string[];
+      timestamp: number;
+    };
   }
 }
 
@@ -95,8 +103,9 @@ interface DrainLocationsSelectorProps {
   onRiverChange?: (riverId: string) => void;
   onStretchChange?: (stretchId: string) => void;
   onDrainsChange?: (drains: string[]) => void;
-  onVillagesChange?: (villages: IntersectedVillage[]) => void; // Ensure this is present
+  onVillagesChange?: (villages: IntersectedVillage[]) => void;
   villages?: IntersectedVillage[];
+  villageChangeSource?: 'map' | 'dropdown' | null;
 }
 
 const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
@@ -106,7 +115,8 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   onStretchChange,
   onDrainsChange,
   onVillagesChange,
-  villages = [], // Default to empty array
+  villages = [],
+  villageChangeSource,
 }) => {
   // Main state
   const [rivers, setRivers] = useState<LocationItem[]>([]);
@@ -123,6 +133,11 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   const [loadingVillages, setLoadingVillages] = useState<boolean>(false);
   const [villageError, setVillageError] = useState<string | null>(null);
 
+  // Control flags for preventing infinite loops
+  const isDropdownUpdatingRef = useRef<boolean>(false);
+  const [pendingVillages, setPendingVillages] = useState<string[] | null>(null);
+  const [isDropdownUpdating, setIsDropdownUpdating] = useState<boolean>(false);
+
   // Loading states
   const [loadingRivers, setLoadingRivers] = useState<boolean>(false);
   const [loadingStretches, setLoadingStretches] = useState<boolean>(false);
@@ -133,6 +148,48 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   const [riverError, setRiverError] = useState<string | null>(null);
   const [stretchError, setStretchError] = useState<string | null>(null);
   const [drainError, setDrainError] = useState<string | null>(null);
+
+  // Sync dropdown updating flag with ref
+  useEffect(() => {
+    isDropdownUpdatingRef.current = isDropdownUpdating;
+  }, [isDropdownUpdating]);
+
+
+  useEffect(() => {
+    if (villageChangeSource) {
+      const timer = setTimeout(() => {
+        console.log('Clearing villageChangeSource in DrainLocationsSelector');
+        // Don't clear if we're still updating
+        if (!isDropdownUpdatingRef.current) {
+          // This will be cleared by the parent component
+        }
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [villageChangeSource]);
+
+  // Handle pending villages state
+  useEffect(() => {
+    if (pendingVillages && villages.length > 0) {
+      const selectedFromProps = villages
+        .filter(village => village.selected !== false)
+        .map(village => village.shapeID);
+
+      // Only clear pending if the parent state matches our intended change
+      const pendingSorted = [...pendingVillages].sort();
+      const propsSorted = [...selectedFromProps].sort();
+
+      if (JSON.stringify(pendingSorted) === JSON.stringify(propsSorted)) {
+        console.log('Pending villages matched props, clearing pendingVillages');
+        setPendingVillages(null);
+      } else {
+        console.log('Pending villages do not match props yet:', {
+          pending: pendingSorted.length,
+          props: propsSorted.length
+        });
+      }
+    }
+  }, [villages, pendingVillages]);
 
   // Register reset functions to window
   useEffect(() => {
@@ -156,6 +213,85 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
       window.resetDrainSelectionsInDrainLocationsSelector = undefined;
     };
   }, [selectionsLocked]);
+
+  // FIXED: Single useEffect to handle villages prop changes
+useEffect(() => {
+  console.log('Villages useEffect triggered:', { 
+    villageChangeSource, 
+    globalVillageChangeSource: window.villageChangeSource,
+    isDropdownUpdating: isDropdownUpdatingRef.current,
+    dropdownLockUntil: window.dropdownLockUntil,
+    finalDropdownSelection: window.finalDropdownSelection,
+    villagesLength: villages.length 
+  });
+
+  // Check for dropdown lock or final selection
+  if (window.dropdownLockUntil && Date.now() < window.dropdownLockUntil) {
+    console.log('Skipping useEffect - dropdown lock is active');
+    return;
+  }
+
+  // If there's a final dropdown selection, use that instead
+  if (window.finalDropdownSelection && Date.now() - window.finalDropdownSelection.timestamp < 3000) {
+    console.log('Using final dropdown selection instead of props');
+    const finalVillages = window.finalDropdownSelection.villages;
+    const finalSelectedIds = window.finalDropdownSelection.selectedIds;
+    
+    if (!isEqual(finalVillages, intersectedVillages)) {
+      setIntersectedVillages([...finalVillages]);
+      setSelectedVillages([...finalSelectedIds]);
+    }
+    return;
+  }
+
+  // Skip if any dropdown update is in progress
+  if (isDropdownUpdatingRef.current || window.villageChangeSource === 'dropdown') {
+    console.log('Skipping useEffect - dropdown is updating');
+    return;
+  }
+
+  // Skip if the change source was dropdown
+  if (villageChangeSource === 'dropdown') {
+    console.log('Skipping useEffect - source was dropdown');
+    return;
+  }
+
+  if (villages && villages.length > 0) {
+    console.log('Processing villages prop from map source');
+
+    // Only update if we don't have pending changes
+    if (!pendingVillages) {
+      // Check if villages array has actually changed
+      const villagesChanged = villages.length !== intersectedVillages.length ||
+        villages.some((v, i) => {
+          const existing = intersectedVillages[i];
+          return !existing || v.shapeID !== existing.shapeID || v.selected !== existing.selected;
+        });
+
+      if (villagesChanged) {
+        console.log('Villages have changed from map, updating intersectedVillages');
+        setIntersectedVillages([...villages]);
+
+        // Update selected villages
+        const selectedFromProps = villages
+          .filter(village => village.selected !== false)
+          .map(village => village.shapeID);
+
+        console.log('Updating selectedVillages from map:', selectedFromProps.length);
+        setSelectedVillages([...selectedFromProps]);
+      } else {
+        console.log('Villages unchanged, skipping update');
+      }
+    } else {
+      console.log('Pending dropdown changes exist, skipping update');
+    }
+  } else if (villages && villages.length === 0) {
+    console.log('Clearing villages due to empty prop');
+    setIntersectedVillages([]);
+    setSelectedVillages([]);
+    setPendingVillages(null);
+  }
+}, [villages, villageChangeSource]); // Removed intersectedVillages and selectedVillages from deps
 
   // Fetch rivers
   useEffect(() => {
@@ -226,8 +362,8 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           }));
 
           const sortedStretches = [...stretchData].sort((a, b) => {
-            const aName = a.name || '';  // Default to empty string if name is undefined
-            const bName = b.name || '';  // Default to empty string if name is undefined
+            const aName = a.name || '';
+            const bName = b.name || '';
             return aName.localeCompare(bName);
           });
           setStretches(sortedStretches);
@@ -276,10 +412,9 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
             throw new Error('Invalid drain data format received');
           }
 
-          // Corrected property name: Drain_No instead of Drain_NO
           const stretchMap = new Map(stretches.map(stretch => [stretch.id.toString(), stretch.name]));
           const drainData: Drain[] = data.features.map(feature => ({
-            id: feature.properties.Drain_No, // Fix: property name matches API
+            id: feature.properties.Drain_No,
             name: `Drain ${feature.properties.Drain_No}`,
             stretchId: feature.properties.Stretch_ID,
             stretchName: stretchMap.get(feature.properties.Stretch_ID.toString()) || 'Unknown Stretch',
@@ -327,15 +462,12 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           }
 
           const data = await response.json();
-          // Add selected property to each village (default to selected=true)
           const villagesWithSelection = (data.intersected_villages || []).map(village => ({
             ...village,
             selected: true
           }));
 
           setIntersectedVillages(villagesWithSelection);
-
-          // Initialize village selection with all villages selected
           const initialSelectedVillages = villagesWithSelection.map(village => village.shapeID);
           setSelectedVillages(initialSelectedVillages);
 
@@ -343,7 +475,6 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
         } catch (error: any) {
           console.error('Error fetching intersected villages:', error);
           setVillageError(error.message);
-          // Don't set the main error for this, as it's supplementary data
           setIntersectedVillages([]);
           setSelectedVillages([]);
         } finally {
@@ -357,25 +488,6 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
       setSelectedVillages([]);
     }
   }, [selectedDrains]);
-
-  // Update intersectedVillages when the villages prop changes
-  useEffect(() => {
-    if (villages && villages.length > 0) {
-      console.log('Villages prop received in DrainLocationsSelector:', villages);
-      setIntersectedVillages(villages);
-
-      // Update selected villages based on prop
-      const selectedFromProps = villages
-        .filter(village => village.selected !== false)
-        .map(village => village.shapeID);
-      console.log('Updating selectedVillages:', selectedFromProps);
-      setSelectedVillages(selectedFromProps);
-    } else {
-      // Clear states if no villages are provided
-      setIntersectedVillages([]);
-      setSelectedVillages([]);
-    }
-  }, [villages]);
 
   // Event handlers
   const handleRiverChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
@@ -402,42 +514,95 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
 
   const handleDrainsChange = (newSelectedDrains: string[]) => {
     if (!selectionsLocked) {
-      // Make sure these are properly formatted as strings
       const formattedDrainIds = newSelectedDrains.map(id => id.toString());
       setSelectedDrains(formattedDrainIds);
 
       if (onDrainsChange) {
-        // Pass the correctly formatted IDs
         onDrainsChange(formattedDrainIds);
       }
     }
   };
 
-  // New handler for village selection changes
-  const handleVillagesChange = (newSelectedVillages: string[]) => {
-    if (!selectionsLocked || selectionsLocked) { // Allow village changes even when locked
-      console.log('Villages selection changed in dropdown:', newSelectedVillages);
-      setSelectedVillages(newSelectedVillages);
+  // FIXED: Village selection handler
+const handleVillagesChange = (newSelectedVillages: string[]) => {
+  console.log('=== DROPDOWN CHANGE START ===');
+  console.log('Villages selection changed in dropdown:', newSelectedVillages.length, 'selected');
+  
+  // IMMEDIATELY block any external updates
+  window.villageChangeSource = 'dropdown';
+  setIsDropdownUpdating(true);
+  isDropdownUpdatingRef.current = true;
+  
+  // Create a lock that prevents any other updates
+  const lockTimeout = Date.now() + 2000; // Increased to 2 seconds
+  window.dropdownLockUntil = lockTimeout;
 
-      const updatedVillages = intersectedVillages.map(village => ({
-        ...village,
-        selected: newSelectedVillages.includes(village.shapeID)
-      }));
+  // Update local state FIRST
+  setSelectedVillages([...newSelectedVillages]);
+  setPendingVillages([...newSelectedVillages]);
 
-      setIntersectedVillages(updatedVillages);
+  // Create updated villages array
+  const updatedVillages = intersectedVillages.map(village => ({
+    ...village,
+    selected: newSelectedVillages.includes(village.shapeID)
+  }));
 
-      if (onVillagesChange) {
-        onVillagesChange(updatedVillages);
-      }
+  console.log('Created updated villages from dropdown:', updatedVillages.filter(v => v.selected !== false).length, 'selected');
 
-      if (window.selectedRiverData) {
-        window.selectedRiverData = {
-          ...window.selectedRiverData,
-          selectedVillages: updatedVillages.filter(v => v.selected !== false)
-        };
-      }
-    }
+  // Update local intersectedVillages IMMEDIATELY
+  setIntersectedVillages([...updatedVillages]);
+
+  // Update global data BEFORE notifying parent
+  if (window.selectedRiverData) {
+    window.selectedRiverData = {
+      ...window.selectedRiverData,
+      selectedVillages: updatedVillages.filter(v => v.selected !== false)
+    };
+  }
+
+  // Store the final state in a persistent location
+  window.finalDropdownSelection = {
+    villages: [...updatedVillages],
+    selectedIds: [...newSelectedVillages],
+    timestamp: Date.now()
   };
+
+  // Delay parent notification to ensure our state is stable
+  setTimeout(() => {
+    if (onVillagesChange) {
+      console.log('Notifying parent of dropdown changes (after delay)');
+      onVillagesChange([...updatedVillages]);
+    }
+
+    // Force update parent state after notification
+    setTimeout(() => {
+      if (window.finalDropdownSelection && onVillagesChange) {
+        console.log('Force updating parent with final dropdown selection');
+        onVillagesChange([...window.finalDropdownSelection.villages]);
+      }
+    }, 50);
+  }, 10);
+
+  // Clear flags after a longer delay
+  setTimeout(() => {
+    setIsDropdownUpdating(false);
+    isDropdownUpdatingRef.current = false;
+    
+    setTimeout(() => {
+      window.villageChangeSource = null;
+      window.dropdownLockUntil = undefined;
+      setPendingVillages(null);
+      
+      // Clear the final selection after ensuring it's been applied
+      setTimeout(() => {
+        window.finalDropdownSelection = undefined;
+        console.log('=== DROPDOWN CHANGE COMPLETE ===');
+      }, 500);
+    }, 100);
+  }, 200);
+};
+
+
   const handleReset = (): void => {
     setSelectedRiver('');
     setSelectedStretch('');
@@ -456,6 +621,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     }
   };
 
+  // Helper functions
   const formatSelectedDrains = (items: Drain[], selectedIds: string[]): string => {
     if (selectedIds.length === 0) return 'None';
     if (selectedIds.length === items.length) return 'All Drains';
@@ -487,9 +653,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   };
 
   const formatIntersectedVillages = (): string => {
-    console.log('Formatting intersected villages:', intersectedVillages);
     const selectedVillageObjects = intersectedVillages.filter(v => v.selected !== false);
-    console.log('Selected villages to display:', selectedVillageObjects);
 
     if (selectedVillageObjects.length === 0) return 'None';
 
@@ -510,52 +674,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     return formatted || 'None';
   };
 
-  // Get the currently selected river object
-  const selectedRiverObject = rivers.find(r => r.id.toString() === selectedRiver);
-
-  // Get the currently selected stretch object
-  const selectedStretchObject = stretches.find(s => s.id.toString() === selectedStretch);
-
-  const handleConfirm = (): void => {
-    if (selectedDrains.length > 0) {
-      setSelectionsLocked(true);
-
-      const selectedDrainObjects = drains.filter(drain =>
-        selectedDrains.includes(drain.id.toString())
-      );
-
-      console.log('Selected drain objects:', selectedDrainObjects);
-      console.log('Selected drain IDs:', selectedDrains);
-
-      // Filter to only include selected villages
-      const selectedVillageObjects = intersectedVillages.filter(v => v.selected !== false);
-      console.log('Selected villages for confirmation:', selectedVillageObjects);
-
-      const riverData = {
-        river: selectedRiverObject?.name || '',
-        stretch: selectedStretchObject?.name || '',
-        drains: selectedDrainObjects.map(d => d.name),
-        allDrains: selectedDrainObjects.map(d => ({
-          name: d.name,
-          id: d.id.toString(), // Make sure IDs are strings
-          stretch: d.stretchName,
-        })),
-        selectedVillages: selectedVillageObjects
-      };
-
-      window.selectedRiverData = riverData;
-      console.log('River data stored in window object:', riverData);
-
-      if (onConfirm) {
-        onConfirm({
-          drains: selectedDrainObjects,
-        });
-      }
-    }
-  };
-
   const formatDrainDisplay = (drain: Drain): string => {
-    // Ensure IDs are correctly captured and formatted
     return `${drain.name} (ID: ${drain.id})`;
   };
 
@@ -581,9 +700,41 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     }, {});
   };
 
+  const handleConfirm = (): void => {
+    if (selectedDrains.length > 0) {
+      setSelectionsLocked(true);
+
+      const selectedDrainObjects = drains.filter(drain =>
+        selectedDrains.includes(drain.id.toString())
+      );
+
+      const selectedVillageObjects = intersectedVillages.filter(v => v.selected !== false);
+
+      const riverData = {
+        river: rivers.find(r => r.id.toString() === selectedRiver)?.name || '',
+        stretch: stretches.find(s => s.id.toString() === selectedStretch)?.name || '',
+        drains: selectedDrainObjects.map(d => d.name),
+        allDrains: selectedDrainObjects.map(d => ({
+          name: d.name,
+          id: d.id.toString(),
+          stretch: d.stretchName,
+        })),
+        selectedVillages: selectedVillageObjects
+      };
+
+      window.selectedRiverData = riverData;
+
+      if (onConfirm) {
+        onConfirm({
+          drains: selectedDrainObjects,
+        });
+      }
+    }
+  };
+
   // Convert intersected villages to format expected by MultiSelect
   const villageItems: VillageItem[] = intersectedVillages.map(village => ({
-    id: village.shapeID,
+    shapeID: village.shapeID,
     name: village.shapeName,
     drainNo: village.drainNo
   }));
@@ -673,22 +824,52 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           {drainError && <p className="mt-1 text-xs text-red-500">{drainError}</p>}
         </div>
 
-        {/* Villages MultiSelect */}
+        {/* Villages MultiSelect - FIXED with key prop */}
         <div>
           <MultiSelect
+            key={`villages-${selectedVillages.length}-${intersectedVillages.length}`}
             items={villageItems}
             selectedItems={selectedVillages}
-            onSelectionChange={handleVillagesChange} // Always use handleVillagesChange
-            label="Cachment Villages"
+            onSelectionChange={handleVillagesChange}
+            label="Catchment Villages"
             placeholder="--Select Villages--"
-            disabled={!selectedDrains.length || loadingVillages} // Remove selectionsLocked
+            disabled={!selectedDrains.length || loadingVillages}
             displayPattern={formatVillageDisplay}
             groupBy={groupVillagesByDrain}
             showGroupHeaders={true}
             groupHeaderFormat="Villages in {groupName}"
+            itemKey="shapeID"
           />
           {villageError && <p className="mt-1 text-xs text-red-500">{villageError}</p>}
         </div>
+
+
+        {/* {process.env.NODE_ENV === 'development' && (
+          <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+            <div className="font-semibold">Debug Info:</div>
+            <div>isDropdownUpdating: {isDropdownUpdating.toString()}</div>
+            <div>villageChangeSource (prop): {villageChangeSource || 'null'}</div>
+            <div>window.villageChangeSource: {window.villageChangeSource || 'null'}</div>
+            <div>pendingVillages: {pendingVillages ? pendingVillages.length : 'null'}</div>
+            <div>selectedVillages: {selectedVillages.length}</div>
+            <div>intersectedVillages: {intersectedVillages.length}</div>
+            <div>intersectedVillages selected: {intersectedVillages.filter(v => v.selected !== false).length}</div>
+            <button
+              className="mt-1 px-2 py-1 bg-blue-500 text-white text-xs rounded"
+              onClick={() => {
+                console.log('=== MANUAL DEBUG ===');
+                console.log('intersectedVillages:', intersectedVillages);
+                console.log('selectedVillages:', selectedVillages);
+                console.log('villageChangeSource:', villageChangeSource);
+                console.log('window.villageChangeSource:', window.villageChangeSource);
+                console.log('isDropdownUpdating:', isDropdownUpdating);
+                console.log('pendingVillages:', pendingVillages);
+              }}
+            >
+              Log Debug Info
+            </button>
+          </div>
+        )} */}
       </div>
 
       {/* Selected Data Summary */}
@@ -707,18 +888,14 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
             <span className="font-medium">Drains:</span>{' '}
             <TruncatedList content={formatSelectedDrains(drains, selectedDrains)} maxLength={80} />
           </p>
-
-          {/* Display intersected villages */}
-          <div>
-            <span className="font-medium">Basin Villages:</span>{' '}
+          <p>
+            <span className="font-medium">Catchment Villages:</span>{' '}
             {loadingVillages ? (
               <span className="italic text-gray-500">Loading villages...</span>
             ) : (
-              <div className="max-h-32 overflow-y-auto border border-gray-200 rounded p-2 mt-2">
-                <TruncatedList content={formatIntersectedVillages()} maxLength={80} />
-              </div>
+              <TruncatedList content={formatIntersectedVillages()} maxLength={80} />
             )}
-          </div>
+          </p>
 
           {villageError && <p className="text-xs text-red-500 mt-1">{villageError}</p>}
 
