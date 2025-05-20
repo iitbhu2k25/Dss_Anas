@@ -27,21 +27,6 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
         });
     };
 
-    // Calculate totals for the current cohort data
-    const calculateTotals = (data: { [ageGroup: string]: CohortAgeGroup }) => {
-        let totalMale = 0;
-        let totalFemale = 0;
-        let grandTotal = 0;
-
-        Object.values(data).forEach(group => {
-            totalMale += group.male;
-            totalFemale += group.female;
-            grandTotal += group.total;
-        });
-
-        return { totalMale, totalFemale, grandTotal };
-    };
-
     // If no data is found, don't render anything
     if (cohortData.length === 0) {
         return null;
@@ -66,7 +51,7 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
                             <th className="border-b px-6 py-4 text-left font-semibold text-sm sticky left-0 bg-gray-100">Age Group</th>
                             {cohortData.map((data, index) => (
                                 <th 
-                                    key={data.year} 
+                                    key={`${data.year}-${index}`} 
                                     colSpan={3} 
                                     className={`border-b px-6 py-4 text-center font-semibold text-sm ${
                                         index < cohortData.length - 1 ? 'border-r border-gray-300' : ''
@@ -79,7 +64,7 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
                         <tr>
                             <th className="border-b px-6 py-4 text-left font-semibold text-sm sticky left-0 bg-gray-100"></th>
                             {cohortData.map((data, index) => (
-                                <React.Fragment key={data.year}>
+                                <React.Fragment key={`${data.year}-${index}`}>
                                     <th className={`border-b px-6 py-4 text-center font-semibold text-sm ${index < cohortData.length - 1 ? 'border-r border-gray-300' : ''}`}>
                                         Male
                                     </th>
@@ -103,7 +88,7 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
                             >
                                 <td className="border-b px-6 py-4 font-medium text-gray-800 sticky left-0 bg-inherit">{ageGroup}</td>
                                 {cohortData.map((data, dataIndex) => (
-                                    <React.Fragment key={data.year}>
+                                    <React.Fragment key={`${data.year}-${dataIndex}`}>
                                         <td className={`border-b px-6 py-4 text-center text-gray-600 ${dataIndex < cohortData.length - 1 ? 'border-r border-gray-300' : ''}`}>
                                             {data.data[ageGroup]?.male ?? '-'}
                                         </td>
@@ -117,41 +102,9 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
                                 ))}
                             </tr>
                         ))}
-                        
-                        {/* Total row */}
-                        <tr className="bg-blue-50 font-semibold">
-                            <td className="border-b px-6 py-4 text-gray-900 sticky left-0 bg-blue-50">Total</td>
-                            {cohortData.map((data, index) => {
-                                const totals = calculateTotals(data.data);
-                                return (
-                                    <React.Fragment key={data.year}>
-                                        <td className={`border-b px-6 py-4 text-center text-gray-900 ${index < cohortData.length - 1 ? 'border-r border-gray-300' : ''}`}>
-                                            {totals.totalMale}
-                                        </td>
-                                        <td className={`border-b px-6 py-4 text-center text-gray-900 ${index < cohortData.length - 1 ? 'border-r border-gray-300' : ''}`}>
-                                            {totals.totalFemale}
-                                        </td>
-                                        <td className={`border-b px-6 py-4 text-center text-gray-900 ${index < cohortData.length - 1 ? 'border-r border-gray-300' : ''}`}>
-                                            {totals.grandTotal}
-                                        </td>
-                                    </React.Fragment>
-                                );
-                            })}
-                        </tr>
                     </tbody>
                 </table>
             </div>
-            
-            {/* Total population display */}
-            {/* <div className="mt-4 text-right">
-                <p className="text-lg font-semibold text-blue-800">
-                    Total Populations:{' '}
-                    {cohortData.map(data => {
-                        const totals = calculateTotals(data.data);
-                        return `${data.year}: ${totals.grandTotal}`;
-                    }).join(', ')}
-                </p>
-            </div> */}
         </div>
     );
 };

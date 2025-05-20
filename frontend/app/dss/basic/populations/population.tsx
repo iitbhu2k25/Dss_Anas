@@ -191,10 +191,11 @@ const Population: React.FC<PopulationProps> = ({
         if (!cohortDataArray || cohortDataArray.length === 0) return null;
         const populationByYear: { [year: string]: number } = {};
         cohortDataArray.forEach(cohortItem => {
-            let totalPop = 0;
-            Object.values(cohortItem.data).forEach(ageGroup => {
-                totalPop += ageGroup.total;
-            });
+            // Get total from the 'total' key in data, or calculate if not present
+            const totalPop = cohortItem.data.total?.total || 
+                Object.entries(cohortItem.data)
+                    .filter(([key]) => key !== 'total')
+                    .reduce((sum, [_, ageGroup]) => sum + ageGroup.total, 0);
             populationByYear[cohortItem.year.toString()] = totalPop;
         });
         return populationByYear;
@@ -271,14 +272,36 @@ const Population: React.FC<PopulationProps> = ({
                         if (selectedMethod.toLowerCase().includes('cohort')) {
                             if (result.cohort) {
                                 let totalPop = 0;
-                                Object.values(result.cohort.data).forEach((ageGroup: any) => {
-                                    totalPop += ageGroup.total;
-                                });
+                                // Handle new array format
+                                if (Array.isArray(result.cohort)) {
+                                    // Find 2025 data in the array
+                                    const cohort2025 = result.cohort.find(item => item.year === 2025);
+                                    if (cohort2025 && cohort2025.data) {
+                                        if (cohort2025.data.total) {
+                                            totalPop = cohort2025.data.total.total;
+                                        } else {
+                                            Object.entries(cohort2025.data).forEach(([key, ageGroup]: [string, any]) => {
+                                                if (key !== 'total') {
+                                                    totalPop += ageGroup.total;
+                                                }
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    // Handle old single object format for backward compatibility
+                                    if (result.cohort.data.total) {
+                                        totalPop = result.cohort.data.total.total;
+                                    } else {
+                                        Object.values(result.cohort.data).forEach((ageGroup: any) => {
+                                            totalPop += ageGroup.total;
+                                        });
+                                    }
+                                }
                                 window.population2025 = totalPop;
                                 window.selectedPopulationForecast2025 = totalPop;
                                 window.selectedMethod = "Cohort";
                             }
-                        } else if (selectedMethod.toLowerCase().includes('demographic')) {
+                        }else if (selectedMethod.toLowerCase().includes('demographic')) {
                             if (result.Demographic) {
                                 window.population2025 = result.Demographic['2025'];
                                 window.selectedPopulationForecast2025 = result.Demographic['2025'];
@@ -357,7 +380,12 @@ const Population: React.FC<PopulationProps> = ({
                 const { year, data } = yearResponse;
                 const responseData = await data;
                 if (responseData.cohort) {
-                    allCohortData.push(responseData.cohort);
+                    // Handle new array format from backend
+                    if (Array.isArray(responseData.cohort)) {
+                        allCohortData.push(...responseData.cohort);
+                    } else {
+                        allCohortData.push(responseData.cohort);
+                    }
                 }
             }
             allCohortData.sort((a, b) => a.year - b.year);

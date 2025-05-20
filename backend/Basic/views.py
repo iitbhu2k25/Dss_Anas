@@ -666,27 +666,40 @@ class CohortView(APIView):
                 year_value = int(single_year)
                 print(f"Querying for year: {year_value}")
                 
-                # Add year filter
-                query_filter = location_filter & Q(year=year_value)
+                # Determine years to query
+                years_to_query = [year_value]
+                if year_value != 2011:
+                    years_to_query.append(2011)
                 
-                # Get cohort data for the specified year and location
-                cohort_data = PopulationCohort.objects.filter(query_filter)
-                count = cohort_data.count()
-                print(f"Found {count} records for year {year_value}")
-                
-                if count > 0:
-                    # Process the data
-                    result = self.organize_cohort_data(cohort_data)
+                years_data = []
+                for year in years_to_query:
+                    # Add year filter
+                    query_filter = location_filter & Q(year=year)
                     
-                    main_output['cohort'] = {
-                        'year': year_value,
-                        'data': result
-                    }
-                else:
-                    main_output['cohort'] = {
-                        'year': year_value,
-                        'data': {}
-                    }
+                    # Get cohort data for the specified year and location
+                    cohort_data = PopulationCohort.objects.filter(query_filter)
+                    count = cohort_data.count()
+                    print(f"Found {count} records for year {year}")
+                    
+                    if count > 0:
+                        # Process the data
+                        result = self.organize_cohort_data(cohort_data)
+                        
+                        years_data.append({
+                            'year': year,
+                            'data': result
+                        })
+                    else:
+                        years_data.append({
+                            'year': year,
+                            'data': {}
+                        })
+                
+                # Sort years with 2011 first if it's included
+                years_data.sort(key=lambda x: (x['year'] != 2011, x['year']))
+                
+                main_output['cohort'] = years_data
+                
             except ValueError:
                 error_msg = f"Invalid year format: {single_year}"
                 print(error_msg)
@@ -705,9 +718,20 @@ class CohortView(APIView):
                     
                 print(f"Querying for years from {start} to {end}")
                 
+                # Determine years to query
+                years_to_query = list(range(start, end + 1))
+                if 2011 not in years_to_query:
+                    years_to_query.append(2011)
+                
+                # Sort years with 2011 first if not in original range
+                if 2011 not in range(start, end + 1):
+                    years_to_query.sort(key=lambda x: (x != 2011, x))
+                else:
+                    years_to_query.sort()
+                
                 years_data = []
                 
-                for year in range(start, end + 1):
+                for year in years_to_query:
                     # Add year filter
                     query_filter = location_filter & Q(year=year)
                     
