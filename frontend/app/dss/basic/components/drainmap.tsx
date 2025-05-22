@@ -3,6 +3,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import isEqual from 'lodash/isEqual';
+import { FeatureCollection } from 'geojson';
+
+
 
 // Fix Leaflet icon issue
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -13,15 +16,15 @@ L.Icon.Default.mergeOptions({
 });
 
 declare global {
-  interface Window {
-    villageChangeSource?: 'map' | 'dropdown' | null;
-    dropdownLockUntil?: number;
-    finalDropdownSelection?: { // Add this
-      villages: any[];
-      selectedIds: string[];
-      timestamp: number;
-    };
-  }
+    interface Window {
+        villageChangeSource?: 'map' | 'dropdown' | null;
+        dropdownLockUntil?: number;
+        finalDropdownSelection?: { // Add this
+            villages: IntersectedVillage[];
+            selectedIds: string[];
+            timestamp: number;
+        };
+    }
 }
 interface GeoJSONFeature {
     type: string;
@@ -46,7 +49,9 @@ interface DrainMapProps {
     selectedStretch: string;
     selectedDrains: string[];
     onVillagesChange?: (villages: IntersectedVillage[]) => void;
-    villageChangeSource?: 'map' | 'dropdown' | null;// Add callback for village changes
+    villageChangeSource?: 'map' | 'dropdown' | null;
+    selectionsLocked?: boolean;
+     // Add this new prop
 }
 
 const DrainMap: React.FC<DrainMapProps> = ({
@@ -55,6 +60,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
     selectedDrains,
     onVillagesChange,
     villageChangeSource,
+    selectionsLocked = false,
 }) => {
     const mapRef = useRef<L.Map | null>(null);
     const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -70,8 +76,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
     const [riversData, setRiversData] = useState<GeoJSONFeatureCollection | null>(null);
     const [stretchesData, setStretchesData] = useState<GeoJSONFeatureCollection | null>(null);
     const [drainsData, setDrainsData] = useState<GeoJSONFeatureCollection | null>(null);
-    const [catchmentData, setCatchmentData] = useState<GeoJSONFeatureCollection | null>(null);
-    const [villageData, setVillageData] = useState<GeoJSONFeatureCollection | null>(null);
+    const [catchmentData, setCatchmentData] = useState<FeatureCollection | null>(null);
+    const [villageData, setVillageData] = useState<FeatureCollection | null>(null);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [debug, setDebug] = useState<boolean>(false);
@@ -120,85 +126,85 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
 
 
-useEffect(() => {
-  console.log('DrainMap useEffect triggered with:', { 
-    villageChangeSource, 
-    globalVillageChangeSource: window.villageChangeSource,
-    dropdownLockUntil: window.dropdownLockUntil,
-    finalDropdownSelection: window.finalDropdownSelection,
-    intersectedVillagesLength: intersectedVillages.length 
-  });
-
-  // Check for dropdown lock first
-  if (window.dropdownLockUntil && Date.now() < window.dropdownLockUntil) {
-    console.log('Skipping DrainMap useEffect - dropdown lock is active');
-    return;
-  }
-
-  // If there's a final dropdown selection and it's recent, don't process map changes
-  if (window.finalDropdownSelection && Date.now() - window.finalDropdownSelection.timestamp < 3000) {
-    console.log('Skipping DrainMap useEffect - final dropdown selection exists');
-    
-    // But still update the map visualization to match the dropdown selection
-    const finalSelectedIds = new Set(window.finalDropdownSelection.selectedIds);
-    if (villageLayerRef.current) {
-      villageLayerRef.current.eachLayer((layer: any) => {
-        const layerShapeId = layer.feature?.properties?.shapeID?.toString();
-        if (layerShapeId) {
-          const isSelected = finalSelectedIds.has(layerShapeId);
-          updateVillageStyle(layer, isSelected);
-        }
-      });
-    }
-    setSelectedVillageIds(finalSelectedIds);
-    return;
-  }
-
-  // Skip if the change source was dropdown
-  if (villageChangeSource === 'dropdown') {
-    console.log('Skipping DrainMap useEffect - source was dropdown');
-    return;
-  }
-
-  // Skip if we're in the middle of processing dropdown changes
-  if (window.villageChangeSource === 'dropdown') {
-    console.log('Skipping DrainMap useEffect - global source is dropdown');
-    return;
-  }
-
-  if (intersectedVillages && intersectedVillages.length > 0) {
-    console.log("DrainMap processing intersectedVillages from map source");
-
-    const incomingSelectedIds = new Set(
-      intersectedVillages
-        .filter(v => v.selected !== false)
-        .map(v => v.shapeID)
-    );
-
-    // Only update if the selection has actually changed
-    if (!isEqual([...incomingSelectedIds].sort(), [...selectedVillageIds].sort())) {
-      console.log("Updating DrainMap selectedVillageIds:", Array.from(incomingSelectedIds).length);
-      setSelectedVillageIds(incomingSelectedIds);
-
-      // Update village layer styling if it exists
-      if (villageLayerRef.current) {
-        console.log("Updating village layer styling in DrainMap");
-        villageLayerRef.current.eachLayer((layer: any) => {
-          const layerShapeId = layer.feature?.properties?.shapeID?.toString();
-          if (layerShapeId) {
-            const isSelected = incomingSelectedIds.has(layerShapeId);
-            updateVillageStyle(layer, isSelected);
-          }
+    useEffect(() => {
+        console.log('DrainMap useEffect triggered with:', {
+            villageChangeSource,
+            globalVillageChangeSource: window.villageChangeSource,
+            dropdownLockUntil: window.dropdownLockUntil,
+            finalDropdownSelection: window.finalDropdownSelection,
+            intersectedVillagesLength: intersectedVillages.length
         });
-      }
-    } else {
-      console.log("DrainMap village selection unchanged, skipping update");
-    }
-  } else if (intersectedVillages && intersectedVillages.length === 0) {
-    console.log("Clearing village selection in DrainMap");
-    setSelectedVillageIds(new Set());
-  }
-}, [intersectedVillages, villageChangeSource]);
+
+        // Check for dropdown lock first
+        if (window.dropdownLockUntil && Date.now() < window.dropdownLockUntil) {
+            console.log('Skipping DrainMap useEffect - dropdown lock is active');
+            return;
+        }
+
+        // If there's a final dropdown selection and it's recent, don't process map changes
+        if (window.finalDropdownSelection && Date.now() - window.finalDropdownSelection.timestamp < 3000) {
+            console.log('Skipping DrainMap useEffect - final dropdown selection exists');
+
+            // But still update the map visualization to match the dropdown selection
+            const finalSelectedIds = new Set(window.finalDropdownSelection.selectedIds);
+            if (villageLayerRef.current) {
+                villageLayerRef.current.eachLayer((layer: any) => {
+                    const layerShapeId = layer.feature?.properties?.shapeID?.toString();
+                    if (layerShapeId) {
+                        const isSelected = finalSelectedIds.has(layerShapeId);
+                        updateVillageStyle(layer, isSelected);
+                    }
+                });
+            }
+            setSelectedVillageIds(finalSelectedIds);
+            return;
+        }
+
+        // Skip if the change source was dropdown
+        if (villageChangeSource === 'dropdown') {
+            console.log('Skipping DrainMap useEffect - source was dropdown');
+            return;
+        }
+
+        // Skip if we're in the middle of processing dropdown changes
+        if (window.villageChangeSource === 'dropdown') {
+            console.log('Skipping DrainMap useEffect - global source is dropdown');
+            return;
+        }
+
+        if (intersectedVillages && intersectedVillages.length > 0) {
+            console.log("DrainMap processing intersectedVillages from map source");
+
+            const incomingSelectedIds = new Set(
+                intersectedVillages
+                    .filter(v => v.selected !== false)
+                    .map(v => v.shapeID)
+            );
+
+            // Only update if the selection has actually changed
+            if (!isEqual([...incomingSelectedIds].sort(), [...selectedVillageIds].sort())) {
+                console.log("Updating DrainMap selectedVillageIds:", Array.from(incomingSelectedIds).length);
+                setSelectedVillageIds(incomingSelectedIds);
+
+                // Update village layer styling if it exists
+                if (villageLayerRef.current) {
+                    console.log("Updating village layer styling in DrainMap");
+                    villageLayerRef.current.eachLayer((layer: any) => {
+                        const layerShapeId = layer.feature?.properties?.shapeID?.toString();
+                        if (layerShapeId) {
+                            const isSelected = incomingSelectedIds.has(layerShapeId);
+                            updateVillageStyle(layer, isSelected);
+                        }
+                    });
+                }
+            } else {
+                console.log("DrainMap village selection unchanged, skipping update");
+            }
+        } else if (intersectedVillages && intersectedVillages.length === 0) {
+            console.log("Clearing village selection in DrainMap");
+            setSelectedVillageIds(new Set());
+        }
+    }, [intersectedVillages, villageChangeSource]);
 
     useEffect(() => {
         if (mapRef.current) {
@@ -261,53 +267,6 @@ useEffect(() => {
             setSelectedVillageIds(new Set());
         }
     }, [selectedDrains]);
-
-    // useEffect(() => {
-    //     if (window.villageChangeSource === 'dropdown') {
-    //       console.log('Skipping intersectedVillages useEffect because source is dropdown');
-    //       return;
-    //     }
-
-    //     if (intersectedVillages && intersectedVillages.length > 0) {
-    //       console.log("DrainMap received updated intersectedVillages:", intersectedVillages);
-
-    //       console.log('Checking selectedVillageIds for update (source is not dropdown)');
-    //       const incomingSelectedIds = new Set(
-    //         intersectedVillages
-    //           .filter(v => v.selected !== false)
-    //           .map(v => v.shapeID)
-    //       );
-
-    //       // Deep compare to avoid unnecessary updates
-    //       if (!isEqual([...incomingSelectedIds].sort(), [...selectedVillageIds].sort())) {
-    //         console.log("Updating selectedVillageIds in DrainMap:", Array.from(incomingSelectedIds));
-    //         setSelectedVillageIds(incomingSelectedIds);
-
-    //         // Update village layer styling if the layer exists
-    //         if (villageLayerRef.current) {
-    //           console.log("Updating village layer styling...");
-    //           villageLayerRef.current.eachLayer((layer: any) => {
-    //             const layerShapeId = layer.feature?.properties?.shapeID?.toString();
-    //             if (layerShapeId) {
-    //               const isSelected = incomingSelectedIds.has(layerShapeId);
-    //               console.log(`Updating village ${layerShapeId} style, selected: ${isSelected}`);
-    //               updateVillageStyle(layer, isSelected);
-    //             }
-    //           });
-    //         } else {
-    //           console.log("Village layer not available for styling update");
-    //         }
-    //       } else {
-    //         console.log("selectedVillageIds unchanged, skipping update");
-    //       }
-    //     } else if (intersectedVillages && intersectedVillages.length === 0) {
-    //       // Handle the case where villages are explicitly cleared
-    //       console.log("Clearing village selection in DrainMap");
-    //       if (selectedVillageIds.size > 0) {
-    //         setSelectedVillageIds(new Set());
-    //       }
-    //     }
-    //   }, [intersectedVillages, selectedVillageIds]);// Keep the dependency on intersectedVillages
 
     // Add effects to handle layer visibility toggles
     useEffect(() => {
@@ -425,7 +384,7 @@ useEffect(() => {
                 }
             });
 
-            if (featureBounds && featureBounds.isValid()) {
+            if (featureBounds && (featureBounds as L.LatLngBounds).isValid()) {
                 console.log(`Zooming to bounds of ${featureType}: ${featureId}`);
                 mapRef.current.fitBounds(featureBounds, {
                     padding: [50, 50],
@@ -443,10 +402,12 @@ useEffect(() => {
     // Add this function to highlight the selected river
 
     const highlightSelectedRiver = (riverId: string) => {
-        if (!mapRef.current || !riverLayerRef.current || !riversData) {
+        const map = mapRef.current;
+        if (!map || !riverLayerRef.current || !riversData) {
             console.log("Cannot highlight river: map, layer or data missing");
             return;
         }
+
         try {
             riverLayerRef.current.eachLayer((layer: any) => {
                 if (layer.feature?.properties) {
@@ -465,7 +426,7 @@ useEffect(() => {
 
                         // Zoom to the selected river
                         if (layer.getBounds) {
-                            mapRef.current.fitBounds(layer.getBounds(), {
+                        map.fitBounds(layer.getBounds(), {
                                 padding: [50, 50],
                                 maxZoom: 12
                             });
@@ -723,7 +684,7 @@ useEffect(() => {
                     updateStretchesLayer(data);
                 }
                 // Highlight the river's stretches
-                const riverStretchIds = data.features.map(feature =>
+                const riverStretchIds = data.features.map((feature: { properties: { Stretch_ID: { toString: () => any; }; }; }) =>
                     feature.properties.Stretch_ID?.toString()
                 );
                 highlightRiverStretches(riverId, riverStretchIds);
@@ -828,15 +789,17 @@ useEffect(() => {
             // Initialize all villages as selected by default
             const villages = data.intersected_villages || [];
             const villagesWithSelection = villages.map((v: IntersectedVillage) => ({
-                ...v,
-                selected: true
+            ...v,
+            selected: true
             }));
 
             setIntersectedVillages(villagesWithSelection);
-            const villageIds = new Set(villagesWithSelection.map(v => v.shapeID));
+
+            const villageIds: Set<string> = new Set(villagesWithSelection.map((v: { shapeID: { toString: () => any; }; }) => v.shapeID.toString()));
             setSelectedVillageIds(villageIds);
 
             console.log("Initialized village selection state:", Array.from(villageIds));
+
 
             // Handle village data
             if (data.village_geojson?.features?.length > 0) {
@@ -895,7 +858,7 @@ useEffect(() => {
     };
 
     // Add this function to update the catchment layer
-    const updateCatchmentsLayer = (data: GeoJSONFeatureCollection) => {
+    const updateCatchmentsLayer = (data: FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating catchment layer...");
         if (catchmentLayerRef.current) {
@@ -944,7 +907,7 @@ useEffect(() => {
         }
     };
 
-    const updateBasinLayer = (data: GeoJSONFeatureCollection) => {
+    const updateBasinLayer = (data: FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating basin layer...");
         if (basinLayerRef.current) {
@@ -993,7 +956,7 @@ useEffect(() => {
         }
     };
 
-    const updateRiversLayer = (data: GeoJSONFeatureCollection) => {
+    const updateRiversLayer = (data:FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating rivers layer...");
         if (riverLayerRef.current) {
@@ -1044,7 +1007,7 @@ useEffect(() => {
         }
     };
 
-    const updateStretchesLayer = (data: GeoJSONFeatureCollection) => {
+    const updateStretchesLayer = (data: FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating stretches layer...");
 
@@ -1204,20 +1167,26 @@ useEffect(() => {
 
     // Helper function to update village style based on selection state
     const updateVillageStyle = (layer: L.Layer, isSelected: boolean) => {
-        if (layer.setStyle) {
-            layer.setStyle({
-                color: isSelected ? 'skyblue' : '#999',
-                weight: 2,
-                opacity: 0.8,
-                fillColor: isSelected ? 'skyblue' : 'white',
-                fillOpacity: isSelected ? 0.3 : 0.1,
-            });
-        }
-    };
+    if ((layer as L.Path).setStyle) {
+        (layer as L.Path).setStyle({
+            color: isSelected ? 'skyblue' : '#999',
+            weight: 2,
+            opacity: 0.8,
+            fillColor: isSelected ? 'skyblue' : 'white',
+            fillOpacity: isSelected ? 0.3 : 0.1,
+        });
+    }
+};
+
 
 
     // Toggle village selection - Updated function
     const toggleVillageSelection = (shapeId: string) => {
+        if (selectionsLocked) {
+            console.log('Village selection is locked, ignoring click');
+            return;
+        }
+
         console.log("Toggle village selection for ID:", shapeId);
 
         // Set global flag to indicate this is a map change
@@ -1267,10 +1236,11 @@ useEffect(() => {
 
 
 
-    const updateVillageLayer = (data: GeoJSONFeatureCollection) => {
+  const updateVillageLayer = (data: FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating village layer with data:", data);
         console.log("Current selectedVillageIds:", Array.from(selectedVillageIds));
+        console.log("Selections locked:", selectionsLocked);
 
         // Remove the existing layer from the map
         if (villageLayerRef.current) {
@@ -1289,37 +1259,114 @@ useEffect(() => {
                 style: (feature) => {
                     const shapeId = feature?.properties?.shapeID?.toString();
                     const isSelected = selectedVillageIds.has(shapeId);
-                    console.log(`Styling village ${shapeId}, selected=${isSelected}`);
+                    console.log(`Styling village ${shapeId}, selected=${isSelected}, locked=${selectionsLocked}`);
                     return {
                         color: isSelected ? 'skyblue' : '#999',
                         weight: 2,
-                        opacity: 0.8,
+                        opacity: selectionsLocked ? 0.6 : 0.8,
                         fillColor: isSelected ? 'skyblue' : 'white',
                         fillOpacity: isSelected ? 0.3 : 0.1,
+                        // Add visual indication when locked
+                        ...(selectionsLocked && {
+                            dashArray: '5, 5'
+                        })
                     };
                 },
                 onEachFeature: (feature, layer) => {
                     const villageName = feature.properties.shapeName || 'Unknown';
                     const shapeID = feature.properties.shapeID || 'N/A';
+                    const lockStatus = selectionsLocked ? '<br><i style="color: red;">(Selection locked)</i>' : '';
 
                     // Add popup
-                    layer.bindPopup(`Village: ${villageName}<br>ID: ${shapeID}`);
+                    layer.bindPopup(`Village: ${villageName}<br>ID: ${shapeID}${lockStatus}`);
 
-                    // Add click handler for selection toggle
-                    layer.on('click', function (e) {
-                        // Stop the click from propagating to the map and other layers
-                        L.DomEvent.stopPropagation(e);
+                    // Add click handler for selection toggle only if not locked
+                    if (!selectionsLocked) {
+                        layer.on('click', function (e) {
+                            // Stop the click from propagating to the map and other layers
+                            L.DomEvent.stopPropagation(e);
 
-                        const villageId = feature.properties.shapeID;
-                        if (villageId) {
-                            console.log(`Village clicked: ${villageId}`);
-                            toggleVillageSelection(villageId);
-                        }
-                    });
+                            const villageId = feature.properties.shapeID;
+                            if (villageId) {
+                                console.log(`Village clicked: ${villageId}`);
+                                toggleVillageSelection(villageId);
+                            }
+                        });
+                        
+                        // Normal cursor for clickable villages - more robust approach
+                        layer.on('mouseover', function (e) {
+                            try {
+                                const target = e.target;
+                                if (target && target._path) {
+                                    target._path.style.cursor = 'pointer';
+                                } else if (target && target.getElement && target.getElement()) {
+                                    target.getElement().style.cursor = 'pointer';
+                                }
+                                // Fallback: set cursor on the map container
+                                if (mapRef.current) {
+                                    mapRef.current.getContainer().style.cursor = 'pointer';
+                                }
+                            } catch (error) {
+                                console.warn('Error setting cursor on village mouseover:', error);
+                            }
+                        });
+
+                        layer.on('mouseout', function (e) {
+                            try {
+                                const target = e.target;
+                                if (target && target._path) {
+                                    target._path.style.cursor = '';
+                                } else if (target && target.getElement && target.getElement()) {
+                                    target.getElement().style.cursor = '';
+                                }
+                                // Fallback: reset cursor on the map container
+                                if (mapRef.current) {
+                                    mapRef.current.getContainer().style.cursor = '';
+                                }
+                            } catch (error) {
+                                console.warn('Error resetting cursor on village mouseout:', error);
+                            }
+                        });
+                    } else {
+                        // Change cursor to indicate non-clickable state when locked
+                        layer.on('mouseover', function (e) {
+                            try {
+                                const target = e.target;
+                                if (target && target._path) {
+                                    target._path.style.cursor = 'not-allowed';
+                                } else if (target && target.getElement && target.getElement()) {
+                                    target.getElement().style.cursor = 'not-allowed';
+                                }
+                                // Fallback: set cursor on the map container
+                                if (mapRef.current) {
+                                    mapRef.current.getContainer().style.cursor = 'not-allowed';
+                                }
+                            } catch (error) {
+                                console.warn('Error setting not-allowed cursor:', error);
+                            }
+                        });
+                        
+                        layer.on('mouseout', function (e) {
+                            try {
+                                const target = e.target;
+                                if (target && target._path) {
+                                    target._path.style.cursor = '';
+                                } else if (target && target.getElement && target.getElement()) {
+                                    target.getElement().style.cursor = '';
+                                }
+                                // Fallback: reset cursor on the map container
+                                if (mapRef.current) {
+                                    mapRef.current.getContainer().style.cursor = '';
+                                }
+                            } catch (error) {
+                                console.warn('Error resetting cursor on village mouseout:', error);
+                            }
+                        });
+                    }
                 },
             }).addTo(mapRef.current);
 
-            console.log(`Village layer added with ${data.features.length} features`);
+            console.log(`Village layer added with ${data.features.length} features, locked: ${selectionsLocked}`);
             villageLayerRef.current.bringToFront(); // Ensure villages are on top
 
             // If no catchment bounds available, zoom to villages
@@ -1337,7 +1384,8 @@ useEffect(() => {
             setError("Failed to display villages");
         }
     };
-    const updateDrainsLayer = (data: GeoJSONFeatureCollection) => {
+
+    const updateDrainsLayer = (data: FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating drains layer...");
         if (drainLayerRef.current) {
@@ -1415,12 +1463,12 @@ useEffect(() => {
                         }
 
                         // Zoom to the selected drain
-                        if (layer.getBounds) {
+                        if (layer.getBounds && mapRef.current) {
                             mapRef.current.fitBounds(layer.getBounds(), {
                                 padding: [50, 50],
                                 maxZoom: 14
                             });
-                        } else if (layer.getLatLng) {
+                        } else if (layer.getLatLng && mapRef.current) {
                             mapRef.current.setView(layer.getLatLng(), 14);
                         }
                     } else {
@@ -1555,49 +1603,55 @@ useEffect(() => {
                         </div>
                     </div>
                 )}
-                {selectedDrains.length > 0 && (
-                    <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-[1000]">
-                        <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
-                            <input
-                                type="checkbox"
-                                id="catchment-toggle"
-                                checked={showCatchment}
-                                onChange={toggleCatchment}
-                                className="mr-1"
-                                disabled={catchmentLoading} // Disable during loading
-                            />
-                            <label htmlFor="catchment-toggle" className="flex items-center cursor-pointer">
-                                <span
-                                    className="w-4 h-4 inline-block mr-1 border"
-                                    style={{ backgroundColor: '#E6E6FA', borderColor: 'black' }}
-                                ></span>
-                                Delineate Catchments!
-                            </label>
-                        </div>
-                        <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
-                            <input
-                                type="checkbox"
-                                id="village-toggle"
-                                checked={showVillage}
-                                onChange={toggleVillage}
-                                className="mr-1"
-                                disabled={!showCatchment || catchmentLoading} // Disable if catchment is not shown or loading
-                            />
-                            <label htmlFor="village-toggle" className="flex items-center cursor-pointer">
-                                <span
-                                    className="w-4 h-4 inline-block mr-1 border"
-                                    style={{ backgroundColor: 'skyblue', borderColor: 'skyblue' }}
-                                ></span>
-                                Show Villages of Selected Drains
-                            </label>
-                        </div>
-                        {showVillage && (
-                            <div className="bg-white p-2 text-xs rounded border border-gray-300">
-                                Click on village polygons to toggle their selection
-                            </div>
-                        )}
+            {selectedDrains.length > 0 && (
+                <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-[1000]">
+                    <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
+                        <input
+                            type="checkbox"
+                            id="catchment-toggle"
+                            checked={showCatchment}
+                            onChange={toggleCatchment}
+                            className="mr-1"
+                            disabled={catchmentLoading || selectionsLocked}
+                        />
+                        <label htmlFor="catchment-toggle" className="flex items-center cursor-pointer">
+                            <span
+                                className="w-4 h-4 inline-block mr-1 border"
+                                style={{ backgroundColor: '#E6E6FA', borderColor: 'black' }}
+                            ></span>
+                            Delineate Catchments!
+                        </label>
                     </div>
-                )}
+                    <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
+                        <input
+                            type="checkbox"
+                            id="village-toggle"
+                            checked={showVillage}
+                            onChange={toggleVillage}
+                            className="mr-1"
+                            disabled={!showCatchment || catchmentLoading || selectionsLocked}
+                        />
+                        <label htmlFor="village-toggle" className="flex items-center cursor-pointer">
+                            <span
+                                className="w-4 h-4 inline-block mr-1 border"
+                                style={{ backgroundColor: 'skyblue', borderColor: 'skyblue' }}
+                            ></span>
+                            Show Villages of Selected Drains
+                            {selectionsLocked && <span className="ml-1 text-xs text-gray-500">(Locked)</span>}
+                        </label>
+                    </div>
+                    {showVillage && !selectionsLocked && (
+                        <div className="bg-white p-2 text-xs rounded border border-gray-300">
+                            Click on village polygons to toggle their selection
+                        </div>
+                    )}
+                    {showVillage && selectionsLocked && (
+                        <div className="bg-yellow-50 p-2 text-xs rounded border border-yellow-300">
+                            Village selection is locked after confirmation
+                        </div>
+                    )}
+                </div>
+            )}
             </div>
             {debug && (
                 <div className="bg-gray-100 border-t border-gray-300 p-2 text-xs font-mono overflow-auto max-h-32">

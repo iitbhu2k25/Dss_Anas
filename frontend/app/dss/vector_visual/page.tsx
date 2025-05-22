@@ -11,29 +11,29 @@ export default function VectorPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [featureInfoVisible, setFeatureInfoVisible] = React.useState(true);
   const [currentLayer, setCurrentLayer] = React.useState(null);
-  const [activeFeature, setActiveFeature] = React.useState(null);
+  const [activeFeature, setActiveFeature] = React.useState<string|null>(null);
   const [featureProperties, setFeatureProperties] = React.useState(null);
   const [compassVisible, setCompassVisible] = React.useState(true);
-  const [gridVisible, setGridVisible] = React.useState(true);
+  const [gridVisible, setGridVisible] = React.useState<boolean>(true);
   
   const handleSidebarToggle = () => {
     setSidebarCollapsed(!sidebarCollapsed);
   };
 
-  const handleFeatureClick = (feature, layer) => {
+  const handleFeatureClick = (feature:any, layer:string) => {
     setActiveFeature(layer);
     setFeatureProperties(feature.properties);
   };
 
-  const handleFeatureInfoToggle = (visible) => {
+  const handleFeatureInfoToggle = (visible:boolean) => {
     setFeatureInfoVisible(visible);
   };
 
-  const handleCompassToggle = (visible) => {
+  const handleCompassToggle = (visible:boolean) => {
     setCompassVisible(visible);
   };
 
-  const handleGridToggle = (visible) => {
+  const handleGridToggle = (visible:boolean) => {
     setGridVisible(visible);
   };
 
@@ -45,7 +45,7 @@ export default function VectorPage() {
     type: 'success'
   });
 
-  const showNotification = (title, message, type = 'success') => {
+  const showNotification = (title:string, message:string, type = 'success') => {
     setNotification({
       show: true,
       title,

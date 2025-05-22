@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 type DomesticLoadMethod = 'manual' | 'modeled' | '';
-type PeakFlowSewageSource = 'population_based' | 'drain_based' | '';
+type PeakFlowSewageSource = 'population_based' | 'drain_based' | 'water_based' | '';
 
 export interface PollutionItem {
   name: string;
@@ -73,7 +73,7 @@ const SewageCalculationForm: React.FC = () => {
   });
 
 
-const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => checked);
+  const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => checked);
 
   // // --- Initialize Total Water Supply ---
   // useEffect(() => {
@@ -300,9 +300,16 @@ const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => check
       const popVal = computedPopulation[year] || 0;
       const popBasedSewFlow = sewageResult[year] || 0;
       const drainBasedSewFlow = calculateDrainBasedSewFlow(popVal);
-      const avgSewFlow = peakFlowSewageSource === 'drain_based' && domesticLoadMethod === 'modeled' && totalDrainDischarge > 0
-        ? drainBasedSewFlow
-        : popBasedSewFlow;
+      const waterBasedSewFlow = calculatewaterBasedSewFlow(popVal);
+
+      let avgSewFlow;
+      if (peakFlowSewageSource === 'drain_based' && domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) {
+        avgSewFlow = drainBasedSewFlow;
+      } else if (peakFlowSewageSource === 'water_based' && (window as any).totalWaterSupply > 0) {
+        avgSewFlow = waterBasedSewFlow;
+      } else {
+        avgSewFlow = popBasedSewFlow;
+      }
 
       const row: any = {
         year,
@@ -1140,7 +1147,7 @@ const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => check
     });
   };
 
-    // --- Handler for Checkbox Changes ---
+  // --- Handler for Checkbox Changes ---
   const handleCheckboxChange = (key: keyof typeof checkboxes) => {
     setCheckboxes(prev => ({
       ...prev,
@@ -1339,7 +1346,7 @@ const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => check
       {showPeakFlow && (
         <div className="mt-6 p-4 border rounded bg-blue-50">
           <h5 className="font-bold text-blue-700 mb-3">Peak Sewage Flow Calculation</h5>
-          {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
+          {(domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) || (window as any).totalWaterSupply > 0 ? (
             <div className="mb-4">
               <label className="block text-sm font-medium mb-2">
                 Select Sewage Generation Source for Peak Flow Calculation:
@@ -1355,19 +1362,34 @@ const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => check
                   />
                   Population Based Sewage Generation
                 </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name="peakFlowSewageSource"
-                    checked={peakFlowSewageSource === 'drain_based'}
-                    onChange={() => handlePeakFlowSewageSourceChange('drain_based')}
-                    className="mr-2"
-                  />
-                  Drain Based Sewage Generation
-                </label>
+                {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="peakFlowSewageSource"
+                      checked={peakFlowSewageSource === 'drain_based'}
+                      onChange={() => handlePeakFlowSewageSourceChange('drain_based')}
+                      className="mr-2"
+                    />
+                    Drain Based Sewage Generation
+                  </label>
+                )}
+                {(window as any).totalWaterSupply > 0 && (
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="peakFlowSewageSource"
+                      checked={peakFlowSewageSource === 'water_based'}
+                      onChange={() => handlePeakFlowSewageSourceChange('water_based')}
+                      className="mr-2"
+                    />
+                    Water Based Sewage Generation
+                  </label>
+                )}
               </div>
             </div>
-          )}
+          ) : null}
+
           <div className="mb-3">
             <label className="block text-sm font-medium">
               Select Peak Sewage Flow Methods:
@@ -1479,11 +1501,10 @@ const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => check
 
       <div className="mt-6 flex justify-center">
         <button
-          className={`text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out shadow-md w-full sm:w-auto ${
-            areAllCheckboxesChecked
+          className={`text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out shadow-md w-full sm:w-auto ${areAllCheckboxesChecked
               ? 'bg-purple-600 hover:bg-purple-700'
               : 'bg-gray-400 cursor-not-allowed'
-          }`}
+            }`}
           onClick={handle1pdfDownload}
           disabled={!areAllCheckboxesChecked}
         >

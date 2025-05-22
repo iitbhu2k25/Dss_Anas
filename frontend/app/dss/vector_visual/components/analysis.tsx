@@ -14,15 +14,26 @@ import {
     Tooltip,
     Input
 } from "@heroui/react";
-
-export default function UidModal({ isOpen, onOpenChange }) {
-    const targetRef = React.useRef(null);
+interface UimodalProps{
+    isOpen:boolean;
+    onOpenChange:(open:boolean)=>void;
+}
+interface UploadedLayer {
+  value: string;
+  label: string;
+  files?: {
+    shp: File;
+    dbf: File;
+  };
+}
+export default function UidModal({ isOpen, onOpenChange }:UimodalProps) {
+    const targetRef = React.useRef<HTMLElement>(null);
     const { moveProps } = useDraggable({ targetRef, canOverflow: true, isDisabled: !isOpen });
 
     // States for form controls
     const [preserveAttributes, setPreserveAttributes] = useState(true);
     const [outputName, setOutputName] = useState("");
-    const [uploadedLayers, setUploadedLayers] = useState([]);
+    const [uploadedLayers, setUploadedLayers] = useState<UploadedLayer[]>([]);
     const [selectedLayers, setSelectedLayers] = useState(new Set());
 
     // Sample existing layer options
@@ -34,8 +45,8 @@ export default function UidModal({ isOpen, onOpenChange }) {
     ];
 
     // Handle file upload
-    const handleFileUpload = (event) => {
-        const files = Array.from(event.target.files);
+    const handleFileUpload = (event:React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || []);
         const shpFile = files.find(file => file.name.endsWith('.shp'));
         const dbfFile = files.find(file => file.name.endsWith('.dbf'));
 
@@ -47,14 +58,14 @@ export default function UidModal({ isOpen, onOpenChange }) {
                 files: { shp: shpFile, dbf: dbfFile }
             };
             setUploadedLayers(prev => [...prev, newLayer]);
-            event.target.value = null;
+            event.target.value = '';
         } else {
             alert('Please upload both .shp and .dbf files');
         }
     };
 
     // Handle layer selection
-    const toggleLayerSelection = (layerValue) => {
+    const toggleLayerSelection = (layerValue:string) => {
         const newSelected = new Set(selectedLayers);
         if (newSelected.has(layerValue)) {
             newSelected.delete(layerValue);
@@ -65,7 +76,7 @@ export default function UidModal({ isOpen, onOpenChange }) {
     };
 
     // Handle adding existing data
-    const handleAddExisting = (value) => {
+    const handleAddExisting = (value:String) => {
         const layer = existingLayerOptions.find(opt => opt.value === value);
         if (layer) {
             // Create a unique instance of the layer by appending a timestamp
@@ -146,7 +157,7 @@ export default function UidModal({ isOpen, onOpenChange }) {
                                                 <Checkbox
                                                     checked={selectedLayers.has(layer.value)}
                                                     onChange={() => toggleLayerSelection(layer.value)}
-                                                    size="xs"
+                                                    size="sm"
                                                     className="w-4 h-4"
                                                 />
                                                 <label className="ml-2 text-sm text-gray-700">
@@ -203,7 +214,7 @@ export default function UidModal({ isOpen, onOpenChange }) {
                                     <Checkbox
                                         checked={preserveAttributes}
                                         onChange={() => setPreserveAttributes(!preserveAttributes)}
-                                        size="xs"
+                                        size="sm"
                                         className="w-4 h-4"
                                     />
                                     <label className="ml-4 text-sm text-gray-700">

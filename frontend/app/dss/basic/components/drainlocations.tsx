@@ -473,13 +473,13 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           }
 
           const data = await response.json();
-          const villagesWithSelection = (data.intersected_villages || []).map(village => ({
+          const villagesWithSelection = (data.intersected_villages || []).map((village: any) => ({
             ...village,
             selected: true
           }));
 
           setIntersectedVillages(villagesWithSelection);
-          const initialSelectedVillages = villagesWithSelection.map(village => village.shapeID);
+          const initialSelectedVillages = villagesWithSelection.map((village: { shapeID: any; }) => village.shapeID);
           setSelectedVillages(initialSelectedVillages);
 
           console.log('Intersected villages with selection:', villagesWithSelection);
@@ -546,83 +546,89 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   };
 
   // FIXED: Village selection handler
-  const handleVillagesChange = (newSelectedVillages: string[]) => {
-    console.log('=== DROPDOWN CHANGE START ===');
-    console.log('Villages selection changed in dropdown:', newSelectedVillages.length, 'selected');
+const handleVillagesChange = (newSelectedVillages: string[]) => {
+  if (selectionsLocked) {
+    console.log('Village selection is locked, ignoring change');
+    return;
+  }
+  
+  console.log('=== DROPDOWN CHANGE START ===');
+  console.log('Villages selection changed in dropdown:', newSelectedVillages.length, 'selected');
 
-    // IMMEDIATELY block any external updates
-    window.villageChangeSource = 'dropdown';
-    setIsDropdownUpdating(true);
-    isDropdownUpdatingRef.current = true;
+  // Rest of the existing function remains the same...
+  // IMMEDIATELY block any external updates
+  window.villageChangeSource = 'dropdown';
+  setIsDropdownUpdating(true);
+  isDropdownUpdatingRef.current = true;
 
-    // Create a lock that prevents any other updates
-    const lockTimeout = Date.now() + 2000; // Increased to 2 seconds
-    window.dropdownLockUntil = lockTimeout;
+  // Create a lock that prevents any other updates
+  const lockTimeout = Date.now() + 2000; // Increased to 2 seconds
+  window.dropdownLockUntil = lockTimeout;
 
-    // Update local state FIRST
-    setSelectedVillages([...newSelectedVillages]);
-    setPendingVillages([...newSelectedVillages]);
+  // Update local state FIRST
+  setSelectedVillages([...newSelectedVillages]);
+  setPendingVillages([...newSelectedVillages]);
 
-    // Create updated villages array
-    const updatedVillages = intersectedVillages.map(village => ({
-      ...village,
-      selected: newSelectedVillages.includes(village.shapeID)
-    }));
+  // Create updated villages array
+  const updatedVillages = intersectedVillages.map(village => ({
+    ...village,
+    selected: newSelectedVillages.includes(village.shapeID)
+  }));
 
-    console.log('Created updated villages from dropdown:', updatedVillages.filter(v => v.selected !== false).length, 'selected');
+  console.log('Created updated villages from dropdown:', updatedVillages.filter(v => v.selected !== false).length, 'selected');
 
-    // Update local intersectedVillages IMMEDIATELY
-    setIntersectedVillages([...updatedVillages]);
+  // Update local intersectedVillages IMMEDIATELY
+  setIntersectedVillages([...updatedVillages]);
 
-    // Update global data BEFORE notifying parent
-    if (window.selectedRiverData) {
-      window.selectedRiverData = {
-        ...window.selectedRiverData,
-        selectedVillages: updatedVillages.filter(v => v.selected !== false)
-      };
+  // Update global data BEFORE notifying parent
+  if (window.selectedRiverData) {
+    window.selectedRiverData = {
+      ...window.selectedRiverData,
+      selectedVillages: updatedVillages.filter(v => v.selected !== false)
+    };
+  }
+
+  // Store the final state in a persistent location
+  window.finalDropdownSelection = {
+    villages: [...updatedVillages],
+    selectedIds: [...newSelectedVillages],
+    timestamp: Date.now()
+  };
+
+  // Delay parent notification to ensure our state is stable
+  setTimeout(() => {
+    if (onVillagesChange) {
+      console.log('Notifying parent of dropdown changes (after delay)');
+      onVillagesChange([...updatedVillages]);
     }
 
-    // Store the final state in a persistent location
-    window.finalDropdownSelection = {
-      villages: [...updatedVillages],
-      selectedIds: [...newSelectedVillages],
-      timestamp: Date.now()
-    };
-
-    // Delay parent notification to ensure our state is stable
+    // Force update parent state after notification
     setTimeout(() => {
-      if (onVillagesChange) {
-        console.log('Notifying parent of dropdown changes (after delay)');
-        onVillagesChange([...updatedVillages]);
+      if (window.finalDropdownSelection && onVillagesChange) {
+        console.log('Force updating parent with final dropdown selection');
+        onVillagesChange([...window.finalDropdownSelection.villages]);
       }
+    }, 50);
+  }, 10);
 
-      // Force update parent state after notification
-      setTimeout(() => {
-        if (window.finalDropdownSelection && onVillagesChange) {
-          console.log('Force updating parent with final dropdown selection');
-          onVillagesChange([...window.finalDropdownSelection.villages]);
-        }
-      }, 50);
-    }, 10);
+  // Clear flags after a longer delay
+  setTimeout(() => {
+    setIsDropdownUpdating(false);
+    isDropdownUpdatingRef.current = false;
 
-    // Clear flags after a longer delay
     setTimeout(() => {
-      setIsDropdownUpdating(false);
-      isDropdownUpdatingRef.current = false;
+      window.villageChangeSource = null;
+      window.dropdownLockUntil = undefined;
+      setPendingVillages(null);
 
+      // Clear the final selection after ensuring it's been applied
       setTimeout(() => {
-        window.villageChangeSource = null;
-        window.dropdownLockUntil = undefined;
-        setPendingVillages(null);
-
-        // Clear the final selection after ensuring it's been applied
-        setTimeout(() => {
-          window.finalDropdownSelection = undefined;
-          console.log('=== DROPDOWN CHANGE COMPLETE ===');
-        }, 500);
-      }, 100);
-    }, 200);
-  };
+        window.finalDropdownSelection = undefined;
+        console.log('=== DROPDOWN CHANGE COMPLETE ===');
+      }, 500);
+    }, 100);
+  }, 200);
+};
 
 
 const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
@@ -667,13 +673,7 @@ const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
   } catch (error: any) {
     console.error('Error with API or empty results, using fallback data generation:', error);
     
-    // Generate fallback data
-    
-   
-    
-    if (typeof onVillagePopulationUpdate === 'function') {
-      onVillagePopulationUpdate(fallbackData);
-    }
+  
   }
 };
 
@@ -902,23 +902,23 @@ const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
         </div>
 
         {/* Villages MultiSelect - FIXED with key prop */}
-        <div>
-          <MultiSelect
-            key={`villages-${selectedVillages.length}-${intersectedVillages.length}`}
-            items={villageItems}
-            selectedItems={selectedVillages}
-            onSelectionChange={handleVillagesChange}
-            label="Catchment Villages"
-            placeholder="--Select Villages--"
-            disabled={!selectedDrains.length || loadingVillages}
-            displayPattern={formatVillageDisplay}
-            groupBy={groupVillagesByDrain}
-            showGroupHeaders={true}
-            groupHeaderFormat="Villages in {groupName}"
-            itemKey="shapeID"
-          />
-          {villageError && <p className="mt-1 text-xs text-red-500">{villageError}</p>}
-        </div>
+<div>
+  <MultiSelect
+    key={`villages-${selectedVillages.length}-${intersectedVillages.length}`}
+    items={villageItems}
+    selectedItems={selectedVillages}
+    onSelectionChange={selectionsLocked ? () => {} : handleVillagesChange}
+    label="Catchment Villages"
+    placeholder="--Select Villages--"
+    disabled={!selectedDrains.length || loadingVillages || selectionsLocked}
+    displayPattern={formatVillageDisplay}
+    groupBy={groupVillagesByDrain}
+    showGroupHeaders={true}
+    groupHeaderFormat="Villages in {groupName}"
+    itemKey="shapeID"
+  />
+  {villageError && <p className="mt-1 text-xs text-red-500">{villageError}</p>}
+</div>
 
 
         {/* {process.env.NODE_ENV === 'development' && (
@@ -991,16 +991,19 @@ const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
 
       {/* Action Buttons */}
       <div className="flex space-x-4 mt-4">
-        <button
-          className={`${selectedDrains.length > 0 && !selectionsLocked
-            ? 'bg-blue-500 hover:bg-blue-700'
-            : 'bg-gray-400 cursor-not-allowed'
-            } text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200`}
-          onClick={handleConfirm}
-          disabled={selectedDrains.length === 0 || selectionsLocked}
-        >
-          Confirm
-        </button>
+<button
+  className={`${selectedDrains.length > 0 && 
+    intersectedVillages.length > 0 && 
+    !loadingVillages && 
+    !selectionsLocked
+    ? 'bg-blue-500 hover:bg-blue-700'
+    : 'bg-gray-400 cursor-not-allowed'
+    } text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200`}
+  onClick={handleConfirm}
+  disabled={selectedDrains.length === 0 || intersectedVillages.length === 0 || loadingVillages || selectionsLocked}
+>
+  Confirm
+</button>
         <button
           className="bg-red-500 hover:bg-red-700 text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition duration-200"
           onClick={handleReset}

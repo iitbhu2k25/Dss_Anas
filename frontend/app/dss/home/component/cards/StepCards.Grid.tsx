@@ -54,7 +54,7 @@ const stepItems = [
   }
 ];
 
-const renderIcon = (icon, color) => {
+const renderIcon = (icon:string, color:string) => {
   switch (icon) {
     case 'globe':
       return (

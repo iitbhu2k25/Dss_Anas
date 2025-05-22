@@ -2,6 +2,11 @@
 import Image from "next/image";
 import { useEffect, useRef } from "react";
 import { Twitter, Facebook, Instagram, Youtube, Linkedin } from "lucide-react";
+declare global {
+ interface Window{
+  twttr: any;
+ }  
+}
 
 const socialItems = [
   {
@@ -49,9 +54,9 @@ const socialItems = [
 ];
 
 export default function SocialGridSection() {
-  const twitterScriptRef = useRef(null);
-  const facebookScriptRef = useRef(null);
-  const linkedinScriptRef = useRef(null);
+  const twitterScriptRef = useRef<HTMLScriptElement|null>(null);
+  const facebookScriptRef = useRef<HTMLScriptElement|null>(null);
+  const linkedinScriptRef = useRef<HTMLScriptElement|null>(null);
   
   useEffect(() => {
     // Load Twitter widget script

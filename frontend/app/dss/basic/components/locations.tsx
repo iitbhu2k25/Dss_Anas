@@ -63,13 +63,13 @@ interface District extends LocationItem {
 
 interface SubDistrict extends LocationItem {
   districtId: number;
-  districtName?: string; // Added for sorting/grouping
+  districtName: string;// Added for sorting/grouping
 }
 
 interface Village extends LocationItem {
   subDistrictId: number;
-  subDistrictName?: string; // Added for sorting/grouping
-  districtName?: string; // Added for sorting/grouping
+  subDistrictName: string; // Added for sorting/grouping
+  districtName: string; // Added for sorting/grouping
   population: number;
 }
 

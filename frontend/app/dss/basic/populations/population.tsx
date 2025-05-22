@@ -9,6 +9,16 @@ import { Info } from "lucide-react";
 
 const PopulationChart = dynamic(() => import("./components/PopulationChart"), { ssr: false })
 
+declare global {
+  interface Window {
+    population2025: any;
+    selectedPopulationForecast2025: any;
+    selectedMethod: string;
+    selectedPopulationForecast?: Record<number, number>;
+    selectedPopulationMethod?: string;
+  }
+}
+
 interface Village {
     id: number;
     name: string;
@@ -196,7 +206,7 @@ const Population: React.FC<PopulationProps> = ({
         }
     };
 
-    const handleLocalDemographicDataChange = useCallback((data) => {
+    const handleLocalDemographicDataChange = useCallback((data: React.SetStateAction<DemographicData>) => {
         console.log("Local demographic data updated:", data);
         setLocalDemographicData(data);
         // Clear demographic error when data changes
@@ -240,11 +250,16 @@ const Population: React.FC<PopulationProps> = ({
         startYear: number | null,
         endYear: number | null
     ) => {
-        const result = {
-            'Arithmetic': {},
-            'Geometric': {},
-            'Incremental': {},
-            'Exponential': {}
+        const result: {
+        Arithmetic: Record<number, number>;
+        Geometric: Record<number, number>;
+        Incremental: Record<number, number>;
+        Exponential: Record<number, number>;
+        } = {
+        Arithmetic: {},
+        Geometric: {},
+        Incremental: {},
+        Exponential: {},
         };
 
         // Determine years to generate data for
@@ -354,6 +369,7 @@ const Population: React.FC<PopulationProps> = ({
                         return response.json();
                     })
                     .then(result => {
+                          console.log('API Response for sourceMode:', sourceMode, result);
                         window.population2025 = null;
                         window.selectedPopulationForecast2025 = null;
                         if (selectedMethod.toLowerCase().includes('cohort')) {
@@ -362,7 +378,7 @@ const Population: React.FC<PopulationProps> = ({
                                 // Handle new array format
                                 if (Array.isArray(result.cohort)) {
                                     // Find 2025 data in the array
-                                    const cohort2025 = result.cohort.find(item => item.year === 2025);
+                                    const cohort2025 = result.cohort.find((item: { year: number; }) => item.year === 2025);
                                     if (cohort2025 && cohort2025.data) {
                                         if (cohort2025.data.total) {
                                             totalPop = cohort2025.data.total.total;
@@ -457,9 +473,9 @@ const Population: React.FC<PopulationProps> = ({
                     });
             }
         }
-    }, [selectedMethod, localDemographicData]);
+    }, [selectedMethod, localDemographicData,sourceMode]);
 
-    const processCohortData = async (cohortApiRequests) => {
+    const processCohortData = async (cohortApiRequests: string | any[]) => {
         try {
             if (!cohortApiRequests || cohortApiRequests.length === 0) {
                 setCohortRequestPending(false);
@@ -705,15 +721,21 @@ const Population: React.FC<PopulationProps> = ({
             let maxPopulation = -Infinity;
 
             Object.keys(result).forEach((method) => {
-                const methodData = result[method];
-                if (methodData && typeof methodData === 'object') {
-                    const totalPop = Object.values(methodData).reduce((sum: number, val: number) => sum + val, 0);
-                    if (totalPop > maxPopulation) {
-                        maxPopulation = totalPop;
-                        maxMethod = method;
-                    }
+            const methodData = result[method];
+
+            if (methodData && typeof methodData === 'object') {
+                const totalPop = Object.values(methodData as Record<number, number>).reduce(
+                (sum, val) => sum + val,
+                0
+                );
+
+                if (totalPop > maxPopulation) {
+                maxPopulation = totalPop;
+                maxMethod = method;
                 }
+            }
             });
+
 
             const finalMethod = selectedMethod || maxMethod;
             setSelectedMethodd(finalMethod);
