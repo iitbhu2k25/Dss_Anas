@@ -14,6 +14,10 @@ import json
 import geopandas as gpd
 import pandas as pd 
 from django.conf import settings
+import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Locations_stateAPI(APIView):
@@ -1521,3 +1525,246 @@ class VillagesCatchmentIntersection(APIView):
             print(traceback.format_exc())
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
+
+
+
+
+
+class VillagePopulationAPI(APIView):
+    def post(self, request, format=None):
+        try:
+            shape_ids = request.data.get('shapeID', [])
+            print(f"Received shapeIDs: {shape_ids}")
+
+            if not shape_ids or not isinstance(shape_ids, list):
+                return Response(
+                    {"error": "shapeID must be provided as a list"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            results = []
+
+            for village_id in shape_ids:
+                # Generate possible formats for matching village_code
+                possible_ids = list({
+                    str(village_id),
+                    str(int(village_id)) if str(village_id).isdigit() else str(village_id),
+                    str(village_id).lstrip('0'),
+                    str(village_id).zfill(6) if str(village_id).isdigit() else str(village_id)
+                })
+
+                print(f"Trying possible IDs for {village_id}: {possible_ids}")
+
+                village_found = False
+                for possible_id in possible_ids:
+                    try:
+                        village_qs = Basic_village.objects.filter(village_code=possible_id)
+                        if village_qs.exists():
+                            village_record = village_qs.first()
+                            village_found = True
+
+                            # Get population directly from Basic_village model
+                            # This is where the fix is - use population_2011 from Basic_village
+                            total_pop = village_record.population_2011  
+
+                            print(f"Found village {possible_id} with population {total_pop}")
+
+                            results.append({
+                                'village_code': str(village_id),  # Keep original ID in response
+                                'subdistrict_code': str(village_record.subdistrict_code_id),
+                                'district_code': str(village_record.subdistrict_code.district_code_id) if hasattr(village_record.subdistrict_code, 'district_code_id') else None,
+                                'state_code': str(village_record.subdistrict_code.district_code.state_code_id) if hasattr(village_record.subdistrict_code, 'district_code') and hasattr(village_record.subdistrict_code.district_code, 'state_code_id') else None,
+                                'total_population': total_pop
+                            })
+                            break  # Stop trying more formats
+                    except Exception as e:
+                        print(f"Error trying ID {possible_id}: {str(e)}")
+                        continue
+
+                if not village_found:
+                    print(f"No match found for village {village_id}")
+                    # For villages not found, use the fallback approach with a random population
+                    # This ensures we have data for visualization while debugging
+                    # import random
+                    # fallback_pop = random.randint(1000, 5000)
+                    
+                    # results.append({
+                    #     'village_code': str(village_id),
+                    #     'subdistrict_code': None,
+                    #     'district_code': None,
+                    #     'state_code': None,
+                    #     'total_population': fallback_pop
+                    # })
+
+            print(f"Returning population data for {len(results)} villages")
+            return Response(results, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            import traceback
+            print(f"Unexpected error in VillagePopulationAPI: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        
+
+
+
+class VillagePopulationRawSQL(APIView):
+    def post(self, request, format=None):
+        try:
+            shape_ids = request.data.get('shapeID', [])
+            print(f"Received shapeIDs for raw SQL: {shape_ids}")
+            
+            if not shape_ids or not isinstance(shape_ids, list):
+                return Response(
+                    {"error": "shapeID must be provided as a list"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Use raw SQL to join Basic_village with Population_2011
+            with connection.cursor() as cursor:
+                # Create placeholders for SQL IN clause
+                placeholders = ', '.join(['%s'] * len(shape_ids))
+                
+                # SQL query to join the two tables
+                query = f"""
+                    SELECT 
+                        bv.village_code,
+                        bv.subdistrict_code,
+                        bv.district_code,
+                        bv.state_code,
+                        SUM(p.population) as total_population
+                    FROM 
+                        Basic_village bv
+                    LEFT JOIN 
+                        Population_2011 p ON bv.village_code = p.village_code
+                    WHERE 
+                        bv.village_code IN ({placeholders})
+                    GROUP BY 
+                        bv.village_code, bv.subdistrict_code, bv.district_code, bv.state_code
+                """
+                
+                cursor.execute(query, shape_ids)
+                columns = [col[0] for col in cursor.description]
+                results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                
+                # Add entries for villages not found
+                found_village_codes = [str(result['village_code']) for result in results]
+                for village_id in shape_ids:
+                    if str(village_id) not in found_village_codes:
+                        results.append({
+                            'village_code': str(village_id),
+                            'subdistrict_code': None,
+                            'district_code': None,
+                            'state_code': None,
+                            'total_population': 0
+                        })
+                
+            print(f"SQL found {len(results)} villages")
+            return Response(results, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            import traceback
+            print(f"Error in raw SQL: {str(e)}")
+            print(traceback.format_exc())
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+
+# class VillagePopulationAPI(APIView):
+#     def post(self, request, format=None):
+#         try:
+#             shape_ids = request.data.get('shape_ids', [])
+#             print(f"Received shape_ids for raw SQL: {shape_ids}")
+            
+#             if not shape_ids or not isinstance(shape_ids, list):
+#                 return Response(
+#                     {"error": "shape_ids must be provided as a list"},
+#                     status=status.HTTP_400_BAD_REQUEST
+#                 )
+            
+#             # Format for SQL IN clause with multiple possible formats
+#             placeholders = []
+#             params = []
+            
+#             for village_id in shape_ids:
+#                 # Add different possible formats for each ID
+#                 if village_id.isdigit():
+#                     placeholders.extend(['%s', '%s', '%s'])
+#                     params.extend([
+#                         str(village_id),
+#                         village_id.lstrip('0') or '0',
+#                         village_id.zfill(6)
+#                     ])
+#                 else:
+#                     placeholders.append('%s')
+#                     params.append(str(village_id))
+            
+#             placeholders_str = ', '.join(placeholders)
+            
+#             # Execute SQL query
+#             with connection.cursor() as cursor:
+#                 cursor.execute(f"""
+#                     SELECT 
+#                         village_code, 
+#                         subdistrict_code,
+#                         district_code,
+#                         state_code,
+#                         SUM(population) as total_population
+#                     FROM 
+#                         Basic_village
+#                     WHERE 
+#                         village_code IN ({placeholders_str})
+#                     GROUP BY 
+#                         village_code, subdistrict_code, district_code, state_code
+#                 """, params)
+                
+#                 # Get column names
+#                 columns = [col[0] for col in cursor.description]
+                
+#                 # Fetch results
+#                 raw_results = cursor.fetchall()
+#                 print(f"Raw SQL found {len(raw_results)} matching villages")
+                
+#                 # Convert to list of dicts
+#                 results = []
+#                 for row in raw_results:
+#                     result_dict = dict(zip(columns, row))
+#                     # Add the original shape ID
+#                     matching_shape_id = next((s for s in shape_ids 
+#                         if s == result_dict['village_code'] 
+#                         or (s.lstrip('0') or '0') == result_dict['village_code']
+#                         or s.zfill(6) == result_dict['village_code']), 
+#                         result_dict['village_code'])
+#                     result_dict['village_code'] = matching_shape_id
+#                     results.append(result_dict)
+                
+#             # Add empty results for villages not found
+#             found_villages = {str(r['village_code']) for r in results}
+#             for vid in shape_ids:
+#                 if str(vid) not in found_villages:
+#                     results.append({
+#                         'village_code': str(vid),
+#                         'subdistrict_code': None,
+#                         'district_code': None,
+#                         'state_code': None,
+#                         'total_population': 0
+#                     })
+            
+#             return Response(results, status=status.HTTP_200_OK)
+            
+#         except Exception as e:
+#             import traceback
+#             print(f"Error in raw SQL: {str(e)}")
+#             print(traceback.format_exc())
+#             return Response(
+#                 {"error": str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )

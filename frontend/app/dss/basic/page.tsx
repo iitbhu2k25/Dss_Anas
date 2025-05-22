@@ -36,6 +36,17 @@ interface IntersectedVillage {
   selected?: boolean;
 }
 
+interface VillagePopulation {
+  village_code: string;
+  subdistrict_code: string;
+  district_code: string;
+  state_code: string;
+  total_population: number;
+}
+
+
+
+
 interface SelectedRiverData {
   drains: {
     id: number;
@@ -81,6 +92,7 @@ const Basic: React.FC = () => {
   const [selectedDrains, setSelectedDrains] = useState<string[]>([]);
   const [intersectedVillages, setIntersectedVillages] = useState<IntersectedVillage[]>([]);
   const [villageChangeSource, setVillageChangeSource] = useState<'map' | 'dropdown' | null>(null);
+  const [drainVillagePopulations, setDrainVillagePopulations] = useState<VillagePopulation[]>([]);
   // Refs for LocationSelector
   const stateRef = useRef<string>('');
   const districtsRef = useRef<string[]>([]);
@@ -104,7 +116,7 @@ const Basic: React.FC = () => {
     subDistrictsRef.current = [...selectedSubDistricts];
   }, [selectedSubDistricts]);
 
-    useEffect(() => {
+  useEffect(() => {
     villagesRef.current = [...selectedVillages];
   }, [selectedVillages]);
 
@@ -209,6 +221,23 @@ const Basic: React.FC = () => {
     setSelectedDistricts([...districts]);
   };
 
+  const villageProps = drainVillagePopulations?.map(vp => {
+    const mappedVillage = {
+      id: parseInt(vp.village_code) || 0,
+      name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown Village',
+      subDistrictId: parseInt(vp.subdistrict_code) || 0,
+      population: vp.total_population || 0
+    };
+    console.log(`Mapped village ${mappedVillage.name} (${mappedVillage.id}) population: ${mappedVillage.population}`);
+    return mappedVillage;
+  }) || [];
+
+
+  const drainTotalPopulation = useMemo(() => {
+    return drainVillagePopulations.reduce((sum, village) => sum + village.total_population, 0);
+  }, [drainVillagePopulations]);
+
+
 
   // Handle subdistrict selection for LocationSelector
   const handleSubDistrictsChange = (subdistricts: string[]): void => {
@@ -279,6 +308,13 @@ const Basic: React.FC = () => {
     setSelectedDrainIds(drainIds);
     console.log("Selected drain IDs updated:", drainIds);
   };
+
+
+  const handleVillagePopulationUpdate = (populations: VillagePopulation[]) => {
+    console.log('Village populations updated:', populations);
+    setDrainVillagePopulations(populations);
+  };
+
 
   // Navigation handlers with view mode awareness
   const handleNext = () => {
@@ -505,10 +541,11 @@ const Basic: React.FC = () => {
                 villages={intersectedVillages}
                 villageChangeSource={villageChangeSource}
                 data-component="DrainLocationsSelector"
+                onVillagePopulationUpdate={handleVillagePopulationUpdate}
               />
             )}
           </div>
-            <div className="w-1/2 mt-3 mr-6 ml-4 mb-6">
+          <div className="w-1/2 mt-3 mr-6 ml-4 mb-6">
             {viewMode === 'admin' ? (
               <Map
                 selectedState={selectedStateCode}
@@ -518,13 +555,13 @@ const Basic: React.FC = () => {
               />
             ) : (
               <div className="  mr-6 ml-4 mb-5 border border-gray-900">
-              <DrainMap
-                selectedRiver={selectedRiver}
-                selectedStretch={selectedStretch}
-                selectedDrains={selectedDrainIds}
-                onVillagesChange={(villages) => handleVillagesChange(villages)} // No source param
-                villageChangeSource={villageChangeSource}
-              />
+                <DrainMap
+                  selectedRiver={selectedRiver}
+                  selectedStretch={selectedStretch}
+                  selectedDrains={selectedDrainIds}
+                  onVillagesChange={(villages) => handleVillagesChange(villages)} // No source param
+                  villageChangeSource={villageChangeSource}
+                />
               </div>
             )}
           </div>
@@ -559,52 +596,70 @@ const Basic: React.FC = () => {
                 totalPopulation_props={selectedLocationData.totalPopulation}
               />
             )}
-            {selectedRiverData && viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Analysis</h3>
-                <p className="text-sm text-gray-700">
-                  Total Flow Rate: {selectedRiverData.totalFlowRate.toLocaleString()} m³/s
-                </p>
-                <p className="text-sm text-gray-700">
-                  Selected Drains: {selectedRiverData.drains.map(d => d.name).join(', ')}
-                </p>
-              </div>
+            {viewMode === 'drain' && selectedRiverData && (
+              <Population
+                villages_props={villageProps}
+                subDistricts_props={
+                  Array.from(
+                    new Set(
+                      drainVillagePopulations
+                        ?.filter(vp => vp.subdistrict_code)
+                        .map(vp => vp.subdistrict_code)
+                    ) || []
+                  ).map(subId => ({
+                    id: parseInt(subId) || 0,
+                    name: `Sub-district ${subId}`,
+                    districtId: 0
+                  })) || []
+                }
+                totalPopulation_props={drainTotalPopulation || 0}
+                sourceMode="drain"
+              />
             )}
           </div>
 
           <div className={currentStep === 1 ? 'block' : 'hidden'}>
             {viewMode === 'admin' && <Water_Demand />}
             {viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Demand</h3>
-                <p className="text-sm text-gray-700">
-                  Placeholder for drain-specific water demand calculations.
-                </p>
-              </div>
+              <Water_Demand
+                villages_props={drainVillagePopulations.map(vp => ({
+                  id: vp.village_code,
+                  name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
+                  subDistrictId: vp.subdistrict_code,
+                  population: vp.total_population
+                }))}
+                totalPopulation_props={drainTotalPopulation}
+              />
             )}
           </div>
 
           <div className={currentStep === 2 ? 'block' : 'hidden'}>
             {viewMode === 'admin' && <Water_Supply />}
             {viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Water Supply</h3>
-                <p className="text-sm text-gray-700">
-                  Placeholder for drain-specific water supply calculations.
-                </p>
-              </div>
+              <Water_Supply
+                villages_props={drainVillagePopulations.map(vp => ({
+                  id: vp.village_code,
+                  name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
+                  subDistrictId: vp.subdistrict_code,
+                  population: vp.total_population
+                }))}
+                totalPopulation_props={drainTotalPopulation}
+              />
             )}
           </div>
 
           <div className={currentStep === 3 ? 'block' : 'hidden'}>
             {viewMode === 'admin' && <Sewage />}
             {viewMode === 'drain' && (
-              <div className="p-4 bg-gray-100 rounded-lg shadow-md">
-                <h3 className="text-lg font-medium text-gray-800 mb-2">Drain Sewage</h3>
-                <p className="text-sm text-gray-700">
-                  Placeholder for drain-specific sewage calculations.
-                </p>
-              </div>
+              <Sewage
+                villages_props={drainVillagePopulations.map(vp => ({
+                  id: vp.village_code,
+                  name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
+                  subDistrictId: vp.subdistrict_code,
+                  population: vp.total_population
+                }))}
+                totalPopulation_props={drainTotalPopulation}
+              />
             )}
           </div>
         </div>

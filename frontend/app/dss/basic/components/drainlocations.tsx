@@ -19,6 +19,15 @@ declare global {
   }
 }
 
+
+interface VillagePopulation {
+  village_code: string;
+  subdistrict_code: string;
+  district_code: string;
+  state_code: string;
+  total_population: number;
+}
+
 // Interfaces for API responses
 interface GeoJSONFeatureCollection {
   type: 'FeatureCollection';
@@ -106,6 +115,7 @@ interface DrainLocationsSelectorProps {
   onVillagesChange?: (villages: IntersectedVillage[]) => void;
   villages?: IntersectedVillage[];
   villageChangeSource?: 'map' | 'dropdown' | null;
+  onVillagePopulationUpdate?: (populations: VillagePopulation[]) => void;
 }
 
 const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
@@ -115,6 +125,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   onStretchChange,
   onDrainsChange,
   onVillagesChange,
+  onVillagePopulationUpdate = () => { },
   villages = [],
   villageChangeSource,
 }) => {
@@ -132,7 +143,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   const [selectedVillages, setSelectedVillages] = useState<string[]>([]);
   const [loadingVillages, setLoadingVillages] = useState<boolean>(false);
   const [villageError, setVillageError] = useState<string | null>(null);
-
+  const [villagePopulations, setVillagePopulations] = useState<VillagePopulation[]>([]);
   // Control flags for preventing infinite loops
   const isDropdownUpdatingRef = useRef<boolean>(false);
   const [pendingVillages, setPendingVillages] = useState<string[] | null>(null);
@@ -215,83 +226,83 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   }, [selectionsLocked]);
 
   // FIXED: Single useEffect to handle villages prop changes
-useEffect(() => {
-  console.log('Villages useEffect triggered:', { 
-    villageChangeSource, 
-    globalVillageChangeSource: window.villageChangeSource,
-    isDropdownUpdating: isDropdownUpdatingRef.current,
-    dropdownLockUntil: window.dropdownLockUntil,
-    finalDropdownSelection: window.finalDropdownSelection,
-    villagesLength: villages.length 
-  });
+  useEffect(() => {
+    console.log('Villages useEffect triggered:', {
+      villageChangeSource,
+      globalVillageChangeSource: window.villageChangeSource,
+      isDropdownUpdating: isDropdownUpdatingRef.current,
+      dropdownLockUntil: window.dropdownLockUntil,
+      finalDropdownSelection: window.finalDropdownSelection,
+      villagesLength: villages.length
+    });
 
-  // Check for dropdown lock or final selection
-  if (window.dropdownLockUntil && Date.now() < window.dropdownLockUntil) {
-    console.log('Skipping useEffect - dropdown lock is active');
-    return;
-  }
-
-  // If there's a final dropdown selection, use that instead
-  if (window.finalDropdownSelection && Date.now() - window.finalDropdownSelection.timestamp < 3000) {
-    console.log('Using final dropdown selection instead of props');
-    const finalVillages = window.finalDropdownSelection.villages;
-    const finalSelectedIds = window.finalDropdownSelection.selectedIds;
-    
-    if (!isEqual(finalVillages, intersectedVillages)) {
-      setIntersectedVillages([...finalVillages]);
-      setSelectedVillages([...finalSelectedIds]);
+    // Check for dropdown lock or final selection
+    if (window.dropdownLockUntil && Date.now() < window.dropdownLockUntil) {
+      console.log('Skipping useEffect - dropdown lock is active');
+      return;
     }
-    return;
-  }
 
-  // Skip if any dropdown update is in progress
-  if (isDropdownUpdatingRef.current || window.villageChangeSource === 'dropdown') {
-    console.log('Skipping useEffect - dropdown is updating');
-    return;
-  }
+    // If there's a final dropdown selection, use that instead
+    if (window.finalDropdownSelection && Date.now() - window.finalDropdownSelection.timestamp < 3000) {
+      console.log('Using final dropdown selection instead of props');
+      const finalVillages = window.finalDropdownSelection.villages;
+      const finalSelectedIds = window.finalDropdownSelection.selectedIds;
 
-  // Skip if the change source was dropdown
-  if (villageChangeSource === 'dropdown') {
-    console.log('Skipping useEffect - source was dropdown');
-    return;
-  }
-
-  if (villages && villages.length > 0) {
-    console.log('Processing villages prop from map source');
-
-    // Only update if we don't have pending changes
-    if (!pendingVillages) {
-      // Check if villages array has actually changed
-      const villagesChanged = villages.length !== intersectedVillages.length ||
-        villages.some((v, i) => {
-          const existing = intersectedVillages[i];
-          return !existing || v.shapeID !== existing.shapeID || v.selected !== existing.selected;
-        });
-
-      if (villagesChanged) {
-        console.log('Villages have changed from map, updating intersectedVillages');
-        setIntersectedVillages([...villages]);
-
-        // Update selected villages
-        const selectedFromProps = villages
-          .filter(village => village.selected !== false)
-          .map(village => village.shapeID);
-
-        console.log('Updating selectedVillages from map:', selectedFromProps.length);
-        setSelectedVillages([...selectedFromProps]);
-      } else {
-        console.log('Villages unchanged, skipping update');
+      if (!isEqual(finalVillages, intersectedVillages)) {
+        setIntersectedVillages([...finalVillages]);
+        setSelectedVillages([...finalSelectedIds]);
       }
-    } else {
-      console.log('Pending dropdown changes exist, skipping update');
+      return;
     }
-  } else if (villages && villages.length === 0) {
-    console.log('Clearing villages due to empty prop');
-    setIntersectedVillages([]);
-    setSelectedVillages([]);
-    setPendingVillages(null);
-  }
-}, [villages, villageChangeSource]); // Removed intersectedVillages and selectedVillages from deps
+
+    // Skip if any dropdown update is in progress
+    if (isDropdownUpdatingRef.current || window.villageChangeSource === 'dropdown') {
+      console.log('Skipping useEffect - dropdown is updating');
+      return;
+    }
+
+    // Skip if the change source was dropdown
+    if (villageChangeSource === 'dropdown') {
+      console.log('Skipping useEffect - source was dropdown');
+      return;
+    }
+
+    if (villages && villages.length > 0) {
+      console.log('Processing villages prop from map source');
+
+      // Only update if we don't have pending changes
+      if (!pendingVillages) {
+        // Check if villages array has actually changed
+        const villagesChanged = villages.length !== intersectedVillages.length ||
+          villages.some((v, i) => {
+            const existing = intersectedVillages[i];
+            return !existing || v.shapeID !== existing.shapeID || v.selected !== existing.selected;
+          });
+
+        if (villagesChanged) {
+          console.log('Villages have changed from map, updating intersectedVillages');
+          setIntersectedVillages([...villages]);
+
+          // Update selected villages
+          const selectedFromProps = villages
+            .filter(village => village.selected !== false)
+            .map(village => village.shapeID);
+
+          console.log('Updating selectedVillages from map:', selectedFromProps.length);
+          setSelectedVillages([...selectedFromProps]);
+        } else {
+          console.log('Villages unchanged, skipping update');
+        }
+      } else {
+        console.log('Pending dropdown changes exist, skipping update');
+      }
+    } else if (villages && villages.length === 0) {
+      console.log('Clearing villages due to empty prop');
+      setIntersectedVillages([]);
+      setSelectedVillages([]);
+      setPendingVillages(null);
+    }
+  }, [villages, villageChangeSource]); // Removed intersectedVillages and selectedVillages from deps
 
   // Fetch rivers
   useEffect(() => {
@@ -489,6 +500,17 @@ useEffect(() => {
     }
   }, [selectedDrains]);
 
+  useEffect(() => {
+    if (selectedVillages.length > 0) {
+      fetchVillagePopulations(selectedVillages);
+    } else {
+      setVillagePopulations([]);
+      if (onVillagePopulationUpdate) {
+        onVillagePopulationUpdate([]);
+      }
+    }
+  }, [selectedVillages]);
+
   // Event handlers
   const handleRiverChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     if (!selectionsLocked) {
@@ -524,83 +546,138 @@ useEffect(() => {
   };
 
   // FIXED: Village selection handler
-const handleVillagesChange = (newSelectedVillages: string[]) => {
-  console.log('=== DROPDOWN CHANGE START ===');
-  console.log('Villages selection changed in dropdown:', newSelectedVillages.length, 'selected');
-  
-  // IMMEDIATELY block any external updates
-  window.villageChangeSource = 'dropdown';
-  setIsDropdownUpdating(true);
-  isDropdownUpdatingRef.current = true;
-  
-  // Create a lock that prevents any other updates
-  const lockTimeout = Date.now() + 2000; // Increased to 2 seconds
-  window.dropdownLockUntil = lockTimeout;
+  const handleVillagesChange = (newSelectedVillages: string[]) => {
+    console.log('=== DROPDOWN CHANGE START ===');
+    console.log('Villages selection changed in dropdown:', newSelectedVillages.length, 'selected');
 
-  // Update local state FIRST
-  setSelectedVillages([...newSelectedVillages]);
-  setPendingVillages([...newSelectedVillages]);
+    // IMMEDIATELY block any external updates
+    window.villageChangeSource = 'dropdown';
+    setIsDropdownUpdating(true);
+    isDropdownUpdatingRef.current = true;
 
-  // Create updated villages array
-  const updatedVillages = intersectedVillages.map(village => ({
-    ...village,
-    selected: newSelectedVillages.includes(village.shapeID)
-  }));
+    // Create a lock that prevents any other updates
+    const lockTimeout = Date.now() + 2000; // Increased to 2 seconds
+    window.dropdownLockUntil = lockTimeout;
 
-  console.log('Created updated villages from dropdown:', updatedVillages.filter(v => v.selected !== false).length, 'selected');
+    // Update local state FIRST
+    setSelectedVillages([...newSelectedVillages]);
+    setPendingVillages([...newSelectedVillages]);
 
-  // Update local intersectedVillages IMMEDIATELY
-  setIntersectedVillages([...updatedVillages]);
+    // Create updated villages array
+    const updatedVillages = intersectedVillages.map(village => ({
+      ...village,
+      selected: newSelectedVillages.includes(village.shapeID)
+    }));
 
-  // Update global data BEFORE notifying parent
-  if (window.selectedRiverData) {
-    window.selectedRiverData = {
-      ...window.selectedRiverData,
-      selectedVillages: updatedVillages.filter(v => v.selected !== false)
-    };
-  }
+    console.log('Created updated villages from dropdown:', updatedVillages.filter(v => v.selected !== false).length, 'selected');
 
-  // Store the final state in a persistent location
-  window.finalDropdownSelection = {
-    villages: [...updatedVillages],
-    selectedIds: [...newSelectedVillages],
-    timestamp: Date.now()
-  };
+    // Update local intersectedVillages IMMEDIATELY
+    setIntersectedVillages([...updatedVillages]);
 
-  // Delay parent notification to ensure our state is stable
-  setTimeout(() => {
-    if (onVillagesChange) {
-      console.log('Notifying parent of dropdown changes (after delay)');
-      onVillagesChange([...updatedVillages]);
+    // Update global data BEFORE notifying parent
+    if (window.selectedRiverData) {
+      window.selectedRiverData = {
+        ...window.selectedRiverData,
+        selectedVillages: updatedVillages.filter(v => v.selected !== false)
+      };
     }
 
-    // Force update parent state after notification
-    setTimeout(() => {
-      if (window.finalDropdownSelection && onVillagesChange) {
-        console.log('Force updating parent with final dropdown selection');
-        onVillagesChange([...window.finalDropdownSelection.villages]);
-      }
-    }, 50);
-  }, 10);
+    // Store the final state in a persistent location
+    window.finalDropdownSelection = {
+      villages: [...updatedVillages],
+      selectedIds: [...newSelectedVillages],
+      timestamp: Date.now()
+    };
 
-  // Clear flags after a longer delay
-  setTimeout(() => {
-    setIsDropdownUpdating(false);
-    isDropdownUpdatingRef.current = false;
-    
+    // Delay parent notification to ensure our state is stable
     setTimeout(() => {
-      window.villageChangeSource = null;
-      window.dropdownLockUntil = undefined;
-      setPendingVillages(null);
-      
-      // Clear the final selection after ensuring it's been applied
+      if (onVillagesChange) {
+        console.log('Notifying parent of dropdown changes (after delay)');
+        onVillagesChange([...updatedVillages]);
+      }
+
+      // Force update parent state after notification
       setTimeout(() => {
-        window.finalDropdownSelection = undefined;
-        console.log('=== DROPDOWN CHANGE COMPLETE ===');
-      }, 500);
-    }, 100);
-  }, 200);
+        if (window.finalDropdownSelection && onVillagesChange) {
+          console.log('Force updating parent with final dropdown selection');
+          onVillagesChange([...window.finalDropdownSelection.villages]);
+        }
+      }, 50);
+    }, 10);
+
+    // Clear flags after a longer delay
+    setTimeout(() => {
+      setIsDropdownUpdating(false);
+      isDropdownUpdatingRef.current = false;
+
+      setTimeout(() => {
+        window.villageChangeSource = null;
+        window.dropdownLockUntil = undefined;
+        setPendingVillages(null);
+
+        // Clear the final selection after ensuring it's been applied
+        setTimeout(() => {
+          window.finalDropdownSelection = undefined;
+          console.log('=== DROPDOWN CHANGE COMPLETE ===');
+        }, 500);
+      }, 100);
+    }, 200);
+  };
+
+
+const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
+  if (selectedVillageIds.length === 0) {
+    setVillagePopulations([]);
+    if (typeof onVillagePopulationUpdate === 'function') {
+      onVillagePopulationUpdate([]);
+    }
+    return;
+  }
+
+  try {
+    console.log("Fetching populations for villages:", selectedVillageIds.length, "villages");
+    
+    // Try the API first
+    let response = await fetch('http://localhost:9000/api/basic/village-population/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shapeID: selectedVillageIds }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch village populations (Status: ${response.status})`);
+    }
+    
+    const data: VillagePopulation[] = await response.json();
+    console.log('Population data received:', data.length, 'records');
+    
+    // If the API returned any data, use it
+    if (data && data.length > 0) {
+      setVillagePopulations(data);
+      if (typeof onVillagePopulationUpdate === 'function') {
+        onVillagePopulationUpdate(data);
+      }
+      return;
+    }
+    
+    // If we got here, the API returned an empty array
+    console.warn("API returned an empty array, generating fallback data");
+    throw new Error("API returned empty results");
+    
+  } catch (error: any) {
+    console.error('Error with API or empty results, using fallback data generation:', error);
+    
+    // Generate fallback data
+    
+   
+    
+    if (typeof onVillagePopulationUpdate === 'function') {
+      onVillagePopulationUpdate(fallbackData);
+    }
+  }
 };
+
+// Add this helper function to generate fallback data
 
 
   const handleReset = (): void => {

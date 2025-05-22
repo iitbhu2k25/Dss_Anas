@@ -141,7 +141,8 @@ const navItems = [
     label: 'Visualization',
     submenu: [
       { label: 'Vector', href: '/dss/vector_visual' },
-      { label: 'Raster', href: '/visualization/raster' }
+      { label: 'Raster', href: '/visualization/raster' },
+      { label: 'watershed', href: '/dss/watershed' }
     ]
   },
   {
