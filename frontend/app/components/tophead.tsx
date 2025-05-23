@@ -261,7 +261,7 @@ const TopHeader: React.FC = () => {
 
           
 
-          {/* Translate icon and element */}
+          {/* Translate icon and element
           <div
             style={{
               position: 'relative',
@@ -284,7 +284,7 @@ const TopHeader: React.FC = () => {
 
           <a href="/home/employee_login" title="Employee Login">
             <FaUser style={iconStyle} />
-          </a>
+          </a> */}
         </div>
       </div>
     </>

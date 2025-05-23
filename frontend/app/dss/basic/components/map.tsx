@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { FeatureCollection, Feature } from 'geojson';
+import dynamic from 'next/dynamic';
 
 
 

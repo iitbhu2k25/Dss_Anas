@@ -136,7 +136,7 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
                         <div>
                             <div className="text-2xl font-bold text-blue-600">
                                 {Object.values(sortedCohortData[0].data)
-                                    .reduce((sum, group) => sum + (group.male || 0), 0)
+                                    .reduce((sum, group) =>  (group.male || 0), 0)
                                     .toLocaleString()}
                             </div>
                             <div className="text-sm text-gray-600">Total Male</div>
@@ -144,7 +144,7 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
                         <div>
                             <div className="text-2xl font-bold text-pink-600">
                                 {Object.values(sortedCohortData[0].data)
-                                    .reduce((sum, group) => sum + (group.female || 0), 0)
+                                    .reduce((sum, group) =>  (group.female || 0), 0)
                                     .toLocaleString()}
                             </div>
                             <div className="text-sm text-gray-600">Total Female</div>
@@ -152,7 +152,7 @@ const Cohort: React.FC<CohortProps> = ({ cohortData }) => {
                         <div>
                             <div className="text-2xl font-bold text-gray-700">
                                 {Object.values(sortedCohortData[0].data)
-                                    .reduce((sum, group) => sum + (group.total || 0), 0)
+                                    .reduce((sum, group) =>  (group.total || 0), 0)
                                     .toLocaleString()}
                             </div>
                             <div className="text-sm text-gray-600">Total Population</div>

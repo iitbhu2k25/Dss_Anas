@@ -28,6 +28,13 @@ interface SelectedLocationData {
   totalPopulation: number;
 }
 
+interface SewageProps {
+  villages_props?: any[];
+  totalPopulation_props?: number;
+  sourceMode?: 'admin' | 'drain';
+  selectedRiverData?: SelectedRiverData | null; // Add this
+}
+
 
 interface IntersectedVillage {
   shapeID: string;
@@ -49,12 +56,18 @@ interface VillagePopulation {
 
 interface SelectedRiverData {
   drains: {
-    id: number;
+    id: string; // Change from number to string to match Drain_No
     name: string;
     stretchId: number;
     flowRate: number;
   }[];
   totalFlowRate: number;
+  allDrains?: { // Add this property
+    id: string; 
+    name: string; 
+    stretch: string;
+    drainNo?: string;
+  }[];
 }
 
 const Basic: React.FC = () => {
@@ -93,6 +106,8 @@ const Basic: React.FC = () => {
   const [intersectedVillages, setIntersectedVillages] = useState<IntersectedVillage[]>([]);
   const [villageChangeSource, setVillageChangeSource] = useState<'map' | 'dropdown' | null>(null);
   const [drainVillagePopulations, setDrainVillagePopulations] = useState<VillagePopulation[]>([]);
+  const [drainSelectionsLocked, setDrainSelectionsLocked] = useState<boolean>(false);
+
   // Refs for LocationSelector
   const stateRef = useRef<string>('');
   const districtsRef = useRef<string[]>([]);
@@ -133,6 +148,44 @@ const Basic: React.FC = () => {
     drainsRef.current = [...selectedDrains];
   }, [selectedDrains]);
 
+  // useEffect(() => {
+  //   if (viewMode === 'drain' && drainVillagePopulations.length > 0) {
+  //     console.log('=== DRAIN MODE DATA DEBUG ===');
+  //     console.log('drainVillagePopulations:', drainVillagePopulations);
+  //     console.log('villageProps:', villageProps);
+  //     console.log('drainTotalPopulation:', drainTotalPopulation);
+  //     console.log('intersectedVillages:', intersectedVillages);
+
+  //     // Check if Population component has valid data
+  //     const hasValidVillageData = villageProps.length > 0 && villageProps.some(v => v.population > 0);
+  //     console.log('Has valid village data:', hasValidVillageData);
+  //     console.log('Total population > 0:', drainTotalPopulation > 0);
+
+  //     if (!hasValidVillageData) {
+  //       console.warn('⚠️ WARNING: No valid village data for drain mode');
+  //     }
+  //     if (drainTotalPopulation === 0) {
+  //       console.warn('⚠️ WARNING: Total population is 0 in drain mode');
+  //     }
+  //   }
+  // }, [viewMode, drainVillagePopulations, villageProps, drainTotalPopulation, intersectedVillages]);
+
+
+  useEffect(() => {
+    if (viewMode === 'drain') {
+      // Set up interval to check window variables in drain mode
+      const intervalId = setInterval(() => {
+        if (window.population2025) {
+          console.log('🔍 Window check - population2025:', window.population2025);
+          console.log('🔍 Window check - selectedMethod:', window.selectedMethod);
+          console.log('🔍 Window check - populationSourceMode:', window.populationSourceMode);
+          clearInterval(intervalId); // Stop checking once we have data
+        }
+      }, 2000);
+
+      return () => clearInterval(intervalId);
+    }
+  }, [viewMode]);
 
   useEffect(() => {
     if (villageChangeSource) {
@@ -243,6 +296,7 @@ const Basic: React.FC = () => {
   const handleSubDistrictsChange = (subdistricts: string[]): void => {
     console.log('Sub-districts changed to:', subdistricts);
     setSelectedSubDistricts([...subdistricts]);
+    setDrainSelectionsLocked(true);
   };
 
 
@@ -314,6 +368,40 @@ const Basic: React.FC = () => {
     console.log('Village populations updated:', populations);
     setDrainVillagePopulations(populations);
   };
+
+
+const handleConfirm = (data: { drains: any[] }) => {
+  const riverData: SelectedRiverData = {
+    drains: data.drains.map(d => ({
+      id: d.id.toString(), // Ensure ID is string (Drain_No)
+      name: d.name,
+      stretchId: d.stretchId,
+      flowRate: d.flowRate || 0,
+    })),
+    totalFlowRate: 0, // You can calculate this if needed
+    allDrains: data.drains.map(d => ({
+      id: d.id.toString(), // This is the Drain_No
+      name: d.name,
+      stretch: d.stretchName || 'Unknown Stretch',
+      drainNo: d.id.toString(), // Add for clarity
+    })),
+  };
+  
+  console.log('page.tsx: Setting selectedRiverData with Drain_No IDs:', riverData);
+  setSelectedRiverData(riverData);
+  
+  // Ensure window.selectedRiverData is properly updated
+  window.selectedRiverData = {
+    ...riverData,
+    // Add any additional properties that might be needed
+  };
+  
+  console.log('page.tsx: Updated window.selectedRiverData:', window.selectedRiverData);
+};
+
+
+
+
 
 
   // Navigation handlers with view mode awareness
@@ -403,6 +491,7 @@ const Basic: React.FC = () => {
     setSelectedStretch('');
     setSelectedDrains([]);
     setIntersectedVillages([]);
+    setDrainSelectionsLocked(false);
     riverRef.current = '';
     stretchRef.current = [];
     drainsRef.current = [];
@@ -437,6 +526,9 @@ const Basic: React.FC = () => {
   // Toggle view mode handler
   const handleViewModeChange = (mode: 'admin' | 'drain') => {
     setViewMode(mode);
+    if (mode === 'drain') {
+      setDrainSelectionsLocked(false); // Reset lock when switching to drain mode
+    }
   };
 
   // Reset steps when new data is confirmed
@@ -540,8 +632,9 @@ const Basic: React.FC = () => {
                 onVillagesChange={(villages) => handleVillagesChange(villages, 'dropdown')}
                 villages={intersectedVillages}
                 villageChangeSource={villageChangeSource}
-                data-component="DrainLocationsSelector"
                 onVillagePopulationUpdate={handleVillagePopulationUpdate}
+                selectionsLocked={drainSelectionsLocked}
+                onLockChange={setDrainSelectionsLocked}
               />
             )}
           </div>
@@ -559,8 +652,9 @@ const Basic: React.FC = () => {
                   selectedRiver={selectedRiver}
                   selectedStretch={selectedStretch}
                   selectedDrains={selectedDrainIds}
-                  onVillagesChange={(villages) => handleVillagesChange(villages)} // No source param
+                  onVillagesChange={(villages) => handleVillagesChange(villages)}
                   villageChangeSource={villageChangeSource}
+                  selectionsLocked={drainSelectionsLocked}
                 />
               </div>
             )}
@@ -594,27 +688,72 @@ const Basic: React.FC = () => {
                 villages_props={selectedLocationData.villages}
                 subDistricts_props={selectedLocationData.subDistricts}
                 totalPopulation_props={selectedLocationData.totalPopulation}
+                sourceMode="admin"
               />
             )}
-            {viewMode === 'drain' && selectedRiverData && (
-              <Population
-                villages_props={villageProps}
-                subDistricts_props={
-                  Array.from(
-                    new Set(
-                      drainVillagePopulations
-                        ?.filter(vp => vp.subdistrict_code)
-                        .map(vp => vp.subdistrict_code)
-                    ) || []
-                  ).map(subId => ({
-                    id: parseInt(subId) || 0,
-                    name: `Sub-district ${subId}`,
-                    districtId: 0
-                  })) || []
-                }
-                totalPopulation_props={drainTotalPopulation || 0}
-                sourceMode="drain"
-              />
+            {viewMode === 'drain' && selectedRiverData && drainVillagePopulations.length > 0 && (
+              <>
+                {/* Debug info for drain mode */}
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-semibold text-yellow-800 mb-2">Total Population:</h4>
+                  <div className="text-sm text-yellow-700 space-y-1">
+
+                    <div>Total Population: {drainTotalPopulation.toLocaleString()}</div>
+                    <div>Valid Villages: {villageProps.filter(v => v.population > 0).length}</div>
+                    {villageProps.length === 0 && (
+                      <div className="text-red-600 font-semibold">
+                        ⚠️ No village data available - this may cause issues with population calculations
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Population
+                  villages_props={villageProps}
+                  subDistricts_props={
+                    Array.from(
+                      new Set(
+                        drainVillagePopulations
+                          ?.filter(vp => vp.subdistrict_code)
+                          .map(vp => vp.subdistrict_code)
+                      ) || []
+                    ).map(subId => ({
+                      id: parseInt(subId) || 0,
+                      name: `Sub-district ${subId}`,
+                      districtId: 0
+                    })) || []
+                  }
+                  totalPopulation_props={drainTotalPopulation || 0}
+                  sourceMode="drain"
+                  state_props={
+                    drainVillagePopulations.length > 0 ? {
+                      id: drainVillagePopulations[0].state_code,
+                      name: `State ${drainVillagePopulations[0].state_code}`
+                    } : undefined
+                  }
+                  district_props={
+                    drainVillagePopulations.length > 0 ? {
+                      id: drainVillagePopulations[0].district_code,
+                      name: `District ${drainVillagePopulations[0].district_code}`
+                    } : undefined
+                  }
+                />
+              </>
+            )}
+
+            {viewMode === 'drain' && selectedRiverData && drainVillagePopulations.length === 0 && (
+              <div className="p-6 bg-orange-50 border border-orange-200 rounded-lg text-center">
+                <div className="text-orange-800 mb-2">
+                  <svg className="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 18.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <h3 className="text-lg font-semibold">No Village Data Available</h3>
+                  <p className="text-sm mt-1">
+                    Please ensure villages are properly selected in the drain location selector.
+                    Population calculations require village data to proceed.
+                  </p>
+                </div>
+              </div>
             )}
           </div>
 
@@ -659,6 +798,8 @@ const Basic: React.FC = () => {
                   population: vp.total_population
                 }))}
                 totalPopulation_props={drainTotalPopulation}
+                sourceMode="drain"
+                selectedRiverData={selectedRiverData} // Add this prop
               />
             )}
           </div>
