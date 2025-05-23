@@ -399,59 +399,59 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   }, [selectedRiver]);
 
   // Fetch drains when stretch is selected
-useEffect(() => {
-  if (selectedStretch) {
-    const fetchDrains = async (): Promise<void> => {
-      try {
-        setLoadingDrains(true);
-        setDrainError(null);
-        setError(null);
+  useEffect(() => {
+    if (selectedStretch) {
+      const fetchDrains = async (): Promise<void> => {
+        try {
+          setLoadingDrains(true);
+          setDrainError(null);
+          setError(null);
 
-        const response = await fetch('http://localhost:9000/api/basic/drain/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ Stretch_ID: parseInt(selectedStretch) }),
-        });
+          const response = await fetch('http://localhost:9000/api/basic/drain/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ Stretch_ID: parseInt(selectedStretch) }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch drains (Status: ${response.status})`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch drains (Status: ${response.status})`);
+          }
+
+          const data: GeoJSONFeatureCollection = await response.json();
+
+          if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+            throw new Error('Invalid drain data format received');
+          }
+
+          const stretchMap = new Map(stretches.map(stretch => [stretch.id.toString(), stretch.name]));
+          const drainData: Drain[] = data.features.map(feature => ({
+            id: feature.properties.Drain_No, // Use Drain_No directly as number
+            name: `Drain ${feature.properties.Drain_No}`,
+            stretchId: feature.properties.Stretch_ID,
+            stretchName: stretchMap.get(feature.properties.Stretch_ID.toString()) || 'Unknown Stretch',
+          }));
+
+          const sortedDrains = [...drainData].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+          setDrains(sortedDrains);
+          setSelectedDrains([]);
+
+          console.log('Fetched drains with Drain_No:', drainData);
+        } catch (error: any) {
+          console.error('Error fetching drains:', error);
+          setDrainError(error.message);
+          setError('Unable to load drains for the selected stretch.');
+          setDrains([]);
+        } finally {
+          setLoadingDrains(false);
         }
+      };
 
-        const data: GeoJSONFeatureCollection = await response.json();
-
-        if (data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
-          throw new Error('Invalid drain data format received');
-        }
-
-        const stretchMap = new Map(stretches.map(stretch => [stretch.id.toString(), stretch.name]));
-        const drainData: Drain[] = data.features.map(feature => ({
-          id: feature.properties.Drain_No, // Use Drain_No directly as number
-          name: `Drain ${feature.properties.Drain_No}`,
-          stretchId: feature.properties.Stretch_ID,
-          stretchName: stretchMap.get(feature.properties.Stretch_ID.toString()) || 'Unknown Stretch',
-        }));
-
-        const sortedDrains = [...drainData].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-        setDrains(sortedDrains);
-        setSelectedDrains([]);
-        
-        console.log('Fetched drains with Drain_No:', drainData);
-      } catch (error: any) {
-        console.error('Error fetching drains:', error);
-        setDrainError(error.message);
-        setError('Unable to load drains for the selected stretch.');
-        setDrains([]);
-      } finally {
-        setLoadingDrains(false);
-      }
-    };
-
-    fetchDrains();
-  } else {
-    setDrains([]);
-    setSelectedDrains([]);
-  }
-}, [selectedStretch, stretches]);
+      fetchDrains();
+    } else {
+      setDrains([]);
+      setSelectedDrains([]);
+    }
+  }, [selectedStretch, stretches]);
 
   // Fetch intersected villages when drains are selected
   useEffect(() => {
@@ -548,144 +548,144 @@ useEffect(() => {
   };
 
   // FIXED: Village selection handler
-const handleVillagesChange = (newSelectedVillages: string[]) => {
-  if (selectionsLocked) {
-    console.log('Village selection is locked, ignoring change');
-    return;
-  }
-  
-  console.log('=== DROPDOWN CHANGE START ===');
-  console.log('Villages selection changed in dropdown:', newSelectedVillages.length, 'selected');
+  const handleVillagesChange = (newSelectedVillages: string[]) => {
+    if (selectionsLocked) {
+      console.log('Village selection is locked, ignoring change');
+      return;
+    }
 
-  // Rest of the existing function remains the same...
-  // IMMEDIATELY block any external updates
-  window.villageChangeSource = 'dropdown';
-  setIsDropdownUpdating(true);
-  isDropdownUpdatingRef.current = true;
+    console.log('=== DROPDOWN CHANGE START ===');
+    console.log('Villages selection changed in dropdown:', newSelectedVillages.length, 'selected');
 
-  // Create a lock that prevents any other updates
-  const lockTimeout = Date.now() + 2000; // Increased to 2 seconds
-  window.dropdownLockUntil = lockTimeout;
+    // Rest of the existing function remains the same...
+    // IMMEDIATELY block any external updates
+    window.villageChangeSource = 'dropdown';
+    setIsDropdownUpdating(true);
+    isDropdownUpdatingRef.current = true;
 
-  // Update local state FIRST
-  setSelectedVillages([...newSelectedVillages]);
-  setPendingVillages([...newSelectedVillages]);
+    // Create a lock that prevents any other updates
+    const lockTimeout = Date.now() + 2000; // Increased to 2 seconds
+    window.dropdownLockUntil = lockTimeout;
 
-  // Create updated villages array
-  const updatedVillages = intersectedVillages.map(village => ({
-    ...village,
-    selected: newSelectedVillages.includes(village.shapeID)
-  }));
+    // Update local state FIRST
+    setSelectedVillages([...newSelectedVillages]);
+    setPendingVillages([...newSelectedVillages]);
 
-  console.log('Created updated villages from dropdown:', updatedVillages.filter(v => v.selected !== false).length, 'selected');
+    // Create updated villages array
+    const updatedVillages = intersectedVillages.map(village => ({
+      ...village,
+      selected: newSelectedVillages.includes(village.shapeID)
+    }));
 
-  // Update local intersectedVillages IMMEDIATELY
-  setIntersectedVillages([...updatedVillages]);
+    console.log('Created updated villages from dropdown:', updatedVillages.filter(v => v.selected !== false).length, 'selected');
 
-  // Update global data BEFORE notifying parent
-  if (window.selectedRiverData) {
-    window.selectedRiverData = {
-      ...window.selectedRiverData,
-      selectedVillages: updatedVillages.filter(v => v.selected !== false)
+    // Update local intersectedVillages IMMEDIATELY
+    setIntersectedVillages([...updatedVillages]);
+
+    // Update global data BEFORE notifying parent
+    if (window.selectedRiverData) {
+      window.selectedRiverData = {
+        ...window.selectedRiverData,
+        selectedVillages: updatedVillages.filter(v => v.selected !== false)
+      };
+    }
+
+    // Store the final state in a persistent location
+    window.finalDropdownSelection = {
+      villages: [...updatedVillages],
+      selectedIds: [...newSelectedVillages],
+      timestamp: Date.now()
     };
-  }
 
-  // Store the final state in a persistent location
-  window.finalDropdownSelection = {
-    villages: [...updatedVillages],
-    selectedIds: [...newSelectedVillages],
-    timestamp: Date.now()
+    // Delay parent notification to ensure our state is stable
+    setTimeout(() => {
+      if (onVillagesChange) {
+        console.log('Notifying parent of dropdown changes (after delay)');
+        onVillagesChange([...updatedVillages]);
+      }
+
+      // Force update parent state after notification
+      setTimeout(() => {
+        if (window.finalDropdownSelection && onVillagesChange) {
+          console.log('Force updating parent with final dropdown selection');
+          onVillagesChange([...window.finalDropdownSelection.villages]);
+        }
+      }, 50);
+    }, 10);
+
+    // Clear flags after a longer delay
+    setTimeout(() => {
+      setIsDropdownUpdating(false);
+      isDropdownUpdatingRef.current = false;
+
+      setTimeout(() => {
+        window.villageChangeSource = null;
+        window.dropdownLockUntil = undefined;
+        setPendingVillages(null);
+
+        // Clear the final selection after ensuring it's been applied
+        setTimeout(() => {
+          window.finalDropdownSelection = undefined;
+          console.log('=== DROPDOWN CHANGE COMPLETE ===');
+        }, 500);
+      }, 100);
+    }, 200);
   };
 
-  // Delay parent notification to ensure our state is stable
-  setTimeout(() => {
-    if (onVillagesChange) {
-      console.log('Notifying parent of dropdown changes (after delay)');
-      onVillagesChange([...updatedVillages]);
-    }
 
-    // Force update parent state after notification
-    setTimeout(() => {
-      if (window.finalDropdownSelection && onVillagesChange) {
-        console.log('Force updating parent with final dropdown selection');
-        onVillagesChange([...window.finalDropdownSelection.villages]);
-      }
-    }, 50);
-  }, 10);
-
-  // Clear flags after a longer delay
-  setTimeout(() => {
-    setIsDropdownUpdating(false);
-    isDropdownUpdatingRef.current = false;
-
-    setTimeout(() => {
-      window.villageChangeSource = null;
-      window.dropdownLockUntil = undefined;
-      setPendingVillages(null);
-
-      // Clear the final selection after ensuring it's been applied
-      setTimeout(() => {
-        window.finalDropdownSelection = undefined;
-        console.log('=== DROPDOWN CHANGE COMPLETE ===');
-      }, 500);
-    }, 100);
-  }, 200);
-};
-
-
-const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
-  if (selectedVillageIds.length === 0) {
-    setVillagePopulations([]);
-    if (typeof onVillagePopulationUpdate === 'function') {
-      onVillagePopulationUpdate([]);
-    }
-    return;
-  }
-
-  try {
-    console.log("Fetching populations for villages:", selectedVillageIds.length, "villages");
-    
-    // Try the API first
-    let response = await fetch('http://localhost:9000/api/basic/village-population/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shapeID: selectedVillageIds }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch village populations (Status: ${response.status})`);
-    }
-    
-    const data: VillagePopulation[] = await response.json();
-    console.log('Population data received:', data.length, 'records');
-    
-    // If the API returned any data, use it
-    if (data && data.length > 0) {
-      setVillagePopulations(data);
+  const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
+    if (selectedVillageIds.length === 0) {
+      setVillagePopulations([]);
       if (typeof onVillagePopulationUpdate === 'function') {
-        onVillagePopulationUpdate(data);
+        onVillagePopulationUpdate([]);
       }
       return;
     }
-    
-    // If we got here, the API returned an empty array
-    console.warn("API returned an empty array, generating fallback data");
-    throw new Error("API returned empty results");
-    
-  } catch (error: any) {
-    console.error('Error with API or empty results, using fallback data generation:', error);
-    
-    // Generate fallback data
-    
-   
-    
-    if (typeof onVillagePopulationUpdate === 'function') {
-      onVillagePopulationUpdate(fallbackData);
-    }
-  }
-};
 
-// Add this helper function to generate fallback data
+    try {
+      console.log("Fetching populations for villages:", selectedVillageIds.length, "villages");
+
+      // Try the API first
+      let response = await fetch('http://localhost:9000/api/basic/village-population/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shapeID: selectedVillageIds }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch village populations (Status: ${response.status})`);
+      }
+
+      const data: VillagePopulation[] = await response.json();
+      console.log('Population data received:', data.length, 'records');
+
+      // If the API returned any data, use it
+      if (data && data.length > 0) {
+        setVillagePopulations(data);
+        if (typeof onVillagePopulationUpdate === 'function') {
+          onVillagePopulationUpdate(data);
+        }
+        return;
+      }
+
+      // If we got here, the API returned an empty array
+      console.warn("API returned an empty array, generating fallback data");
+      throw new Error("API returned empty results");
+
+    } catch (error: any) {
+      console.error('Error with API or empty results, using fallback data generation:', error);
+
+      // Generate fallback data
+
+
+
+      if (typeof onVillagePopulationUpdate === 'function') {
+        onVillagePopulationUpdate(fallbackData);
+      }
+    }
+  };
+
+  // Add this helper function to generate fallback data
 
 
   const handleReset = (): void => {
@@ -785,49 +785,49 @@ const fetchVillagePopulations = async (selectedVillageIds: string[]) => {
     }, {});
   };
 
-const handleConfirm = (): void => {
-  if (selectedDrains.length > 0) {
-    setSelectionsLocked(true);
+  const handleConfirm = (): void => {
+    if (selectedDrains.length > 0) {
+      setSelectionsLocked(true);
 
-    const selectedDrainObjects = drains.filter(drain =>
-      selectedDrains.includes(drain.id.toString())
-    );
+      const selectedDrainObjects = drains.filter(drain =>
+        selectedDrains.includes(drain.id.toString())
+      );
 
-    console.log('handleConfirm: Selected drain objects with Drain_No:', selectedDrainObjects);
+      console.log('handleConfirm: Selected drain objects with Drain_No:', selectedDrainObjects);
 
-    const selectedVillageObjects = intersectedVillages.filter(v => v.selected !== false);
+      const selectedVillageObjects = intersectedVillages.filter(v => v.selected !== false);
 
-    const riverData = {
-      river: rivers.find(r => r.id.toString() === selectedRiver)?.name || '',
-      stretch: stretches.find(s => s.id.toString() === selectedStretch)?.name || '',
-      drains: selectedDrainObjects.map(d => ({
-        id: d.id.toString(), // Convert Drain_No to string
-        name: d.name,
-        stretchId: d.stretchId,
-        flowRate: 0,
-      })),
-      allDrains: selectedDrainObjects.map(d => ({
-        id: d.id.toString(), // Drain_No as string
-        name: d.name,
-        stretch: d.stretchName,
-        drainNo: d.id.toString(), // Add for clarity
-      })),
-      selectedVillages: selectedVillageObjects,
-      totalFlowRate: 0,
-    };
+      const riverData = {
+        river: rivers.find(r => r.id.toString() === selectedRiver)?.name || '',
+        stretch: stretches.find(s => s.id.toString() === selectedStretch)?.name || '',
+        drains: selectedDrainObjects.map(d => ({
+          id: d.id.toString(), // Convert Drain_No to string
+          name: d.name,
+          stretchId: d.stretchId,
+          flowRate: 0,
+        })),
+        allDrains: selectedDrainObjects.map(d => ({
+          id: d.id.toString(), // Drain_No as string
+          name: d.name,
+          stretch: d.stretchName,
+          drainNo: d.id.toString(), // Add for clarity
+        })),
+        selectedVillages: selectedVillageObjects,
+        totalFlowRate: 0,
+      };
 
-    console.log('handleConfirm: Setting selectedRiverData with Drain_No as string IDs:', riverData);
-    window.selectedRiverData = riverData;
+      console.log('handleConfirm: Setting selectedRiverData with Drain_No as string IDs:', riverData);
+      window.selectedRiverData = riverData;
 
-    if (onConfirm) {
-      onConfirm({
-        drains: selectedDrainObjects,
-      });
+      if (onConfirm) {
+        onConfirm({
+          drains: selectedDrainObjects,
+        });
+      }
+    } else {
+      console.log('handleConfirm: No drains selected');
     }
-  } else {
-    console.log('handleConfirm: No drains selected');
-  }
-};
+  };
   // Convert intersected villages to format expected by MultiSelect
   const villageItems: VillageItem[] = intersectedVillages.map(village => ({
     shapeID: village.shapeID,
@@ -921,23 +921,23 @@ const handleConfirm = (): void => {
         </div>
 
         {/* Villages MultiSelect - FIXED with key prop */}
-<div>
-  <MultiSelect
-    key={`villages-${selectedVillages.length}-${intersectedVillages.length}`}
-    items={villageItems}
-    selectedItems={selectedVillages}
-    onSelectionChange={selectionsLocked ? () => {} : handleVillagesChange}
-    label="Catchment Villages"
-    placeholder="--Select Villages--"
-    disabled={!selectedDrains.length || loadingVillages || selectionsLocked}
-    displayPattern={formatVillageDisplay}
-    groupBy={groupVillagesByDrain}
-    showGroupHeaders={true}
-    groupHeaderFormat="Villages in {groupName}"
-    itemKey="shapeID"
-  />
-  {villageError && <p className="mt-1 text-xs text-red-500">{villageError}</p>}
-</div>
+        <div>
+          <MultiSelect
+            key={`villages-${selectedVillages.length}-${intersectedVillages.length}`}
+            items={villageItems}
+            selectedItems={selectedVillages}
+            onSelectionChange={selectionsLocked ? () => { } : handleVillagesChange}
+            label="Catchment Villages"
+            placeholder="--Select Villages--"
+            disabled={!selectedDrains.length || loadingVillages || selectionsLocked}
+            displayPattern={formatVillageDisplay}
+            groupBy={groupVillagesByDrain}
+            showGroupHeaders={true}
+            groupHeaderFormat="Villages in {groupName}"
+            itemKey="shapeID"
+          />
+          {villageError && <p className="mt-1 text-xs text-red-500">{villageError}</p>}
+        </div>
 
 
         {/* {process.env.NODE_ENV === 'development' && (
@@ -1010,19 +1010,19 @@ const handleConfirm = (): void => {
 
       {/* Action Buttons */}
       <div className="flex space-x-4 mt-4">
-<button
-  className={`${selectedDrains.length > 0 && 
-    intersectedVillages.length > 0 && 
-    !loadingVillages && 
-    !selectionsLocked
-    ? 'bg-blue-500 hover:bg-blue-700'
-    : 'bg-gray-400 cursor-not-allowed'
-    } text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200`}
-  onClick={handleConfirm}
-  disabled={selectedDrains.length === 0 || intersectedVillages.length === 0 || loadingVillages || selectionsLocked}
->
-  Confirm
-</button>
+        <button
+          className={`${selectedDrains.length > 0 &&
+            intersectedVillages.length > 0 &&
+            !loadingVillages &&
+            !selectionsLocked
+            ? 'bg-blue-500 hover:bg-blue-700'
+            : 'bg-gray-400 cursor-not-allowed'
+            } text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-200`}
+          onClick={handleConfirm}
+          disabled={selectedDrains.length === 0 || intersectedVillages.length === 0 || loadingVillages || selectionsLocked}
+        >
+          Confirm
+        </button>
         <button
           className="bg-red-500 hover:bg-red-700 text-white py-2 px-4 rounded focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 transition duration-200"
           onClick={handleReset}

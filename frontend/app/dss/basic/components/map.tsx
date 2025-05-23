@@ -745,15 +745,14 @@ export default function Map({
     });
   }, []);
 
-  // Remove Google Traffic Layer (not used and may cause issues)
-  // If needed, it can be re-implemented with proper Google Maps API integration
+
 
   return (
     <div className="relative">
       <MapContainer
         center={[22.9734, 78.6569]} // India center coordinates
         zoom={4}
-        className="map-container border-4 border-blue-500 rounded-xl shadow-lg p-4 hover:border-green-500 hover:shadow-2xl transition-all duration-300 w-[30vw] h-[48vh] mx-auto"
+        className="map-container border-4 border-red-500 rounded-xl shadow-lg p-4 hover:border-green-500 hover:shadow-2xl transition-all duration-300 w-[30vw] h-[48vh] mx-auto"
         worldCopyJump={true}
         maxBoundsViscosity={1.0}
         minZoom={2}
