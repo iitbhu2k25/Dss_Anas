@@ -40,7 +40,7 @@ interface GeoJSONFeatureCollection {
 }
 
 interface LocationItem {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -49,7 +49,7 @@ interface Stretch extends LocationItem {
 }
 
 interface Drain extends LocationItem {
-  id: number; // This is Drain_No from the shapefile/database
+  id: string; // This is Drain_No from the shapefile/database
   stretchId: number;
   stretchName?: string;
 }
@@ -116,6 +116,8 @@ interface DrainLocationsSelectorProps {
   villages?: IntersectedVillage[];
   villageChangeSource?: 'map' | 'dropdown' | null;
   onVillagePopulationUpdate?: (populations: VillagePopulation[]) => void;
+  selectionsLocked?: boolean; // ADD THIS LINE
+  onLockChange?: (locked: boolean) => void; // ADD THIS LINE
 }
 
 const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
@@ -128,6 +130,8 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   onVillagePopulationUpdate = () => { },
   villages = [],
   villageChangeSource,
+  selectionsLocked: propSelectionsLocked, // ADD THIS LINE
+  onLockChange, // ADD THIS LINE
 }) => {
   // Main state
   const [rivers, setRivers] = useState<LocationItem[]>([]);
@@ -164,6 +168,12 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
   useEffect(() => {
     isDropdownUpdatingRef.current = isDropdownUpdating;
   }, [isDropdownUpdating]);
+
+  useEffect(() => {
+    if (propSelectionsLocked !== undefined) {
+      updateSelectionsLocked(propSelectionsLocked);
+    }
+  }, [propSelectionsLocked]);
 
 
   useEffect(() => {
@@ -425,7 +435,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
 
           const stretchMap = new Map(stretches.map(stretch => [stretch.id.toString(), stretch.name]));
           const drainData: Drain[] = data.features.map(feature => ({
-            id: feature.properties.Drain_No, // Use Drain_No directly as number
+            id: feature.properties.Drain_No.toString(), // Use Drain_No directly as number
             name: `Drain ${feature.properties.Drain_No}`,
             stretchId: feature.properties.Stretch_ID,
             stretchName: stretchMap.get(feature.properties.Stretch_ID.toString()) || 'Unknown Stretch',
@@ -475,13 +485,13 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
           }
 
           const data = await response.json();
-          const villagesWithSelection = (data.intersected_villages || []).map(village => ({
+          const villagesWithSelection = (data.intersected_villages || []).map((village: any) => ({
             ...village,
             selected: true
           }));
 
           setIntersectedVillages(villagesWithSelection);
-          const initialSelectedVillages = villagesWithSelection.map(village => village.shapeID);
+          const initialSelectedVillages = villagesWithSelection.map((village: { shapeID: any; }) => village.shapeID);
           setSelectedVillages(initialSelectedVillages);
 
           console.log('Intersected villages with selection:', villagesWithSelection);
@@ -512,6 +522,15 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
       }
     }
   }, [selectedVillages]);
+
+  const updateSelectionsLocked = (locked: boolean) => {
+    setSelectionsLocked(locked);
+    if (onLockChange) {
+      onLockChange(locked);
+    }
+  };
+
+
 
   // Event handlers
   const handleRiverChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
@@ -679,9 +698,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
 
 
 
-      if (typeof onVillagePopulationUpdate === 'function') {
-        onVillagePopulationUpdate(fallbackData);
-      }
+
     }
   };
 
@@ -693,7 +710,7 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
     setSelectedStretch('');
     setSelectedDrains([]);
     setSelectedVillages([]);
-    setSelectionsLocked(false);
+    updateSelectionsLocked(false);
     setError(null);
     setRiverError(null);
     setStretchError(null);
@@ -787,37 +804,47 @@ const DrainLocationsSelector: React.FC<DrainLocationsSelectorProps> = ({
 
   const handleConfirm = (): void => {
     if (selectedDrains.length > 0) {
-      setSelectionsLocked(true);
+      updateSelectionsLocked(true);
 
       const selectedDrainObjects = drains.filter(drain =>
-        selectedDrains.includes(drain.id.toString())
+        selectedDrains.includes(drain.id)
       );
 
       console.log('handleConfirm: Selected drain objects with Drain_No:', selectedDrainObjects);
 
       const selectedVillageObjects = intersectedVillages.filter(v => v.selected !== false);
 
+      // FIXED: Ensure riverData has all necessary properties for sewage form
       const riverData = {
         river: rivers.find(r => r.id.toString() === selectedRiver)?.name || '',
         stretch: stretches.find(s => s.id.toString() === selectedStretch)?.name || '',
         drains: selectedDrainObjects.map(d => ({
-          id: d.id.toString(), // Convert Drain_No to string
+          id: d.id, // Convert Drain_No to string
           name: d.name,
           stretchId: d.stretchId,
           flowRate: 0,
         })),
+        // FIXED: Ensure allDrains has complete data structure
         allDrains: selectedDrainObjects.map(d => ({
-          id: d.id.toString(), // Drain_No as string
+          id: d.id, // Drain_No as string - this is the key field
           name: d.name,
-          stretch: d.stretchName,
-          drainNo: d.id.toString(), // Add for clarity
+          stretch: d.stretchName || 'Unknown Stretch',
+          drainNo: d.id.toString(), // Explicitly include drainNo for clarity
+          stretchId: d.stretchId, // Include stretchId as well
         })),
         selectedVillages: selectedVillageObjects,
         totalFlowRate: 0,
       };
 
-      console.log('handleConfirm: Setting selectedRiverData with Drain_No as string IDs:', riverData);
-      window.selectedRiverData = riverData;
+      console.log('handleConfirm: Setting selectedRiverData with complete structure:', riverData);
+
+      // FIXED: Set window data immediately and consistently
+      window.selectedRiverData = { ...riverData };
+
+      // FIXED: Trigger a custom event to notify other components
+      window.dispatchEvent(new CustomEvent('drainDataUpdated', {
+        detail: riverData
+      }));
 
       if (onConfirm) {
         onConfirm({

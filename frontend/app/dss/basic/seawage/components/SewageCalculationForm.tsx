@@ -25,16 +25,24 @@ interface SelectedRiverData {
     id: string; // Change from number to string
     name: string;
     stretchId: number;
-    flowRate: number;
+ 
   }[];
-  totalFlowRate: number;
+
   allDrains?: {
     id: string; // This should be Drain_No as string
     name: string;
     stretch: string;
     drainNo?: string;
   }[];
+
+  river?: string;
+  stretch?: string;
+  selectedVillages?: any[];
 }
+
+
+
+
 // Add props interface for SewageCalculationForm
 interface SewageCalculationFormProps {
   villages_props?: any[];

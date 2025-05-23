@@ -14,9 +14,10 @@ interface StatusBarProps {
   onStepChange?: (stepIndex: number) => void
   skippedSteps?: number[]
   completedSteps?: number[]
+  viewMode: 'admin' | 'drain';
 }
 
-export default function StatusBar({ currentStep, onStepChange, skippedSteps = [], completedSteps = [] }: StatusBarProps) {
+export default function StatusBar({ currentStep, onStepChange, skippedSteps = [], completedSteps = [], viewMode }: StatusBarProps) {
   // Define base steps outside of render
   const baseSteps: Step[] = useMemo(() => [
     { id: 'population', name: 'Population Forecasting', status: 'upcoming' },
@@ -80,39 +81,36 @@ export default function StatusBar({ currentStep, onStepChange, skippedSteps = []
                   {idx < steps.length - 1 && (
                     <div className="relative h-10 md:h-10 md:w-1 w-10 flex items-center justify-center">
                       {/* Line - vertical on desktop, horizontal on mobile */}
-                      <div className={`md:h-10 md:w-1 h-1 w-10 rounded-full transition-all duration-500 ${
-                        step.status === 'completed' ? 'bg-green-400' :
-                        step.status === 'skipped' ? 'bg-yellow-400' :
-                        step.status === 'current' ? 'bg-blue-300' :
-                        'bg-gray-200'
-                      }`} />
-                      
+                      <div className={`md:h-10 md:w-1 h-1 w-10 rounded-full transition-all duration-500 ${step.status === 'completed' ? 'bg-green-400' :
+                          step.status === 'skipped' ? 'bg-yellow-400' :
+                            step.status === 'current' ? 'bg-blue-300' :
+                              'bg-gray-200'
+                        }`} />
+
                       {(step.status === 'completed' || step.status === 'skipped') && (
                         <>
                           {/* Vertical chevron for desktop */}
                           <ChevronDown
-                            className={`hidden md:block absolute animate-bounce opacity-70 ${
-                              step.status === 'completed' ? 'text-green-500' : 'text-yellow-500'
-                            }`}
+                            className={`hidden md:block absolute animate-bounce opacity-70 ${step.status === 'completed' ? 'text-green-500' : 'text-yellow-500'
+                              }`}
                             size={30}
                             style={{ top: '80%' }}
                           />
                           {/* Horizontal chevron for mobile */}
                           <ChevronRight
-                            className={`block md:hidden absolute  opacity-70 ${
-                              step.status === 'completed' ? 'text-green-500' : 'text-yellow-500'
-                            }`}
+                            className={`block md:hidden absolute  opacity-70 ${step.status === 'completed' ? 'text-green-500' : 'text-yellow-500'
+                              }`}
                             size={30}
                             style={{ left: '80%' }}
                           />
                         </>
                       )}
-                      
+
                       {step.status === 'current' && (
                         <div className="absolute w-3 h-3 bg-blue-400 rounded-full opacity-0 animate-ping"
-                          style={{ 
-                            top: 'calc(50% - 6px)', 
-                            left: 'calc(50% - 6px)' 
+                          style={{
+                            top: 'calc(50% - 6px)',
+                            left: 'calc(50% - 6px)'
                           }} />
                       )}
                     </div>
@@ -121,12 +119,11 @@ export default function StatusBar({ currentStep, onStepChange, skippedSteps = []
 
                 <div className="flex-1 text-center md:text-left">
                   <div
-                    className={`text-sm font-semibold transition-colors duration-300 ${
-                      step.status === 'completed' ? 'text-green-600' :
-                      step.status === 'skipped' ? 'text-yellow-600' :
-                      step.status === 'current' ? 'text-blue-600' :
-                      'text-gray-500'
-                    }`}
+                    className={`text-sm font-semibold transition-colors duration-300 ${step.status === 'completed' ? 'text-green-600' :
+                        step.status === 'skipped' ? 'text-yellow-600' :
+                          step.status === 'current' ? 'text-blue-600' :
+                            'text-gray-500'
+                      }`}
                   >
                     {step.name}
                   </div>

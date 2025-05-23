@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 interface Item {
-  id?: number;
+    id?: number| string;
   name: string;
   [key: string]: any; // Allow for additional properties
 }
@@ -170,226 +170,226 @@ export const MultiSelect = <T extends Item>(props: MultiSelectProps<T>) => {
   };
   
   
-  return (
-    <div className="relative" ref={dropdownRef}>
-      <label className="block text-sm font-semibold text-gray-700 mb-2">
-        {label}:
-      </label>
-      <div 
-        className={`p-2 border rounded-md cursor-pointer ${
-          disabled 
-            ? 'bg-blue-100 border-gray-300 cursor-not-allowed' 
-            : 'border-blue-500 focus:ring-2 focus:ring-blue-500'
-        }`}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-      >
-        <div className="flex justify-between items-center">
-          <div className="text-sm truncate">
-            {getSelectedDisplay()}
-          </div>
-          <div>
-            <svg 
-              className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24" 
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
+return (
+  <div className="relative" ref={dropdownRef}>
+    <label className="block text-sm font-semibold text-gray-700 mb-2">
+      {label}:
+    </label>
+    <div 
+      className={`p-2 border rounded-md cursor-pointer ${
+        disabled 
+          ? 'bg-blue-100 border-gray-300 cursor-not-allowed' 
+          : 'border-blue-500 focus:ring-2 focus:ring-blue-500'
+      }`}
+      onClick={() => !disabled && setIsOpen(!isOpen)}
+    >
+      <div className="flex justify-between items-center">
+        <div className="text-sm truncate">
+          {getSelectedDisplay()}
+        </div>
+        <div>
+          <svg 
+            className={`w-4 h-4 transition-transform ${isOpen ? 'transform rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24" 
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
       </div>
-      
-      {isOpen && !disabled && (
-        <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-          {/* Search Input */}
-          <div className="sticky top-0 bg-white p-2 border-b border-gray-200">
+    </div>
+    
+    {isOpen && !disabled && (
+      <div className="absolute z-10 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
+        {/* Search Input */}
+        <div className="sticky top-0 bg-white p-2 border-b border-gray-200">
+          <input
+            type="text"
+            className="w-full p-2 text-sm border border-gray-300 rounded-md"
+            placeholder="Search..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+        
+        {/* Select All Option */}
+        <div 
+          className="p-2 hover:bg-gray-100 border-b border-gray-200 cursor-pointer w-full"
+          onClick={(e) => {
+            e.stopPropagation();
+            handleToggleAll();
+          }}
+        >
+          <div className="flex items-center space-x-2 w-full">
             <input
-              type="text"
-              className="w-full p-2 text-sm border border-gray-300 rounded-md"
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
+              type="checkbox"
+              checked={selectedItems.length === items.length && items.length > 0}
+              onChange={() => {}}
+              className="form-checkbox h-4 w-4 text-blue-600 pointer-events-none"
             />
+            <span className="text-sm font-medium">Select All</span>
           </div>
-          
-          {/* Select All Option */}
-          <div 
-            className="p-2 hover:bg-gray-100 border-b border-gray-200 cursor-pointer"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleAll();
-            }}
-          >
-            <label className="flex items-center space-x-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selectedItems.length === items.length && items.length > 0}
-                onChange={() => {}}
-                className="form-checkbox h-4 w-4 text-blue-600"
-              />
-              <span className="text-sm font-medium">Select All</span>
-            </label>
-          </div>
-          
-          {/* Nested Grouped Items (for Villages with District > SubDistrict structure) */}
-          {useNestedGroups && nestedGroupedItems ? (
-            Object.entries(nestedGroupedItems).sort(([a], [b]) => a.localeCompare(b)).map(([districtName, subDistrictGroups]) => (
-              <div key={districtName} className="border-b border-gray-200 last:border-b-0">
-                {/* District Group Header */}
-                <div className="p-2 bg-gray-100 font-medium text-sm">
-                  {formatDistrictHeader(districtName)}
-                </div>
-                
-                {/* SubDistrict Groups */}
-                {Object.entries(subDistrictGroups).sort(([a], [b]) => a.localeCompare(b)).map(([subDistrictName, villages]) => (
-                  <div key={`${districtName}-${subDistrictName}`} className="border-t border-gray-100">
-                    {/* SubDistrict Header */}
-                    <div 
-                      className="pl-4 p-2 bg-gray-50 hover:bg-gray-100 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleGroup(villages);
-                      }}
-                    >
-                      <label className="flex items-center space-x-2 cursor-pointer w-full">
-                        <input
-                          type="checkbox"
-                          checked={isGroupSelected(villages)}
-                          ref={input => {
-                            if (input) {
-                              input.indeterminate = isGroupPartiallySelected(villages);
-                            }
-                          }}
-                          onChange={() => {}}
-                          className="form-checkbox h-4 w-4 text-blue-600"
-                        />
-                        <span className="text-sm font-medium">{formatSubDistrictHeader(subDistrictName)}</span>
-                        <span className="text-xs text-gray-500">({villages.length})</span>
-                      </label>
+        </div>
+        
+        {/* Nested Grouped Items (for Villages with District > SubDistrict structure) */}
+        {useNestedGroups && nestedGroupedItems ? (
+          Object.entries(nestedGroupedItems).sort(([a], [b]) => a.localeCompare(b)).map(([districtName, subDistrictGroups]) => (
+            <div key={districtName} className="border-b border-gray-200 last:border-b-0">
+              {/* District Group Header */}
+              <div className="p-2 bg-gray-100 font-medium text-sm">
+                {formatDistrictHeader(districtName)}
+              </div>
+              
+              {/* SubDistrict Groups */}
+              {Object.entries(subDistrictGroups).sort(([a], [b]) => a.localeCompare(b)).map(([subDistrictName, villages]) => (
+                <div key={`${districtName}-${subDistrictName}`} className="border-t border-gray-100">
+                  {/* SubDistrict Header */}
+                  <div 
+                    className="pl-4 p-2 bg-gray-50 hover:bg-gray-100 cursor-pointer w-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleGroup(villages);
+                    }}
+                  >
+                    <div className="flex items-center space-x-2 w-full">
+                      <input
+                        type="checkbox"
+                        checked={isGroupSelected(villages)}
+                        onChange={() => {}}
+                        ref={input => {
+                          if (input) {
+                            input.indeterminate = isGroupPartiallySelected(villages);
+                          }
+                        }}
+                        className="form-checkbox h-4 w-4 text-blue-600 pointer-events-none"
+                      />
+                      <span className="text-sm font-medium">{formatSubDistrictHeader(subDistrictName)}</span>
+                      <span className="text-xs text-gray-500">({villages.length})</span>
                     </div>
-                    
-                    {/* Villages within SubDistrict */}
-                    <div className="pl-8">
-                      {villages.map(village => (
-                        <div 
-                          key={village.id}
-                          className="p-2 hover:bg-gray-100 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleItem(getItemId(village as T));
-                          }}
-                        >
-                          <label className="flex items-center space-x-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.includes(getItemId(village as T))}
-                              onChange={() => {}}
-                              className="form-checkbox h-4 w-4 text-blue-600"
-                            />
-                            <span className="text-sm">{displayPattern(village as unknown as T)}</span>
-                          </label>
+                  </div>
+                  
+                  {/* Villages within SubDistrict */}
+                  <div className="pl-8">
+                    {villages.map(village => (
+                      <div 
+                        key={village.id}
+                        className="p-2 hover:bg-gray-100 cursor-pointer w-full"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleItem(getItemId(village as T));
+                        }}
+                      >
+                        <div className="flex items-center space-x-2 w-full">
+                          <input
+                            type="checkbox"
+                            checked={selectedItems.includes(getItemId(village as T))}
+                            onChange={() => {}}
+                            className="form-checkbox h-4 w-4 text-blue-600 pointer-events-none"
+                          />
+                          <span className="text-sm">{displayPattern(village as unknown as T)}</span>
                         </div>
-                      ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))
+        ) : groupedItems ? (
+          // Standard Grouped items
+          Object.entries(groupedItems).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, groupItems]) => (
+            <div key={groupName} className="border-b border-gray-200 last:border-b-0">
+              {/* Group Header */}
+              {showGroupHeaders && (
+                <div className="p-2 bg-gray-100 font-medium text-sm">
+                  {formatGroupHeader(groupName)}
+                </div>
+              )}
+              
+              {/* Group Toggle */}
+              <div 
+                className={`p-2 ${showGroupHeaders ? 'pl-4' : ''} ${showGroupHeaders ? 'bg-gray-50' : 'bg-gray-50'} hover:bg-gray-100 cursor-pointer w-full`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGroup(groupItems);
+                }}
+              >
+                <div className="flex items-center space-x-2 w-full">
+                  <input
+                    type="checkbox"
+                    checked={isGroupSelected(groupItems)}
+                    onChange={() => {}}
+                    ref={input => {
+                      if (input) {
+                        input.indeterminate = isGroupPartiallySelected(groupItems);
+                      }
+                    }}
+                    className="form-checkbox h-4 w-4 text-blue-600 pointer-events-none"
+                  />
+                  <span className="text-sm font-medium">{showGroupHeaders ? 'Select All' : groupName}</span>
+                  <span className="text-xs text-gray-500">({groupItems.length})</span>
+                </div>
+              </div>
+              
+              {/* Group Items */}
+              <div className={`${showGroupHeaders ? 'pl-8' : 'pl-6'}`}>
+                {groupItems.map(item => (
+                  <div 
+                    key={getItemId(item)}
+                    className="p-2 hover:bg-gray-100 cursor-pointer w-full"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleItem(getItemId(item));
+                    }}
+                  >
+                    <div className="flex items-center space-x-2 w-full">
+                      <input
+                        type="checkbox"
+                        checked={selectedItems.includes(getItemId(item))}
+                        onChange={() => {}}
+                        className="form-checkbox h-4 w-4 text-blue-600 pointer-events-none"
+                      />
+                      <span className="text-sm">{displayPattern(item)}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            ))
-          ) : groupedItems ? (
-            // Standard Grouped items
-            Object.entries(groupedItems).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, groupItems]) => (
-              <div key={groupName} className="border-b border-gray-200 last:border-b-0">
-                {/* Group Header */}
-                {showGroupHeaders && (
-                  <div className="p-2 bg-gray-100 font-medium text-sm">
-                    {formatGroupHeader(groupName)}
-                  </div>
-                )}
-                
-                {/* Group Toggle */}
-                <div 
-                  className={`p-2 ${showGroupHeaders ? 'pl-4' : ''} ${showGroupHeaders ? 'bg-gray-50' : 'bg-gray-50'} hover:bg-gray-100 cursor-pointer`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleGroup(groupItems);
-                  }}
-                >
-                  <label className="flex items-center space-x-2 cursor-pointer w-full">
-                    <input
-                      type="checkbox"
-                      checked={isGroupSelected(groupItems)}
-                      ref={input => {
-                        if (input) {
-                          input.indeterminate = isGroupPartiallySelected(groupItems);
-                        }
-                      }}
-                      onChange={() => {}}
-                      className="form-checkbox h-4 w-4 text-blue-600"
-                    />
-                    <span className="text-sm font-medium">{showGroupHeaders ? 'Select All' : groupName}</span>
-                    <span className="text-xs text-gray-500">({groupItems.length})</span>
-                  </label>
-                </div>
-                
-                {/* Group Items */}
-                <div className={`${showGroupHeaders ? 'pl-8' : 'pl-6'}`}>
-                  {groupItems.map(item => (
-                    <div 
-                      key={getItemId(item)}
-                      className="p-2 hover:bg-gray-100 cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleItem(getItemId(item));
-                      }}
-                    >
-                      <label className="flex items-center space-x-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.includes(getItemId(item))}
-                          onChange={() => {}}
-                          className="form-checkbox h-4 w-4 text-blue-600"
-                        />
-                        <span className="text-sm">{displayPattern(item)}</span>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))
-          ) : (
-            // Flat list of items
-            filteredItems.map(item => (
-              <div 
-                key={getItemId(item)}
-                className="p-2 hover:bg-gray-100 cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleItem(getItemId(item));
-                }}
-              >
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedItems.includes(getItemId(item))}
-                    onChange={() => {}}
-                    className="form-checkbox h-4 w-4 text-blue-600"
-                  />
-                  <span className="text-sm">{displayPattern(item)}</span>
-                </label>
-              </div>
-            ))
-          )}
-          
-          {filteredItems.length === 0 && (
-            <div className="p-3 text-center text-gray-500 text-sm">
-              No items found
             </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+          ))
+        ) : (
+          // Flat list of items
+          filteredItems.map(item => (
+            <div 
+              key={getItemId(item)}
+              className="p-2 hover:bg-gray-100 cursor-pointer w-full"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleItem(getItemId(item));
+              }}
+            >
+              <div className="flex items-center space-x-2 w-full">
+                <input
+                  type="checkbox"
+                  checked={selectedItems.includes(getItemId(item))}
+                  onChange={() => {}}
+                  className="form-checkbox h-4 w-4 text-blue-600 pointer-events-none"
+                />
+                <span className="text-sm">{displayPattern(item)}</span>
+              </div>
+            </div>
+          ))
+        )}
+        
+        {filteredItems.length === 0 && (
+          <div className="p-3 text-center text-gray-500 text-sm">
+            No items found
+          </div>
+        )}
+      </div>
+    )}
+  </div>
+);
 };

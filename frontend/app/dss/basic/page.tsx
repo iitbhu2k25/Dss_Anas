@@ -9,9 +9,12 @@ import Population from "./populations/population"
 import Water_Demand from "./water_demand/page"
 import Water_Supply from "./water_supply/page"
 import Sewage from "./seawage/page"
+ // New import for DrainMap
 import SewageCalculationForm from "./seawage/components/SewageCalculationForm";
+import WaterSupplyForm from "./water_supply/components/WaterSupplyForm";
+import WaterDemandForm from "./water_demand/components/WaterDemandForm";
 
-// import Map from "./components/map"
+
 const Map = dynamic(() => import("./components/map"), {
   ssr: false,
   loading: () => (
@@ -30,6 +33,7 @@ const DrainMap = dynamic(() => import("./components/drainmap"), {
     </div>
   )
 });
+
 
 interface SelectedLocationData {
   villages: {
@@ -77,7 +81,8 @@ interface SelectedRiverData {
     id: string; // Change from number to string to match Drain_No
     name: string;
     stretchId: number;
-    flowRate: number;
+     
+   
   }[];
 
   allDrains?: { // Add this property
@@ -394,7 +399,7 @@ const Basic: React.FC = () => {
         id: d.id.toString(), // Ensure ID is string (Drain_No)
         name: d.name,
         stretchId: d.stretchId,
-        flowRate: d.flowRate || 0,
+   
       })),
      
       // FIXED: Ensure allDrains includes all necessary data
@@ -779,13 +784,13 @@ const Basic: React.FC = () => {
             {viewMode === 'admin' && <Water_Demand />}
             {viewMode === 'drain' && (
               <Water_Demand
-                villages_props={drainVillagePopulations.map(vp => ({
-                  id: vp.village_code,
-                  name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
-                  subDistrictId: vp.subdistrict_code,
-                  population: vp.total_population
-                }))}
-                totalPopulation_props={drainTotalPopulation}
+                // villages_props={drainVillagePopulations.map(vp => ({
+                //   id: vp.village_code,
+                //   name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
+                //   subDistrictId: vp.subdistrict_code,
+                //   population: vp.total_population
+                // }))}
+                // totalPopulation_props={drainTotalPopulation}
               />
             )}
           </div>
@@ -794,13 +799,13 @@ const Basic: React.FC = () => {
             {viewMode === 'admin' && <Water_Supply />}
             {viewMode === 'drain' && (
               <Water_Supply
-                villages_props={drainVillagePopulations.map(vp => ({
-                  id: vp.village_code,
-                  name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
-                  subDistrictId: vp.subdistrict_code,
-                  population: vp.total_population
-                }))}
-                totalPopulation_props={drainTotalPopulation}
+                // villages_props={drainVillagePopulations.map(vp => ({
+                //   id: vp.village_code,
+                //   name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
+                //   subDistrictId: vp.subdistrict_code,
+                //   population: vp.total_population
+                // }))}
+                // totalPopulation_props={drainTotalPopulation}
               />
             )}
           </div>
