@@ -5,9 +5,6 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { FeatureCollection, Feature } from 'geojson';
-import dynamic from 'next/dynamic';
-
-
 
 // Define props interface
 interface MapProps {
@@ -186,7 +183,12 @@ function MapLayers({
         0
       ),
     };
-    (window as any).selectedLocations = locationData;
+    
+    // Check if window is defined before accessing it
+    if (typeof window !== 'undefined') {
+      (window as any).selectedLocations = locationData;
+    }
+    
     onLocationSelect?.(locationData);
   }, [
     selectedState,
@@ -299,7 +301,6 @@ function MapLayers({
 
         const newBaseLayer = L.geoJSON(
           { type: 'FeatureCollection', features: validFeatures } as GeoJSON.FeatureCollection,
-
           {
             style: baseMapGeoJsonStyle,
             onEachFeature: (feature, layer) => {
@@ -401,7 +402,6 @@ function MapLayers({
 
         const newStateLayer = L.geoJSON(
           { type: 'FeatureCollection', features: validFeatures } as GeoJSON.FeatureCollection,
-
           {
             style: stateGeoJsonStyle,
             onEachFeature: (feature, layer) => {
@@ -500,7 +500,6 @@ function MapLayers({
 
         const newDistrictLayers = L.geoJSON(
           { type: 'FeatureCollection', features: validFeatures } as GeoJSON.FeatureCollection,
-
           {
             style: districtGeoJsonStyle,
             onEachFeature: (feature, layer) => {
@@ -636,9 +635,9 @@ function MapLayers({
         });
 
         if (!response.ok) {
-          alert(
-            'Due to unavailability of the JSON data, the map will not be displayed for the selected village. Please continue.'
-          );
+          // alert(
+          //   'Due to unavailability of the JSON data, the map will not be displayed for the selected village. Please continue.'
+          // );
           console.error('Failed to fetch village data:', response.status);
           setIsLoadingVillages(false);
           return;
@@ -735,24 +734,39 @@ export default function Map({
   console.log('Map component rendering with selectedSubDistricts:', selectedSubDistricts);
   console.log('Map component rendering with selectedVillages:', selectedVillages);
 
+  // State to track if component is mounted (client-side)
+  const [isMounted, setIsMounted] = useState(false);
+
   // Fix Leaflet icon issues
   useEffect(() => {
-    delete (L.Icon.Default.prototype as any)._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
-      iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
-      shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
-    });
+    // Only run on client side
+    setIsMounted(true);
+    
+    if (typeof window !== 'undefined' && L && L.Icon) {
+      delete (L.Icon.Default.prototype as any)._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png',
+      });
+    }
   }, []);
 
-
+  // Don't render map until component is mounted (client-side)
+  if (!isMounted) {
+    return (
+      <div className="flex items-center justify-center h-[48vh] border-4 border-blue-500 rounded-xl shadow-lg p-4">
+        <div className="text-gray-500">Loading map...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">
       <MapContainer
         center={[22.9734, 78.6569]} // India center coordinates
         zoom={4}
-        className="map-container border-4 border-red-500 rounded-xl shadow-lg p-4 hover:border-green-500 hover:shadow-2xl transition-all duration-300 w-[30vw] h-[48vh] mx-auto"
+        className="map-container border-4 border-blue-500 rounded-xl shadow-lg p-4 hover:border-green-500 hover:shadow-2xl transition-all duration-300 w-[30vw] h-[48vh] mx-auto"
         worldCopyJump={true}
         maxBoundsViscosity={1.0}
         minZoom={2}
@@ -762,7 +776,6 @@ export default function Map({
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           noWrap={false}
-          // continuousWorld={true}
           bounds={[[-90, -180], [90, 180]]}
         />
         <MapLayers

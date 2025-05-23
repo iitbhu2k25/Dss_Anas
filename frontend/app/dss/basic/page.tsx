@@ -9,9 +9,27 @@ import Population from "./populations/population"
 import Water_Demand from "./water_demand/page"
 import Water_Supply from "./water_supply/page"
 import Sewage from "./seawage/page"
-import ExportReport from './populations/components/export';
-import Map from "./components/map"
-import DrainMap from "./components/drainmap" // New import for DrainMap
+import SewageCalculationForm from "./seawage/components/SewageCalculationForm";
+
+// import Map from "./components/map"
+const Map = dynamic(() => import("./components/map"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-[48vh] border-4 border-gray-300 rounded-xl">
+      <div className="text-gray-500">Loading map...</div>
+    </div>
+  )
+});
+
+
+const DrainMap = dynamic(() => import("./components/drainmap"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center h-[48vh] border border-gray-900">
+      <div className="text-gray-500">Loading drain map...</div>
+    </div>
+  )
+});
 
 interface SelectedLocationData {
   villages: {
@@ -61,10 +79,10 @@ interface SelectedRiverData {
     stretchId: number;
     flowRate: number;
   }[];
-  totalFlowRate: number;
+
   allDrains?: { // Add this property
-    id: string; 
-    name: string; 
+    id: string;
+    name: string;
     stretch: string;
     drainNo?: string;
   }[];
@@ -115,7 +133,7 @@ const Basic: React.FC = () => {
   const villagesRef = useRef<string[]>([]); // Add this line
   // Refs for RiverSelector
   const riverRef = useRef<string>('');
-  const stretchRef = useRef<string>('');
+  const stretchRef = useRef<string[]>([]);
   const drainsRef = useRef<string[]>([]);
 
   // Sync refs with state for LocationSelector
@@ -141,7 +159,7 @@ const Basic: React.FC = () => {
   }, [selectedRiver]);
 
   useEffect(() => {
-    stretchRef.current = selectedStretch;
+    stretchRef.current = [selectedStretch];
   }, [selectedStretch]);
 
   useEffect(() => {
@@ -171,21 +189,21 @@ const Basic: React.FC = () => {
   // }, [viewMode, drainVillagePopulations, villageProps, drainTotalPopulation, intersectedVillages]);
 
 
-  useEffect(() => {
-    if (viewMode === 'drain') {
-      // Set up interval to check window variables in drain mode
-      const intervalId = setInterval(() => {
-        if (window.population2025) {
-          console.log('🔍 Window check - population2025:', window.population2025);
-          console.log('🔍 Window check - selectedMethod:', window.selectedMethod);
-          console.log('🔍 Window check - populationSourceMode:', window.populationSourceMode);
-          clearInterval(intervalId); // Stop checking once we have data
-        }
-      }, 2000);
+  // useEffect(() => {
+  //   if (viewMode === 'drain') {
+  //     // Set up interval to check window variables in drain mode
+  //     const intervalId = setInterval(() => {
+  //       if (window.population2025) {
+  //         console.log('🔍 Window check - population2025:', window.population2025);
+  //         console.log('🔍 Window check - selectedMethod:', window.selectedMethod);
+  //         console.log('🔍 Window check - populationSourceMode:', window.populationSourceMode);
+  //         clearInterval(intervalId); // Stop checking once we have data
+  //       }
+  //     }, 2000);
 
-      return () => clearInterval(intervalId);
-    }
-  }, [viewMode]);
+  //     return () => clearInterval(intervalId);
+  //   }
+  // }, [viewMode]);
 
   useEffect(() => {
     if (villageChangeSource) {
@@ -347,7 +365,7 @@ const Basic: React.FC = () => {
   // Handle stretch selection for RiverSelector
   const handleStretchChange = (stretchId: string): void => {
     console.log('Stretch changed to:', stretchId);
-    if (stretchId !== stretchRef.current) {
+    if (!stretchRef.current.includes(stretchId)) {
       console.log('Resetting drain selections');
       setSelectedDrains([]);
       if (window.resetDrainSelectionsInDrainLocationsSelector) {
@@ -370,35 +388,35 @@ const Basic: React.FC = () => {
   };
 
 
-const handleConfirm = (data: { drains: any[] }) => {
-  const riverData: SelectedRiverData = {
-    drains: data.drains.map(d => ({
-      id: d.id.toString(), // Ensure ID is string (Drain_No)
-      name: d.name,
-      stretchId: d.stretchId,
-      flowRate: d.flowRate || 0,
-    })),
-    totalFlowRate: 0, // You can calculate this if needed
-    allDrains: data.drains.map(d => ({
-      id: d.id.toString(), // This is the Drain_No
-      name: d.name,
-      stretch: d.stretchName || 'Unknown Stretch',
-      drainNo: d.id.toString(), // Add for clarity
-    })),
-  };
-  
-  console.log('page.tsx: Setting selectedRiverData with Drain_No IDs:', riverData);
-  setSelectedRiverData(riverData);
-  
-  // Ensure window.selectedRiverData is properly updated
-  window.selectedRiverData = {
-    ...riverData,
-    // Add any additional properties that might be needed
-  };
-  
-  console.log('page.tsx: Updated window.selectedRiverData:', window.selectedRiverData);
-};
+  const handleConfirm = (data: { drains: any[] }) => {
+    const riverData: SelectedRiverData = {
+      drains: data.drains.map(d => ({
+        id: d.id.toString(), // Ensure ID is string (Drain_No)
+        name: d.name,
+        stretchId: d.stretchId,
+        flowRate: d.flowRate || 0,
+      })),
+     
+      // FIXED: Ensure allDrains includes all necessary data
+      allDrains: data.drains.map(d => ({
+        id: d.id.toString(), // This is the Drain_No as string
+        name: d.name,
+        stretch: d.stretchName || 'Unknown Stretch',
+        drainNo: d.id.toString(), // Explicitly set drainNo
+      })),
+    };
 
+    console.log('page.tsx: Setting selectedRiverData with complete drain data:', riverData);
+    setSelectedRiverData(riverData);
+
+    // FIXED: Ensure window.selectedRiverData includes selectedVillages
+    window.selectedRiverData = {
+      ...riverData,
+      selectedVillages: intersectedVillages.filter(v => v.selected !== false),
+    };
+
+    console.log('page.tsx: Updated window.selectedRiverData:', window.selectedRiverData);
+  };
 
 
 
@@ -788,9 +806,13 @@ const handleConfirm = (data: { drains: any[] }) => {
           </div>
 
           <div className={currentStep === 3 ? 'block' : 'hidden'}>
-            {viewMode === 'admin' && <Sewage />}
+            {viewMode === 'admin' && (
+              <SewageCalculationForm
+                sourceMode="admin" // Explicitly set sourceMode
+              />
+            )}
             {viewMode === 'drain' && (
-              <Sewage
+              <SewageCalculationForm
                 villages_props={drainVillagePopulations.map(vp => ({
                   id: vp.village_code,
                   name: intersectedVillages.find(v => v.shapeID === vp.village_code)?.shapeName || 'Unknown',
@@ -798,8 +820,8 @@ const handleConfirm = (data: { drains: any[] }) => {
                   population: vp.total_population
                 }))}
                 totalPopulation_props={drainTotalPopulation}
-                sourceMode="drain"
-                selectedRiverData={selectedRiverData} // Add this prop
+                sourceMode="drain" // FIXED: Explicitly set sourceMode to "drain"
+                selectedRiverData={selectedRiverData} // Pass the selectedRiverData prop
               />
             )}
           </div>

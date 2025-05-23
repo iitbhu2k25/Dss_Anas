@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, JSX } from 'react';
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import isEqual from 'lodash/isEqual';
@@ -28,9 +28,9 @@ interface SelectedRiverData {
     flowRate: number;
   }[];
   totalFlowRate: number;
-  allDrains?: { 
+  allDrains?: {
     id: string; // This should be Drain_No as string
-    name: string; 
+    name: string;
     stretch: string;
     drainNo?: string;
   }[];
@@ -56,12 +56,24 @@ const defaultPollutionItems: PollutionItem[] = [
   { name: "Ortho Phosphorous", perCapita: 0.5 },
 ];
 
+
+// ----------------------------------
+
+
+
+
+
+
+
+
 const SewageCalculationForm: React.FC<SewageCalculationFormProps> = ({
-  sourceMode = 'admin',
-  selectedRiverData
+ villages_props = [],
+  totalPopulation_props = 0,
+  sourceMode, // FIXED: Remove default value since it's now required
+  selectedRiverData = null
 }) => {
   // --- States for Water Supply Method ---
-  const [totalSupplyInput, setTotalSupplyInput] = useState<number | ''>('');
+  const [totalSupplyInput, setTotalSupplyInput] = useState<number | ''>('');///---
   const [waterSupplyResult, setWaterSupplyResult] = useState<any>(null);
 
   // --- States for Domestic Sewage Method ---
@@ -100,6 +112,9 @@ const SewageCalculationForm: React.FC<SewageCalculationFormProps> = ({
 
   const areAllCheckboxesChecked = Object.values(checkboxes).every(checked => checked);
 
+
+
+
   // --- Initialize and Update Total Water Supply ---
   useEffect(() => {
     if ((window as any).totalWaterSupply !== undefined) {
@@ -115,89 +130,139 @@ const SewageCalculationForm: React.FC<SewageCalculationFormProps> = ({
 useEffect(() => {
   console.log('SewageCalculationForm useEffect triggered:', {
     sourceMode,
-    selectedRiverData,
-    windowSelectedRiverData: window.selectedRiverData
+    selectedRiverData: selectedRiverData ? 'present' : 'null',
+    windowSelectedRiverData: window.selectedRiverData ? 'present' : 'null',
+    windowAllDrains: window.selectedRiverData?.allDrains?.length || 0
   });
 
+  // FIXED: Only proceed if sourceMode is actually 'drain'
   if (sourceMode === 'drain') {
-    // Check both props and window for drain data
-    const drainData = selectedRiverData?.allDrains || window.selectedRiverData?.allDrains;
+    console.log('Processing drain mode initialization...');
     
+    // FIXED: Since window.selectedRiverData has the data, use it primarily
+    let drainData = null;
+    
+    // Priority 1: window.selectedRiverData.allDrains (this has your data)
+    if (window.selectedRiverData?.allDrains && window.selectedRiverData.allDrains.length > 0) {
+      drainData = window.selectedRiverData.allDrains;
+      console.log('Using window.selectedRiverData.allDrains:', drainData);
+    }
+    // Priority 2: selectedRiverData prop
+    else if (selectedRiverData?.allDrains && selectedRiverData.allDrains.length > 0) {
+      drainData = selectedRiverData.allDrains;
+      console.log('Using selectedRiverData prop:', drainData);
+    }
+    // Priority 3: window.selectedRiverData.drains as fallback
+    else if (window.selectedRiverData?.drains && window.selectedRiverData.drains.length > 0) {
+      drainData = window.selectedRiverData.drains.map((d: { id: { toString: () => any; }; name: any; }) => ({
+        id: d.id.toString(),
+        name: d.name,
+        stretch: 'Unknown Stretch',
+        drainNo: d.id.toString()
+      }));
+      console.log('Using window.selectedRiverData.drains as fallback:', drainData);
+    }
+
     if (drainData && drainData.length > 0) {
-      console.log('Found drain data, initializing drain items with Drain_No:', drainData);
-      
+      console.log('Creating drain items from data:', drainData);
+
       const newDrainItems: DrainItem[] = drainData.map((drain: any) => ({
-        id: drain.id.toString(), // This is Drain_No
-        name: drain.name || `Drain ${drain.id}`,
+        id: drain.id.toString(), // This should be "33" from your debug
+        name: drain.name || `Drain ${drain.id}`, // This should be "Drain 33"
         discharge: '', // Start with empty discharge
       }));
+
+      console.log('New drain items created:', newDrainItems);
+
+      // Always update in drain mode to ensure correct data
+      setDrainCount(drainData.length);
+      setDrainItems(newDrainItems);
       
-      // Only update if the structure has changed (not discharge values)
-      const currentStructure = drainItems.map(d => ({id: d.id, name: d.name}));
-      const newStructure = newDrainItems.map(d => ({id: d.id, name: d.name}));
-      
-      if (!isEqual(currentStructure, newStructure)) {
-        console.log('Updating drain items with Drain_No:', newDrainItems);
-        setDrainCount(drainData.length);
-        setDrainItems(newDrainItems);
-      }
+      console.log('Updated drainCount and drainItems');
     } else {
-      console.log('No drain data found, clearing drain items');
-      setDrainCount(0);
-      setDrainItems([]);
+      console.log('No drain data found for initialization');
     }
+  } else {
+    console.log('Not in drain mode, sourceMode is:', sourceMode);
   }
 }, [sourceMode, selectedRiverData]);
 
   // --- Update Drain Items (only when not in drain mode or when manually changed) ---
-  useEffect(() => {
-    // Only auto-generate drain items if not in drain mode or if no selected river data exists
-    if (sourceMode !== 'drain' || !(window as any).selectedRiverData?.allDrains) {
-      if (typeof drainCount === 'number' && drainCount > 0) {
-        const newDrainItems: DrainItem[] = Array.from({ length: drainCount }, (_, index) => ({
-          id: `D${index + 1}`,
-          name: `Drain ${index + 1}`,
-          discharge: '',
-        }));
-        setDrainItems(newDrainItems);
-      } else {
-        setDrainItems([]);
-      }
+useEffect(() => {
+  // Only auto-generate drain items if not in drain mode
+  if (sourceMode !== 'drain') {
+    if (typeof drainCount === 'number' && drainCount > 0) {
+      const newDrainItems: DrainItem[] = Array.from({ length: drainCount }, (_, index) => ({
+        id: `D${index + 1}`,
+        name: `Drain ${index + 1}`,
+        discharge: '',
+      }));
+      setDrainItems(newDrainItems);
+    } else {
+      setDrainItems([]);
     }
-  }, [drainCount, sourceMode]);
+  }
+  // ✅ Remove the drain mode handling from this useEffect to prevent interference
+}, [drainCount, sourceMode]);
 
-// Also add this additional useEffect to sync with window.selectedRiverData changes:
+  // Also add this additional useEffect to sync with window.selectedRiverData changes:
+
+// useEffect(() => {
+//   const handleDrainDataUpdate = (event: CustomEvent) => {
+//     console.log('Received drain data update event:', event.detail);
+//     if (sourceMode === 'drain' && event.detail?.allDrains) {
+//       // Force update drain items
+//       const newDrainItems = event.detail.allDrains.map((drain: any) => ({
+//         id: drain.id.toString(),
+//         name: drain.name,
+//         discharge: '',
+//       }));
+//       setDrainCount(newDrainItems.length);
+//       setDrainItems(newDrainItems);
+//     }
+//   };
+
+//   window.addEventListener('drainDataUpdated', handleDrainDataUpdate);
+//   return () => window.removeEventListener('drainDataUpdated', handleDrainDataUpdate);
+// }, [sourceMode]);
+
 
 useEffect(() => {
-  if (sourceMode === 'drain' && window.selectedRiverData?.allDrains) {
-    const windowDrains = window.selectedRiverData.allDrains;
-    console.log('Window selectedRiverData changed, checking for updates:', windowDrains);
+  if (sourceMode === 'drain') {
+    const handleWindowDataChange = () => {
+      if (window.selectedRiverData?.allDrains && window.selectedRiverData.allDrains.length > 0) {
+        const windowDrains = window.selectedRiverData.allDrains;
+        
+        const currentIds = drainItems.map(d => d.id).sort();
+        const windowIds = windowDrains.map((d: any) => d.id.toString()).sort();
+
+        if (!isEqual(currentIds, windowIds)) {
+          console.log('Updating drain structure while preserving discharge values');
+
+          const newDrainItems: DrainItem[] = windowDrains.map((drain: any) => {
+            const existingItem = drainItems.find(existing => existing.id === drain.id.toString());
+            return {
+              id: drain.id.toString(),
+              name: drain.name || `Drain ${drain.id}`,
+              discharge: existingItem?.discharge || '', 
+            };
+          });
+
+          setDrainCount(windowDrains.length);
+          setDrainItems(newDrainItems);
+        }
+      }
+    };
+
+
+    handleWindowDataChange();
     
-    // Only update if we don't already have the same drain structure
-    const currentIds = drainItems.map(d => d.id).sort();
-    const windowIds = windowDrains.map(d => d.id.toString()).sort();
-    
-    if (!isEqual(currentIds, windowIds)) {
-      console.log('Window drain data differs from current, updating...');
-      
-      const newDrainItems: DrainItem[] = windowDrains.map((drain: any) => {
-        // Preserve existing discharge values if they exist
-        const existingItem = drainItems.find(existing => existing.id === drain.id.toString());
-        return {
-          id: drain.id.toString(), // Drain_No as string
-          name: drain.name || `Drain ${drain.id}`,
-          discharge: existingItem?.discharge || '',
-        };
-      });
-      
-      setDrainCount(windowDrains.length);
-      setDrainItems(newDrainItems);
-    }
+ 
   }
 }, [sourceMode]);
 
   // --- Calculate Total Drain Discharge ---
-useEffect(() => {
+  useEffect(() => {
     const total = drainItems.reduce((sum, item) => {
       return sum + (typeof item.discharge === 'number' ? item.discharge : 0);
     }, 0);
@@ -217,22 +282,42 @@ useEffect(() => {
     setDrainCount(value);
   };
 
-  const handleDrainItemChange = (index: number, field: keyof DrainItem, value: string | number) => {
-    const newDrainItems = [...drainItems];
-    if (field === 'discharge') {
-      newDrainItems[index].discharge = value === '' ? '' : Number(value);
+const handleDrainItemChange = (index: number, field: keyof DrainItem, value: string | number) => {
+  console.log(`🔧 Drain item change - Index: ${index}, Field: ${field}, Value: ${value}, Type: ${typeof value}`);
+  
+  const newDrainItems = [...drainItems];
+  
+  if (field === 'discharge') {
+    // Handle discharge field specifically
+    if (value === '' || value === null || value === undefined) {
+      newDrainItems[index].discharge = '';
+      console.log(`✅ Set discharge to empty for drain ${index}`);
     } else {
-      newDrainItems[index][field] = value as string;
+      const numValue = typeof value === 'string' ? parseFloat(value) : value;
+      if (!isNaN(numValue)) {
+        newDrainItems[index].discharge = numValue;
+        console.log(`✅ Set discharge to ${numValue} for drain ${index}`);
+      } else {
+        console.warn(`⚠️ Invalid discharge value: ${value}`);
+        newDrainItems[index].discharge = '';
+      }
     }
-    setDrainItems(newDrainItems);
-  };
+  } else {
+    // Handle other fields (id, name)
+    newDrainItems[index][field] = value as string;
+    console.log(`✅ Set ${field} to ${value} for drain ${index}`);
+  }
+  
+  console.log('Updated drain items:', newDrainItems);
+  setDrainItems(newDrainItems);
+};
 
   // Rest of your existing handlers and functions remain the same...
   const handleCalculateSewage = async () => {
     setError(null);
     setWaterSupplyResult(null);
     setDomesticSewageResult(null);
-    setShowPeakFlow(false);
+    setShowPeakFlow(true);
     setShowRawSewage(false);
 
     let hasError = false;
@@ -358,7 +443,7 @@ useEffect(() => {
     if (totalSupplyInput == 0) return 0;
     const referencePopulation = (window as any).population2025;
     if (referencePopulation && referencePopulation > 0) {
-      return (popVal / referencePopulation) * totalSupplyInput;
+      return ((popVal / referencePopulation) *  Number(totalSupplyInput));
     }
     return totalSupplyInput;
   };
@@ -583,68 +668,79 @@ useEffect(() => {
   }, [pollutionItemsState, unmeteredSupplyInput, computedPopulation]);
 
 const drainItemsTableJSX = (
-    <div className="mt-4">
-      <table className="min-w-full border-collapse border border-gray-300">
-        <thead>
-          <tr>
-            <th className="border px-2 py-1">Drain ID</th>
-            <th className="border px-2 py-1">Drain Name</th>
-            <th className="border px-2 py-1">Discharge (MLD)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {drainItems.map((item, index) => (
-            <tr key={index}>
-              <td className="border px-2 py-1">
-                <input
-                  type="text"
-                  value={item.id}
-                  onChange={(e) => handleDrainItemChange(index, 'id', e.target.value)}
-                  className={`w-20 border rounded px-1 py-0.5 ${sourceMode === 'drain' ? 'bg-gray-100' : ''}`}
-                  readOnly={sourceMode === 'drain'}
-                  title={sourceMode === 'drain' ? 'Drain ID is automatically set from drain selection' : ''}
-                />
-              </td>
-              <td className="border px-2 py-1">
-                <input
-                  type="text"
-                  value={item.name}
-                  onChange={(e) => handleDrainItemChange(index, 'name', e.target.value)}
-                  className={`w-full border rounded px-1 py-0.5 ${sourceMode === 'drain' ? 'bg-gray-100' : ''}`}
-                  readOnly={sourceMode === 'drain'}
-                  title={sourceMode === 'drain' ? 'Drain name is automatically set from drain selection' : ''}
-                />
-              </td>
-              <td className="border px-2 py-1">
-                <input
-                  type="number"
-                  value={item.discharge}
-                  onChange={(e) => handleDrainItemChange(index, 'discharge', e.target.value)}
-                  className="w-20 border rounded px-1 py-0.5"
-                  min="0"
-                  step="0.01"
-                />
-              </td>
-            </tr>
-          ))}
-          <tr>
-            <td colSpan={2} className="border px-2 py-1 font-bold text-right">
-              Total Discharge:
+  <div className="mt-4">
+    <table className="min-w-full border-collapse border border-gray-300">
+      <thead>
+        <tr>
+          <th className="border px-2 py-1">Drain ID</th>
+          <th className="border px-2 py-1">Drain Name</th>
+          <th className="border px-2 py-1">Measured Discharge (MLD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {drainItems.map((item, index) => (
+          <tr key={`drain-${item.id}-${index}`}>
+            <td className="border px-2 py-1">
+              <input
+                type="text"
+                value={item.id}
+                onChange={(e) => handleDrainItemChange(index, 'id', e.target.value)}
+                className={`w-20 border rounded px-1 py-0.5 ${sourceMode === 'drain' ? 'bg-gray-100' : ''}`}
+                readOnly={sourceMode === 'drain'}
+                title={sourceMode === 'drain' ? 'Drain ID is automatically set from drain selection' : ''}
+              />
             </td>
-            <td className="border px-2 py-1 font-bold">
-              {totalDrainDischarge.toFixed(2)} MLD
+            <td className="border px-2 py-1">
+              <input
+                type="text"
+                value={item.name}
+                onChange={(e) => handleDrainItemChange(index, 'name', e.target.value)}
+                className={`w-full border rounded px-1 py-0.5 ${sourceMode === 'drain' ? 'bg-gray-100' : ''}`}
+                readOnly={sourceMode === 'drain'}
+                title={sourceMode === 'drain' ? 'Drain name is automatically set from drain selection' : ''}
+              />
+            </td>
+            <td className="border px-2 py-1">
+              <input
+                type="number"
+                value={item.discharge === '' ? '' : item.discharge}
+                onChange={(e) => {
+                  console.log(`🎯 Discharge input change for drain ${index}:`, e.target.value);
+                  handleDrainItemChange(index, 'discharge', e.target.value);
+                }}
+                className="w-20 border rounded px-1 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                onFocus={(e) => {
+                  console.log(`🎯 Discharge input focused for drain ${index}`);
+                  e.target.select(); // Select all text when focused
+                }}
+                onBlur={(e) => {
+                  console.log(`🎯 Discharge input blurred for drain ${index}:`, e.target.value);
+                }}
+              />
             </td>
           </tr>
-        </tbody>
-      </table>
-      {sourceMode === 'drain' && (
-        <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded">
-          <strong>Note:</strong> Drain IDs and names are automatically populated from your drain selection. 
-          You can only modify the discharge values.
-        </div>
-      )}
-    </div>
-  );
+        ))}
+        <tr>
+          <td colSpan={2} className="border px-2 py-1 font-bold text-right">
+            Total Discharge:
+          </td>
+          <td className="border px-2 py-1 font-bold">
+            {totalDrainDischarge.toFixed(2)} MLD
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    {sourceMode === 'drain' && (
+      <div className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded">
+        <strong>Note:</strong> Drain IDs and names are automatically populated from your drain selection.
+  
+      </div>
+    )}
+  </div>
+);
 
   const handle1pdfDownload = () => {
     // Your existing PDF download code remains the same...
@@ -659,364 +755,387 @@ const drainItemsTableJSX = (
     }));
   };
 
-return (
-  <div className="p-6 border rounded-lg bg-gradient-to-br from-white to-gray-50 shadow-lg space-y-8">
-    <div className="flex items-center mb-4">
-      <h3 className="text-2xl font-bold text-gray-800">Sewage Calculation</h3>
-      {sourceMode === 'drain' && (
-        <span className="ml-3 text-sm bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">
-          Drain Mode
-        </span>
-      )}
-    </div>
-
-    {/* Water Supply Method Container */}
-    <div className="p-4 border rounded-lg bg-gray-50/50 shadow-sm">
-      <h4 className="text-lg font-semibold text-gray-800 mb-3">Water Supply Method</h4>
-      <div className="mb-4">
-        <label htmlFor="total_supply_input" className="block text-sm font-medium text-gray-700">
-          Total Water Supply (MLD):
-        </label>
-        <input
-          type="number"
-          id="total_supply_input"
-          value={totalSupplyInput}
-          onChange={(e) =>
-            setTotalSupplyInput(e.target.value === '' ? '' : Number(e.target.value))
-          }
-          className="mt-2 block w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-          placeholder="Enter total supply"
-          min="0"
-        />
-      </div>
-      {waterSupplyResult && (
-        <div className="mt-4 p-4 border rounded-lg bg-green-50/50 shadow-sm">
-          <h4 className="font-semibold text-lg text-green-700">Sewage Generation (Water Supply):</h4>
-          {typeof waterSupplyResult === 'number' ? (
-            <p className="text-xl font-medium text-gray-800">{waterSupplyResult.toFixed(2)} MLD</p>
-          ) : (
-            <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100">
-              <table className="table-auto w-full min-w-[600px] bg-white border border-gray-300 rounded-lg shadow-md">
-                <thead className="bg-gradient-to-r from-blue-100 to-blue-200 sticky top-0 z-10">
+  return (
+    <div className="p-4 border rounded bg-white space-y-8">
+      <h3 className="text-xl font-semibold mb-3">
+        Sewage Calculation
+        {sourceMode === 'drain' && (
+          <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+            Drain Mode
+          </span>
+        )}
+      </h3>
+         
+      {/* Water Supply Method Container */}
+      <div className="p-4 border rounded bg-gray-50">
+        <h4 className="text-lg font-semibold mb-3">Water Supply Method</h4>
+        <div className="mb-4">
+          <label htmlFor="total_supply_input" className="block text-sm font-medium">
+            Total Water Supply (MLD):
+          </label>
+          <input
+            type="number"
+            id="total_supply_input"
+            value={totalSupplyInput}
+            onChange={(e) =>
+              setTotalSupplyInput(e.target.value === '' ? '' : Number(e.target.value))
+            }
+            className="mt-1 block w-1/3 border rounded px-2 py-1"
+            placeholder="Enter total supply"
+            min="0"
+          />
+        </div>
+        {waterSupplyResult && (
+          <div className="mt-4 p-3 border rounded bg-green-50">
+            <h4 className="font-bold text-green-700">Sewage Generation (Water Supply):</h4>
+            {typeof waterSupplyResult === 'number' ? (
+              <p>{waterSupplyResult.toFixed(2)} MLD</p>
+            ) : (
+              <table className="min-w-full border-collapse border border-gray-300">
+                <thead>
                   <tr>
-                    <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Year</th>
-                    <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Forecasted Population</th>
-                    <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Sewage Generation (MLD)</th>
+                    <th className="border px-2 py-1">Year</th>
+                    <th className="border px-4 py-2">Forecasted Population</th>
+                    <th className="border px-2 py-1">Sewage Generation (MLD)</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(waterSupplyResult).map(([year, value], index) => (
-                    <tr key={year} className={`hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
-                      <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{year}</td>
-                      <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{computedPopulation[year]?.toLocaleString() || '0'}</td>
-                      <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{Number(value).toFixed(2)}</td>
+                  {Object.entries(waterSupplyResult).map(([year, value]) => (
+                    <tr key={year}>
+                      <td className="border px-2 py-1">{year}</td>
+                      <td className="border px-4 py-2">{computedPopulation[year]?.toLocaleString() || '0'}</td>
+                      <td className="border px-2 py-1">{Number(value).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-
-    {/* Drain Tapping Input */}
-    <div className="p-4 border rounded-lg bg-gray-50/50 shadow-sm">
-      <h4 className="font-semibold text-lg text-gray-800 mb-3">Drain Tapping Information</h4>
-      {sourceMode !== 'drain' && (
-        <>
-          <label className="block text-sm font-medium text-gray-700 flex items-center">
-            Number Of Drains to be Tapped
-            {/* Assuming a tooltip similar to previous components */}
-            <div className="relative ml-2 group">
-              <span className="flex items-center justify-center h-5 w-5 text-sm bg-blue-600 text-white rounded-full cursor-help transition-transform hover:scale-110">i</span>
-              <div className="absolute z-10 hidden group-hover:block w-64 text-gray-700 text-xs rounded-lg p-3 bg-white shadow-xl -mt-12 ml-6 border border-gray-200">
-                Enter the number of drains to be tapped for sewage calculation.
-              </div>
-            </div>
-          </label>
-          <input
-            type="number"
-            id="drain_count"
-            value={drainCount}
-            onChange={handleDrainCountChange}
-            className="mt-2 block w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-            placeholder="Enter number of drains"
-            min="0"
-          />
-        </>
-      )}
-      {sourceMode === 'drain' && (
-        <div className="p-4 bg-blue-50/50 border border-blue-200 rounded-lg">
-          <div className="flex items-center mb-2">
-            <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="font-semibold text-blue-800">Drain Mode Active</span>
-          </div>
-          <p className="text-sm text-blue-700">
-            Drain information is automatically populated from your drain selection.
-            Number of drains: <strong>{drainItems.length}</strong>
-          </p>
-        </div>
-      )}
-      {drainCount && drainCount > 0 && (
-        <div className="mt-4 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100">
-          {drainItemsTableJSX}
-        </div>
-      )}
-    </div>
-
-    {/* Domestic Sewage Load Estimation Container */}
-    <div className="p-4 border rounded-lg bg-gray-50/50 shadow-sm">
-      <h4 className="text-lg font-semibold text-gray-800 mb-3">Domestic Sewage Load Estimation</h4>
-      <div className="mb-4">
-        <label htmlFor="domestic_load_method" className="block text-sm font-medium text-gray-700">
-          Select Sector:
-        </label>
-        <select
-          id="domestic_load_method"
-          value={domesticLoadMethod}
-          onChange={handleDomesticLoadMethodChange}
-          className="mt-2 block w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-        >
-          <option value="">-- Choose Option --</option>
-          <option value="manual">Manual</option>
-          <option value="modeled">Modeled</option>
-        </select>
-        {domesticLoadMethod === 'manual' && (
-          <div className="mt-4">
-            <label htmlFor="domestic_supply_input" className="block text-sm font-medium text-gray-700">
-              Domestic Water Supply (MLD):
-            </label>
-            <input
-              type="number"
-              id="domestic_supply_input"
-              value={domesticSupplyInput}
-              onChange={(e) =>
-                setDomesticSupplyInput(e.target.value === '' ? '' : Number(e.target.value))
-              }
-              className="mt-2 block w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              placeholder="Enter domestic supply"
-              min="0"
-            />
-          </div>
-        )}
-        {domesticLoadMethod === 'modeled' && (
-          <div className="mt-4">
-            <label htmlFor="unmetered_supply_input" className="block text-sm font-medium text-gray-700">
-              Unmetered Water Supply (optional):
-            </label>
-            <input
-              type="number"
-              id="unmetered_supply_input"
-              value={unmeteredSupplyInput}
-              onChange={(e) =>
-                setUnmeteredSupplyInput(e.target.value === '' ? '' : Number(e.target.value))
-              }
-              className="mt-2 block w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              placeholder="Enter unmetered supply"
-              min="0"
-            />
+            )}
           </div>
         )}
       </div>
-      {domesticSewageResult && (
-        <div className="mt-4 p-4 border rounded-lg bg-green-50/50 shadow-sm">
-          <h4 className="font-semibold text-lg text-green-700">Sewage Generation (Domestic):</h4>
-          {typeof domesticSewageResult === 'number' ? (
-            <p className="text-xl font-medium text-gray-800">{domesticSewageResult.toFixed(2)} MLD</p>
-          ) : (
-            <div className="max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100">
-              <table className="table-auto w-full min-w-[600px] bg-white border border-gray-300 rounded-lg shadow-md">
-                <thead className="bg-gradient-to-r from-blue-100 to-blue-200 sticky top-0 z-10">
+
+      {/* Drain Tapping Input */}
+      <div className="mb-4 p-3 border rounded bg-gray-50">
+        <h4 className="font-bold text-gray-700 mb-2">Drain Tapping Information</h4>
+        {sourceMode !== 'drain' && (
+          <>
+            <label className="block text-sm font-medium flex items-center">
+              Number Of Drains to be Tapped
+              {/* ... tooltip ... */}
+            </label>
+            <input
+              type="number"
+              id="drain_count"
+              value={drainCount}
+              onChange={handleDrainCountChange}
+              className="mt-1 block w-1/3 border rounded px-2 py-1"
+              placeholder="Enter number of drains"
+              min="0"
+            />
+          </>
+        )}
+
+        {sourceMode === 'drain' && (
+          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded">
+            <div className="flex items-center mb-2">
+              <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="font-medium text-blue-800">Drain Mode Active</span>
+            </div>
+            <p className="text-sm text-blue-700">
+              Drain information is automatically populated from your drain selection.
+              Number of drains: <strong>{drainItems.length}</strong>
+            </p>
+          </div>
+        )}
+
+        {drainCount && drainCount > 0 && drainItemsTableJSX}
+      </div>
+
+      {/* Domestic Sewage Load Estimation Container */}
+      <div className="p-4 border rounded bg-gray-50">
+        <h4 className="text-lg font-semibold mb-3">Domestic Sewage Load Estimation</h4>
+        <div className="mb-4">
+          <label htmlFor="domestic_load_method" className="block text-sm font-medium">
+            Select Sector:
+          </label>
+          <select
+            id="domestic_load_method"
+            value={domesticLoadMethod}
+            onChange={handleDomesticLoadMethodChange}
+            className="mt-1 block w-1/3 border rounded px-2 py-1"
+          >
+            <option value="">-- Choose Option --</option>
+            <option value="manual">Manual</option>
+            <option value="modeled">Modeled</option>
+          </select>
+          {domesticLoadMethod === 'manual' && (
+            <div className="mt-4">
+              <label htmlFor="domestic_supply_input" className="block text-sm font-medium">
+                Domestic Water Supply (MLD):
+              </label>
+              <input
+                type="number"
+                id="domestic_supply_input"
+                value={domesticSupplyInput}
+                onChange={(e) =>
+                  setDomesticSupplyInput(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                className="mt-1 block w-1/3 border rounded px-2 py-1"
+                placeholder="Enter domestic supply"
+                min="0"
+              />
+            </div>
+          )}
+          {domesticLoadMethod === 'modeled' && (
+            <div className="mt-4">
+              <label htmlFor="unmetered_supply_input" className="block text-sm font-medium">
+                Unmetered Water Supply (optional):
+              </label>
+              <input
+                type="number"
+                id="unmetered_supply_input"
+                value={unmeteredSupplyInput}
+                onChange={(e) =>
+                  setUnmeteredSupplyInput(e.target.value === '' ? '' : Number(e.target.value))
+                }
+                className="mt-1 block w-1/3 border rounded px-2 py-1"
+                placeholder="Enter unmetered supply"
+                min="0"
+              />
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      <button
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+        onClick={handleCalculateSewage}
+      >
+        Calculate Sewage
+      </button>
+
+        {domesticSewageResult && (
+          <div className="mt-4 p-3 border rounded bg-green-50">
+            <h4 className="font-bold text-green-700">Sewage Generation (Domestic):</h4>
+            {typeof domesticSewageResult === 'number' ? (
+              <p>{domesticSewageResult.toFixed(2)} MLD</p>
+            ) : (
+              <table className="min-w-full border-collapse border border-gray-300">
+                <thead>
                   <tr>
-                    <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Year</th>
-                    <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Forecasted Population</th>
+                    <th className="border px-2 py-1">Year</th>
+                    <th className="border px-4 py-2">Forecasted Population</th>
                     {(window as any).totalWaterSupply > 0 && (
-                      <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Water Based Sewage Generation (MLD)</th>
+                      <th className="border px-2 py-1">Water Based Sewage Generation (MLD)</th>
                     )}
-                    <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Population Based Sewage Generation (MLD)</th>
+                    <th className="border px-2 py-1">Population Based Sewage Generation (MLD)</th>
                     {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
-                      <th className="border-b border-gray-300 px-6 py-3 text-left text-sm font-semibold text-gray-800">Drains Based Sewage Generation (MLD)</th>
+                      <th className="border px-2 py-1">Drains Based Sewage Generation (MLD)</th>
                     )}
                   </tr>
                 </thead>
                 <tbody>
-                  {Object.entries(domesticSewageResult).map(([year, value], index) => {
+                  {Object.entries(domesticSewageResult).map(([year, value]) => {
                     const forecastData = (window as any).selectedPopulationForecast;
                     const domesticPop = forecastData[year] ?? "";
                     const drainsSewage = calculateDrainBasedSewFlow(domesticPop);
                     const waterSewage = calculatewaterBasedSewFlow(domesticPop);
                     return (
-                      <tr key={year} className={`hover:bg-blue-50 transition-colors ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
-                        <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{year}</td>
-                        <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{domesticPop.toLocaleString()}</td>
+                      <tr key={year}>
+                        <td className="border px-2 py-1">{year}</td>
+                        <td className="border px-4 py-2">{domesticPop.toLocaleString()}</td>
                         {(window as any).totalWaterSupply > 0 && (
-                          <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{waterSewage > 0 ? waterSewage.toFixed(6) : "0.000000"}</td>
+                          <td className="border px-2 py-1">{Number(waterSewage) > 0 ? Number(waterSewage).toFixed(6) : "0.000000"}</td>
                         )}
-                        <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{Number(value).toFixed(2)}</td>
+                        <td className="border px-2 py-1">{Number(value).toFixed(2)}</td>
                         {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
-                          <td className="border-b border-gray-200 px-6 py-3 text-gray-700">{drainsSewage > 0 ? drainsSewage.toFixed(6) : "0.000000"}</td>
+                          <td className="border px-2 py-1">{drainsSewage > 0 ? drainsSewage.toFixed(6) : "0.000000"}</td>
                         )}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-
-    <div className="flex items-center space-x-4">
-      <button
-        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-        onClick={handleCalculateSewage}
-      >
-        Calculate Sewage
-      </button>
-      {error && <div className="text-red-600 font-medium">{error}</div>}
-    </div>
-
-    {showPeakFlow && (
-      <div className="p-4 border rounded-lg bg-blue-50/50 shadow-sm">
-        <h5 className="font-semibold text-lg text-blue-700 mb-3">Peak Sewage Flow Calculation</h5>
-        {(domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) || (window as any).totalWaterSupply > 0 ? (
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select Sewage Generation Source for Peak Flow Calculation:
-            </label>
-            <div className="flex flex-wrap gap-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name="peakFlowSewageSource"
-                  checked={peakFlowSewageSource === 'population_based'}
-                  onChange={() => handlePeakFlowSewageSourceChange('population_based')}
-                  className="form-radio h-5 w-5 text-blue-600"
-                />
-                <span className="text-sm font-medium text-gray-700">Population Based Sewage Generation</span>
-              </label>
-              {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    name="peakFlowSewageSource"
-                    checked={peakFlowSewageSource === 'drain_based'}
-                    onChange={() => handlePeakFlowSewageSourceChange('drain_based')}
-                    className="form-radio h-5 w-5 text-blue-600"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Drain Based Sewage Generation</span>
-                </label>
-              )}
-              {(window as any).totalWaterSupply > 0 && (
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="radio"
-                    name="peakFlowSewageSource"
-                    checked={peakFlowSewageSource === 'water_based'}
-                    onChange={() => handlePeakFlowSewageSourceChange('water_based')}
-                    className="form-radio h-5 w-5 text-blue-600"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Water Based Sewage Generation</span>
-                </label>
-              )}
-            </div>
-          </div>
-        ) : null}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700">
-            Select Peak Sewage Flow Methods:
-          </label>
-          <div className="flex flex-wrap gap-4 mt-2">
-            {[
-              { key: 'cpheeo', label: 'CPHEEO Method' },
-              { key: 'harmon', label: "Harmon's Method" },
-              { key: 'babbitt', label: "Babbit's Method" },
-            ].map(({ key, label }) => (
-              <label key={key} className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={peakFlowMethods[key]}
-                  onChange={() => handlePeakFlowMethodToggle(key)}
-                  className="form-checkbox h-5 w-5 text-blue-600 rounded"
-                />
-                <span className="text-sm font-medium text-gray-700">{label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-        <button
-          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          onClick={handleCalculatePeakFlow}
-        >
-          Calculate Peak Sewage Flow
-        </button>
-        {peakFlowTable && (
-          <div className="mt-6 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100">
-            {peakFlowTable}
+            )}
           </div>
         )}
-      </div>
-    )}
 
-    <div className="p-4 border rounded-lg bg-blue-50/50 shadow-sm">
-      <h5 className="font-semibold text-lg text-blue-700 mb-3">Raw Sewage Characteristics</h5>
-      <button
-        className="bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-        onClick={handleCalculateRawSewage}
-      >
-        Calculate Raw Sewage Characteristics
-      </button>
-      {showRawSewage && (
-        <div className="mt-4 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-blue-500 scrollbar-track-gray-100">
-          {rawSewageJSX}
+
+      {error && <div className="mt-4 text-red-500">{error}</div>}
+
+      {showPeakFlow && (
+        <div className="mt-6 p-4 border rounded bg-blue-50">
+          <h5 className="font-bold text-blue-700 mb-3">Peak Sewage Flow Calculation</h5>
+          {(domesticLoadMethod === 'modeled' && totalDrainDischarge > 0) || (window as any).totalWaterSupply > 0 ? (
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">
+                Select Sewage Generation Source for Peak Flow Calculation:
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="peakFlowSewageSource"
+                    checked={peakFlowSewageSource === 'population_based'}
+                    onChange={() => handlePeakFlowSewageSourceChange('population_based')}
+                    className="mr-2"
+                  />
+                  Population Based Sewage Generation
+                </label>
+                {domesticLoadMethod === 'modeled' && totalDrainDischarge > 0 && (
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="peakFlowSewageSource"
+                      checked={peakFlowSewageSource === 'drain_based'}
+                      onChange={() => handlePeakFlowSewageSourceChange('drain_based')}
+                      className="mr-2"
+                    />
+                    Drain Based Sewage Generation
+                  </label>
+                )}
+                {(window as any).totalWaterSupply > 0 && (
+                  <label className="flex items-center">
+                    <input
+                      type="radio"
+                      name="peakFlowSewageSource"
+                      checked={peakFlowSewageSource === 'water_based'}
+                      onChange={() => handlePeakFlowSewageSourceChange('water_based')}
+                      className="mr-2"
+                    />
+                    Water Based Sewage Generation
+                  </label>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mb-3">
+            <label className="block text-sm font-medium">
+              Select Peak Sewage Flow Methods:
+            </label>
+            <div className="flex flex-wrap gap-4 mt-2">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={peakFlowMethods.cpheeo}
+                  onChange={() => handlePeakFlowMethodToggle('cpheeo')}
+                  className="mr-2"
+                />
+                CPHEEO Method
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={peakFlowMethods.harmon}
+                  onChange={() => handlePeakFlowMethodToggle('harmon')}
+                  className="mr-2"
+                />
+                Harmon's Method
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={peakFlowMethods.babbitt}
+                  onChange={() => handlePeakFlowMethodToggle('babbitt')}
+                  className="mr-2"
+                />
+                Babbit's Method
+              </label>
+            </div>
+          </div>
+          <button
+            className="bg-blue-600 text-white px-4 py-2 rounded"
+            onClick={handleCalculatePeakFlow}
+          >
+            Calculate Peak Sewage Flow
+          </button>
+          {peakFlowTable && <div className="mt-6">{peakFlowTable}</div>}
         </div>
       )}
-    </div>
 
-    <div className="p-4 border rounded-lg bg-gray-50/50 shadow-sm">
-      <h5 className="font-semibold text-lg text-gray-800 mb-3">Report Checklist</h5>
-      <p className="text-sm text-gray-600 mb-4">
-        Please confirm completion of the following sections to enable the comprehensive report download.
-      </p>
-      <div className="space-y-2">
-        {[
-          { key: 'populationForecasting', label: 'Population Forecasting' },
-          { key: 'waterDemand', label: 'Water Demand' },
-          { key: 'waterSupply', label: 'Water Supply' },
-          { key: 'sewageCalculation', label: 'Sewage Calculation' },
-          { key: 'rawSewageCharacteristics', label: 'Raw Sewage Characteristics' },
-        ].map(({ key, label }) => (
-          <label key={key} className="flex items-center space-x-2">
+      <div className="mt-6 p-4 border rounded bg-blue-50">
+        <h5 className="font-bold text-blue-700 mb-3">Raw Sewage Characteristics</h5>
+        <button
+          className="bg-indigo-600 text-white px-4 py-2 rounded"
+          onClick={handleCalculateRawSewage}
+        >
+          Calculate Raw Sewage Characteristics
+        </button>
+        {showRawSewage && <div className="mt-4">{rawSewageJSX}</div>}
+      </div>
+
+      <div className="mt-6 p-4 border rounded bg-gray-50">
+        <h5 className="font-bold text-gray-700 mb-3">Report Checklist</h5>
+        <p className="text-sm text-gray-600 mb-4">
+          Please confirm completion of the following sections to enable the comprehensive report download.
+        </p>
+        <div className="space-y-2">
+          <label className="flex items-center">
             <input
               type="checkbox"
-              checked={checkboxes[key]}
-              onChange={() => handleCheckboxChange(key)}
-              className="form-checkbox h-5 w-5 text-blue-600 rounded"
+              checked={checkboxes.populationForecasting}
+              onChange={() => handleCheckboxChange('populationForecasting')}
+              className="mr-2"
             />
-            <span className="text-sm font-medium text-gray-700">{label}</span>
+            Population Forecasting
           </label>
-        ))}
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.waterDemand}
+              onChange={() => handleCheckboxChange('waterDemand')}
+              className="mr-2"
+            />
+            Water Demand
+          </label>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.waterSupply}
+              onChange={() => handleCheckboxChange('waterSupply')}
+              className="mr-2"
+            />
+            Water Supply
+          </label>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.sewageCalculation}
+              onChange={() => handleCheckboxChange('sewageCalculation')}
+              className="mr-2"
+            />
+            Sewage Calculation
+          </label>
+          <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={checkboxes.rawSewageCharacteristics}
+              onChange={() => handleCheckboxChange('rawSewageCharacteristics')}
+              className="mr-2"
+            />
+            Raw Sewage Characteristics
+          </label>
+        </div>
+      </div>
+
+      <div className="mt-6 flex justify-center">
+        <button
+          className={`text-white font-medium py-2 px-4 rounded-md transition duration-300 ease-in-out shadow-md w-full sm:w-auto ${areAllCheckboxesChecked
+            ? 'bg-purple-600 hover:bg-purple-700'
+            : 'bg-gray-400 cursor-not-allowed'
+            }`}
+          onClick={handle1pdfDownload}
+          disabled={!areAllCheckboxesChecked}
+        >
+          Download Comprehensive Report
+        </button>
       </div>
     </div>
-
-    <div className="flex justify-center">
-      <button
-        className={`text-white font-medium py-2 px-6 rounded-lg transition duration-300 ease-in-out shadow-md w-full sm:w-auto ${areAllCheckboxesChecked
-          ? 'bg-purple-600 hover:bg-purple-700'
-          : 'bg-gray-400 cursor-not-allowed'
-          }`}
-        onClick={handle1pdfDownload}
-        disabled={!areAllCheckboxesChecked}
-      >
-        Download Comprehensive Report
-      </button>
-    </div>
-  </div>
-);
+  );
 };
 
 export default SewageCalculationForm;
