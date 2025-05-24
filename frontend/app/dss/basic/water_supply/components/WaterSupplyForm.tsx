@@ -33,19 +33,26 @@ const WaterSupplyForm: React.FC = () => {
   const [hasCalculated, setHasCalculated] = useState(false);
 
   // Determine if conflicting groundwater inputs are provided - FIXED LOGIC
-  const isDirectGroundwaterProvided = directGroundwater !== '' && Number(directGroundwater) > 0;
+  const isDirectGroundwaterProvided = directGroundwater !== '';
   const areTubeWellInputsProvided =
-    (numTubewells !== '' && Number(numTubewells) > 0) || 
-    (dischargeRate !== '' && Number(dischargeRate) > 0) || 
-    (operatingHours !== '' && Number(operatingHours) > 0);
+    // (numTubewells !== '' && Number(numTubewells) > 0) || 
+    numTubewells !== '' ||
+    dischargeRate !== '' || 
+    operatingHours !== ''; // FIXED: Add operatingHours check
+    // (dischargeRate !== '' && Number(dischargeRate) > 0) || 
+    // (operatingHours !== '' && Number(operatingHours) > 0);
 
   // Similarly, for alternate supply - FIXED LOGIC
-  const isDirectAlternateProvided = directAlternate !== '' && Number(directAlternate) > 0;
+  const isDirectAlternateProvided = directAlternate !== '';
   const areAlternateInputsProvided =
-    (rooftopTank !== '' && Number(rooftopTank) > 0) || 
-    (aquiferRecharge !== '' && Number(aquiferRecharge) > 0) || 
-    (surfaceRunoff !== '' && Number(surfaceRunoff) > 0) || 
-    (reuseWater !== '' && Number(reuseWater) > 0);
+    // (rooftopTank !== '' && Number(rooftopTank) > 0) || 
+    // (aquiferRecharge !== '' && Number(aquiferRecharge) > 0) || 
+    // (surfaceRunoff !== '' && Number(surfaceRunoff) > 0) || 
+    // (reuseWater !== '' && Number(reuseWater) > 0);
+    rooftopTank !== '' || 
+    aquiferRecharge !== '' || 
+    surfaceRunoff !== '' || 
+    reuseWater !== '';
 
   // Auto-update when inputs change (after initial calculation)
   useEffect(() => {
