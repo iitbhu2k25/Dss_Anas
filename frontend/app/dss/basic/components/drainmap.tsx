@@ -51,7 +51,7 @@ interface DrainMapProps {
     onVillagesChange?: (villages: IntersectedVillage[]) => void;
     villageChangeSource?: 'map' | 'dropdown' | null;
     selectionsLocked?: boolean;
-     // Add this new prop
+    // Add this new prop
 }
 
 const DrainMap: React.FC<DrainMapProps> = ({
@@ -426,7 +426,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
                         // Zoom to the selected river
                         if (layer.getBounds) {
-                        map.fitBounds(layer.getBounds(), {
+                            map.fitBounds(layer.getBounds(), {
                                 padding: [50, 50],
                                 maxZoom: 12
                             });
@@ -454,7 +454,33 @@ const DrainMap: React.FC<DrainMapProps> = ({
             console.log("Cannot highlight stretch: map, layer or data missing");
             return;
         }
+
         try {
+            // First, reset all stretches to their default style
+            stretchLayerRef.current.eachLayer((layer: any) => {
+                if (layer.feature?.properties && layer.setStyle) {
+                    const riverId = layer.feature.properties.River_Code?.toString();
+
+                    // Reset to appropriate default style
+                    if (selectedRiver && riverId === selectedRiver) {
+                        // Style for selected river's stretches
+                        layer.setStyle({
+                            color: '#0066FF', // Blue for river's stretches
+                            weight: 4,
+                            opacity: 0.9,
+                        });
+                    } else {
+                        // Style for non-selected river stretches
+                        layer.setStyle({
+                            color: 'green',
+                            weight: 2,
+                            opacity: 0.2,
+                        });
+                    }
+                }
+            });
+
+            // Then, highlight the selected stretch
             stretchLayerRef.current.eachLayer((layer: any) => {
                 if (layer.feature?.properties) {
                     const stretch = layer.feature.properties.Stretch_ID?.toString();
@@ -472,6 +498,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     }
                 }
             });
+
             console.log("Highlighted stretch:", stretchId);
         } catch (err) {
             console.error("Error highlighting stretch:", err);
@@ -789,8 +816,8 @@ const DrainMap: React.FC<DrainMapProps> = ({
             // Initialize all villages as selected by default
             const villages = data.intersected_villages || [];
             const villagesWithSelection = villages.map((v: IntersectedVillage) => ({
-            ...v,
-            selected: true
+                ...v,
+                selected: true
             }));
 
             setIntersectedVillages(villagesWithSelection);
@@ -956,7 +983,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
         }
     };
 
-    const updateRiversLayer = (data:FeatureCollection) => {
+    const updateRiversLayer = (data: FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating rivers layer...");
         if (riverLayerRef.current) {
@@ -1167,16 +1194,16 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
     // Helper function to update village style based on selection state
     const updateVillageStyle = (layer: L.Layer, isSelected: boolean) => {
-    if ((layer as L.Path).setStyle) {
-        (layer as L.Path).setStyle({
-            color: isSelected ? 'skyblue' : '#999',
-            weight: 2,
-            opacity: 0.8,
-            fillColor: isSelected ? 'skyblue' : 'white',
-            fillOpacity: isSelected ? 0.3 : 0.1,
-        });
-    }
-};
+        if ((layer as L.Path).setStyle) {
+            (layer as L.Path).setStyle({
+                color: isSelected ? 'yellow' : '#999',
+                weight: 2,
+                opacity: 0.8,
+                fillColor: isSelected ? 'yellow' : 'white',
+                fillOpacity: isSelected ? 0.3 : 0.1,
+            });
+        }
+    };
 
 
 
@@ -1236,7 +1263,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
 
 
 
-  const updateVillageLayer = (data: FeatureCollection) => {
+    const updateVillageLayer = (data: FeatureCollection) => {
         if (!mapRef.current) return;
         console.log("Updating village layer with data:", data);
         console.log("Current selectedVillageIds:", Array.from(selectedVillageIds));
@@ -1261,11 +1288,11 @@ const DrainMap: React.FC<DrainMapProps> = ({
                     const isSelected = selectedVillageIds.has(shapeId);
                     console.log(`Styling village ${shapeId}, selected=${isSelected}, locked=${selectionsLocked}`);
                     return {
-                        color: isSelected ? 'skyblue' : '#999',
+                        color: isSelected ? 'red' : '#999',
                         weight: 2,
                         opacity: selectionsLocked ? 0.6 : 0.8,
-                        fillColor: isSelected ? 'skyblue' : 'white',
-                        fillOpacity: isSelected ? 0.3 : 0.1,
+                        fillColor: isSelected ? 'yellow' : 'white',
+                        fillOpacity: isSelected ? 0.5 : 0.1,
                         // Add visual indication when locked
                         ...(selectionsLocked && {
                             dashArray: '5, 5'
@@ -1292,7 +1319,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
                                 toggleVillageSelection(villageId);
                             }
                         });
-                        
+
                         // Normal cursor for clickable villages - more robust approach
                         layer.on('mouseover', function (e) {
                             try {
@@ -1345,7 +1372,7 @@ const DrainMap: React.FC<DrainMapProps> = ({
                                 console.warn('Error setting not-allowed cursor:', error);
                             }
                         });
-                        
+
                         layer.on('mouseout', function (e) {
                             try {
                                 const target = e.target;
@@ -1603,55 +1630,55 @@ const DrainMap: React.FC<DrainMapProps> = ({
                         </div>
                     </div>
                 )}
-            {selectedDrains.length > 0 && (
-                <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-[1000]">
-                    <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
-                        <input
-                            type="checkbox"
-                            id="catchment-toggle"
-                            checked={showCatchment}
-                            onChange={toggleCatchment}
-                            className="mr-1"
-                            disabled={catchmentLoading || selectionsLocked}
-                        />
-                        <label htmlFor="catchment-toggle" className="flex items-center cursor-pointer">
-                            <span
-                                className="w-4 h-4 inline-block mr-1 border"
-                                style={{ backgroundColor: '#E6E6FA', borderColor: 'black' }}
-                            ></span>
-                            Delineate Catchments!
-                        </label>
-                    </div>
-                    <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
-                        <input
-                            type="checkbox"
-                            id="village-toggle"
-                            checked={showVillage}
-                            onChange={toggleVillage}
-                            className="mr-1"
-                            disabled={!showCatchment || catchmentLoading || selectionsLocked}
-                        />
-                        <label htmlFor="village-toggle" className="flex items-center cursor-pointer">
-                            <span
-                                className="w-4 h-4 inline-block mr-1 border"
-                                style={{ backgroundColor: 'skyblue', borderColor: 'skyblue' }}
-                            ></span>
-                            Show Villages of Selected Drains
-                            {selectionsLocked && <span className="ml-1 text-xs text-gray-500">(Locked)</span>}
-                        </label>
-                    </div>
-                    {showVillage && !selectionsLocked && (
-                        <div className="bg-white p-2 text-xs rounded border border-gray-300">
-                            Click on village polygons to toggle their selection
+                {selectedDrains.length > 0 && (
+                    <div className="absolute bottom-2 left-2 flex flex-col gap-2 z-[1000]">
+                        <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
+                            <input
+                                type="checkbox"
+                                id="catchment-toggle"
+                                checked={showCatchment}
+                                onChange={toggleCatchment}
+                                className="mr-1"
+                                disabled={catchmentLoading || selectionsLocked}
+                            />
+                            <label htmlFor="catchment-toggle" className="flex items-center cursor-pointer">
+                                <span
+                                    className="w-4 h-4 inline-block mr-1  border"
+                                    style={{ backgroundColor: '#E6E6FA', borderColor: 'black' }}
+                                ></span>
+                                Delineate Catchments!
+                            </label>
                         </div>
-                    )}
-                    {showVillage && selectionsLocked && (
-                        <div className="bg-yellow-50 p-2 text-xs rounded border border-yellow-300">
-                            Village selection is locked after confirmation
+                        <div className="flex items-center bg-gray-100 p-2 rounded border border-gray-300">
+                            <input
+                                type="checkbox"
+                                id="village-toggle"
+                                checked={showVillage}
+                                onChange={toggleVillage}
+                                className="mr-1"
+                                disabled={!showCatchment || catchmentLoading || selectionsLocked}
+                            />
+                            <label htmlFor="village-toggle" className="flex items-center cursor-pointer">
+                                <span
+                                    className="w-4 h-4 inline-block mr-1 border"
+                                    style={{ backgroundColor: 'skyblue', borderColor: 'skyblue' }}
+                                ></span>
+                                Show Villages of Selected Drains
+                                {selectionsLocked && <span className="ml-1 text-xs text-gray-500">(Locked)</span>}
+                            </label>
                         </div>
-                    )}
-                </div>
-            )}
+                        {showVillage && !selectionsLocked && (
+                            <div className="bg-white p-2 text-xs rounded border border-gray-300">
+                                Click on village polygons to toggle their selection
+                            </div>
+                        )}
+                        {showVillage && selectionsLocked && (
+                            <div className="bg-yellow-50 p-2 text-xs rounded border border-yellow-300">
+                                Village selection is locked after confirmation
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
             {debug && (
                 <div className="bg-gray-100 border-t border-gray-300 p-2 text-xs font-mono overflow-auto max-h-32">

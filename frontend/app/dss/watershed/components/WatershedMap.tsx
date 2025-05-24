@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, GeoJSON, useMapEvents, Popup, Marker } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { LatLng, Icon } from 'leaflet';
+import L, { LatLng, Icon, Map as LeafletMap } from 'leaflet';
 
-// Fix Leaflet default icon path issues
+// Fix Leaflet default icon path issues - handle both string and StaticImageData
 import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import iconUrl from 'leaflet/dist/images/marker-icon.png';
 import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+
+// Helper function to extract URL string from imports
+const getImageUrl = (image: any): string => {
+  return typeof image === 'string' ? image : image.src || image.default || image;
+};
 
 // Define types for API responses
 type WatershedFeature = {
@@ -16,9 +21,10 @@ type WatershedFeature = {
     coordinates: number[][][];
   };
   properties: {
-    area_km2: string;
-    outlet_lat: number;
-    outlet_lng: number;
+    area_km2?: string;
+    outlet_lat?: number;
+    outlet_lng?: number;
+    [key: string]: any;
   };
 };
 
@@ -29,8 +35,9 @@ type RiverFeature = {
     coordinates: number[][];
   };
   properties: {
-    comid: number;
-    sorder: number;
+    comid?: number;
+    sorder?: number;
+    [key: string]: any;
   };
 };
 
@@ -41,8 +48,9 @@ type FlowpathFeature = {
     coordinates: number[][];
   };
   properties: {
-    comid: number;
-    sorder: number;
+    comid?: number;
+    sorder?: number;
+    [key: string]: any;
   };
 };
 
@@ -65,9 +73,9 @@ type AnalysisMode = 'upstream' | 'downstream';
 
 // Set up default Leaflet marker icon
 const defaultIcon = new Icon({
-  iconUrl,
-  iconRetinaUrl,
-  shadowUrl,
+  iconUrl: getImageUrl(iconUrl),
+  iconRetinaUrl: getImageUrl(iconRetinaUrl),
+  shadowUrl: getImageUrl(shadowUrl),
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
@@ -144,10 +152,12 @@ const InfoPanel = ({
       </div>
 
       <div className="space-y-1 text-sm">
-        {mode === 'upstream' && watershedData && (
+        {mode === 'upstream' && watershedData && watershedData.features && watershedData.features[0] && (
           <div className="flex justify-between">
             <span className="text-gray-600">Area:</span>
-            <span className="font-medium">{watershedData.features[0]?.properties?.area_km2} km²</span>
+            <span className="font-medium">
+              {(watershedData.features[0] as WatershedFeature)?.properties?.area_km2 || 'N/A'} km²
+            </span>
           </div>
         )}
         {mode === 'downstream' && flowpathMessage && (
@@ -178,13 +188,13 @@ const LoadingOverlay = ({ show }: { show: boolean }) => {
   if (!show) return null;
 
   return (
-    <div className="absolute inset-0 bg-opacity-30 backdrop-blur-sm z-[1000] flex items-center justify-center">
+    <div className="absolute inset-0  bg-opacity-30 backdrop-blur-sm z-[1000] flex items-center justify-center">
       <div className="bg-white p-4 rounded-lg shadow-lg flex flex-col items-center">
         <svg className="animate-spin h-8 w-8 text-blue-600 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
         </svg>
-        <div className="text-sm font-medium text-gray-700">Processing {show === 'upstream' ? 'Watershed' : 'Flowpath'}</div>
+        <div className="text-sm font-medium text-gray-700">Processing Analysis</div>
         <div className="text-xs text-gray-500 mt-1">This may take a few moments...</div>
       </div>
     </div>
@@ -228,10 +238,10 @@ const WatershedMap: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<AnalysisMode>('upstream');
 
-  const mapRef = useRef<L.Map | null>(null);
-  const watershedRef = useRef(null);
-  const riversRef = useRef(null);
-  const flowpathRef = useRef(null);
+  const mapRef = useRef<LeafletMap | null>(null);
+  const watershedRef = useRef<L.GeoJSON | null>(null);
+  const riversRef = useRef<L.GeoJSON | null>(null);
+  const flowpathRef = useRef<L.GeoJSON | null>(null);
 
   // Function to validate GeoJSON
   const isValidGeoJSON = (data: any): data is GeoJSONResponse => {
@@ -275,7 +285,7 @@ const WatershedMap: React.FC = () => {
           {
             type: 'Feature',
             geometry: data,
-            properties: {}
+            properties: {} as any // Type assertion to handle empty properties
           }
         ]
       };
@@ -303,7 +313,7 @@ const WatershedMap: React.FC = () => {
       }
 
       const data = await response.json();
-      console.log(`API response for ${endpoint}:`, data); // Log the raw response
+      console.log(`API response for ${endpoint}:`, data);
 
       // Validate or transform the data
       const validData = transformToGeoJSON(data, endpoint);
@@ -364,7 +374,7 @@ const WatershedMap: React.FC = () => {
         // Fit map to watershed bounds
         if (watershedData?.features?.length > 0 && mapRef.current) {
           try {
-            const layer = L.geoJSON(watershedData);
+            const layer = L.geoJSON(watershedData as any);
             const bounds = layer.getBounds();
             if (bounds.isValid()) {
               mapRef.current.fitBounds(bounds, {
@@ -384,7 +394,7 @@ const WatershedMap: React.FC = () => {
         // Fit map to flowpath bounds
         if (flowpathData?.features?.length > 0 && mapRef.current) {
           try {
-            const layer = L.geoJSON(flowpathData);
+            const layer = L.geoJSON(flowpathData as any);
             const bounds = layer.getBounds();
             if (bounds.isValid()) {
               mapRef.current.fitBounds(bounds, {
@@ -432,15 +442,18 @@ const WatershedMap: React.FC = () => {
     document.head.appendChild(style);
 
     // Set up Leaflet default icon
-    delete L.Icon.Default.prototype._getIconUrl;
+    const DefaultIcon = L.Icon.Default as any;
+    delete DefaultIcon.prototype._getIconUrl;
     L.Icon.Default.mergeOptions({
-      iconRetinaUrl,
-      iconUrl,
-      shadowUrl
+      iconRetinaUrl: getImageUrl(iconRetinaUrl),
+      iconUrl: getImageUrl(iconUrl),
+      shadowUrl: getImageUrl(shadowUrl)
     });
 
     return () => {
-      document.head.removeChild(style);
+      if (document.head.contains(style)) {
+        document.head.removeChild(style);
+      }
     };
   }, []);
 
@@ -453,147 +466,190 @@ const WatershedMap: React.FC = () => {
     fillOpacity: 0.1,
   };
 
-  const riverStyle = (feature: any) => {
-    const order = feature.properties.sorder;
+  const riverStyle = (feature?: any) => {
+    const order = feature?.properties?.sorder || 1;
     const width = Math.max(1, order);
     return {
-     //celestial body, and the request is ambiguous or unclear, always ask for clarification.
       color: 'blue',
       weight: width,
       opacity: 0.9,
     };
   };
 
-  const flowpathStyle = (feature: any) => {
-    const order = feature.properties.sorder || 1;
+  const flowpathStyle = (feature?: any) => {
+    const order = feature?.properties?.sorder || 1;
     const width = Math.max(1, order);
     return {
-      color: 'blue', // Orange-red for downstream flowpath
+      color: 'blue',
       weight: width,
       opacity: 0.9,
     };
   };
 
-return (
-  <div className="min-h-screen w-full flex flex-row bg-white">
-    {/* Left Panel (25%) */}
-    <div className="w-1/4 p-4 bg-gray-100 border-r border-gray-300 overflow-y-auto">
-      <h1 className="text-xl font-bold text-blue-800 mb-4">Watershed Tool</h1>
-      <div className="mb-4">
-        <label htmlFor="mode-select" className="block text-gray-700 font-medium mb-2">
-          Analysis Mode:
-        </label>
-        <select
-          id="mode-select"
-          value={mode}
-          onChange={handleModeChange}
-          className="w-full p-2 border border-gray-300 rounded-md"
-        >
-          <option value="upstream">Upstream</option>
-          <option value="downstream">Downstream</option>
-        </select>
-      </div>
+  const handleZoomIn = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (mapRef.current) {
+      mapRef.current.zoomIn();
+    }
+  };
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600">
-          <strong>Error:</strong> {error}
-        </div>
-      )}
+  const handleZoomOut = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (mapRef.current) {
+      mapRef.current.zoomOut();
+    }
+  };
 
-      {/* Feature Info Panel */}
-      <div className="text-sm space-y-3">
-        {mode === 'upstream' && watershedData && (
-          <div>
-            <h2 className="font-semibold text-gray-700">Watershed Features</h2>
-            <p className="text-gray-600">Count: {watershedData.features?.length}</p>
-          </div>
-        )}
-
-        {mode === 'upstream' && riversData && (
-          <div>
-            <h2 className="font-semibold text-gray-700">River Network</h2>
-            <p className="text-gray-600">Count: {riversData.features?.length}</p>
-          </div>
-        )}
-
-        {mode === 'downstream' && flowpathData && (
-          <div>
-            <h2 className="font-semibold text-gray-700">Flowpath Data</h2>
-            <p className="text-gray-600">Count: {flowpathData.features?.length}</p>
-          </div>
-        )}
-      </div>
-    </div>
-
-    {/* Right Panel - Map (75%) */}
-    <div className="w-3/4 relative m-4 border border-gray-300 rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl">
-      <LoadingOverlay show={loading} />
-
-      {(watershedData || flowpathData) && (
-        <InfoPanel
-          watershedData={mode === 'upstream' ? watershedData : flowpathData}
-          clickedPoint={clickedPoint}
-          onClear={handleClearWatershed}
-          mode={mode}
-          flowpathMessage={flowpathMessage}
-        />
-      )}
-
-      <MapContainer
-        center={[22.9734, 78.6569]}
-        zoom={6}
-        style={{ height: 'calc(100vh - 2rem)', width: '100%' }}
-        ref={mapRef}
-        zoomControl={false}
-      >
-        {/* Custom Zoom Controls */}
-        <div
-          className="leaflet-control-zoom leaflet-bar leaflet-control"
-          style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000 }}
-        >
-          <a className="leaflet-control-zoom-in" href="#" title="Zoom in" role="button" aria-label="Zoom in">+</a>
-          <a className="leaflet-control-zoom-out" href="#" title="Zoom out" role="button" aria-label="Zoom out">−</a>
+  return (
+    <div className="min-h-screen w-full flex flex-row bg-white">
+      {/* Left Panel (25%) */}
+      <div className="w-1/4 p-4 bg-gray-100 border-r border-gray-300 overflow-y-auto">
+        <h1 className="text-xl font-bold text-blue-800 mb-4">Watershed Tool</h1>
+        <div className="mb-4">
+          <label htmlFor="mode-select" className="block text-gray-700 font-medium mb-2">
+            Analysis Mode:
+          </label>
+          <select
+            id="mode-select"
+            value={mode}
+            onChange={handleModeChange}
+            className="w-full p-2 border border-gray-300 rounded-md"
+          >
+            <option value="upstream">Upstream</option>
+            <option value="downstream">Downstream</option>
+          </select>
         </div>
 
-        <TileLayer
-          attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md text-red-600">
+            <strong>Error:</strong> {error}
+          </div>
+        )}
 
-        <MapClickHandler onClick={handleMapClick} />
+        {/* Feature Info Panel */}
+        <div className="text-sm space-y-3">
+          {mode === 'upstream' && watershedData && (
+            <div>
+              <h2 className="font-semibold text-gray-700">Watershed Features</h2>
+              <p className="text-gray-600">Count: {watershedData.features?.length}</p>
+            </div>
+          )}
 
-        {clickedPoint && (
-          <Marker position={[clickedPoint[0], clickedPoint[1]]} icon={defaultIcon}>
-            <Popup autoPan={true} closeOnClick={false} autoClose={false}>
-              <div className="flex flex-col gap-2 text-sm">
-                <div className="font-medium text-gray-700">Selected Point</div>
-                <div className="text-gray-600">
-                  Lat: {clickedPoint[0].toFixed(5)}<br />
-                  Lng: {clickedPoint[1].toFixed(5)}
+          {mode === 'upstream' && riversData && (
+            <div>
+              <h2 className="font-semibold text-gray-700">River Network</h2>
+              <p className="text-gray-600">Count: {riversData.features?.length}</p>
+            </div>
+          )}
+
+          {mode === 'downstream' && flowpathData && (
+            <div>
+              <h2 className="font-semibold text-gray-700">Flowpath Data</h2>
+              <p className="text-gray-600">Count: {flowpathData.features?.length}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Right Panel - Map (75%) */}
+      <div className="w-3/4 relative m-4 border border-gray-300 rounded-2xl shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl">
+        <LoadingOverlay show={loading} />
+
+        {(watershedData || flowpathData) && (
+          <InfoPanel
+            watershedData={mode === 'upstream' ? watershedData : flowpathData}
+            clickedPoint={clickedPoint}
+            onClear={handleClearWatershed}
+            mode={mode}
+            flowpathMessage={flowpathMessage || undefined}
+          />
+        )}
+
+        <MapContainer
+          center={[22.9734, 78.6569]}
+          zoom={6}
+          style={{ height: 'calc(100vh - 2rem)', width: '100%' }}
+          ref={(map) => {
+            mapRef.current = map;
+          }}
+          zoomControl={false}
+        >
+          {/* Custom Zoom Controls */}
+          <div
+            className="leaflet-control-zoom leaflet-bar leaflet-control"
+            style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000 }}
+          >
+            <a 
+              className="leaflet-control-zoom-in" 
+              href="#" 
+              title="Zoom in" 
+              role="button" 
+              aria-label="Zoom in"
+              onClick={handleZoomIn}
+            >
+              +
+            </a>
+            <a 
+              className="leaflet-control-zoom-out" 
+              href="#" 
+              title="Zoom out" 
+              role="button" 
+              aria-label="Zoom out"
+              onClick={handleZoomOut}
+            >
+              −
+            </a>
+          </div>
+
+          <TileLayer
+            attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          <MapClickHandler onClick={handleMapClick} />
+
+          {clickedPoint && (
+            <Marker position={[clickedPoint[0], clickedPoint[1]]} icon={defaultIcon}>
+              <Popup autoPan={true} closeOnClick={false} autoClose={false}>
+                <div className="flex flex-col gap-2 text-sm">
+                  <div className="font-medium text-gray-700">Selected Point</div>
+                  <div className="text-gray-600">
+                    Lat: {clickedPoint[0].toFixed(5)}<br />
+                    Lng: {clickedPoint[1].toFixed(5)}
+                  </div>
+                  <LoadingButton isLoading={loading} onClick={handleDelineate} text="Delineate" />
                 </div>
-                <LoadingButton isLoading={loading} onClick={handleDelineate} text="Delineate" />
-              </div>
-            </Popup>
-          </Marker>
-        )}
+              </Popup>
+            </Marker>
+          )}
 
-        {mode === 'upstream' && watershedData && (
-          <GeoJSON data={watershedData} style={watershedStyle} ref={watershedRef} />
-        )}
+          {mode === 'upstream' && watershedData && (
+            <GeoJSON 
+              data={watershedData as any} 
+              style={watershedStyle} 
+              ref={watershedRef} 
+            />
+          )}
 
-        {mode === 'upstream' && riversData && (
-          <GeoJSON data={riversData} style={riverStyle} ref={riversRef} />
-        )}
+          {mode === 'upstream' && riversData && (
+            <GeoJSON 
+              data={riversData as any} 
+              style={riverStyle} 
+              ref={riversRef} 
+            />
+          )}
 
-        {mode === 'downstream' && flowpathData && (
-          <GeoJSON data={flowpathData} style={flowpathStyle} ref={flowpathRef} />
-        )}
-      </MapContainer>
+          {mode === 'downstream' && flowpathData && (
+            <GeoJSON 
+              data={flowpathData as any} 
+              style={flowpathStyle} 
+              ref={flowpathRef} 
+            />
+          )}
+        </MapContainer>
+      </div>
     </div>
-  </div>
-);
-
-
+  );
 };
 
 export default WatershedMap;
